@@ -1,0 +1,216 @@
+{
+  "_readme": "Top-5 real-user Aahaa wow-moment feeds generated on the local Nakama stack. users[] is ranked by wow-feed richness (sum over active wows of tierWeight{S:6,A:5,B:4,C:3,D:2,E:1} x priorityWeight{trust:1.5,engagement:1.2,monetisation:1.0}). Each wow carries fully rendered copy (real substituted values from the user fact pack) and the signal lineage chip explaining why it fired. top_moments[] counts which catalog wow_ids fired most across ALL users with non-empty feeds. HONESTY NOTE: this local DB contains only test/dev personas (device IDs are all test-/smoke-/showcase-/vfy- prefixed); the ranked users are the richest-gameplay-history accounts available, not production players.",
+  "generated_at": "2026-07-12T23:16:14.556Z",
+  "host": "http://localhost:7350",
+  "users": [
+    {
+      "rank": 1,
+      "username": "showcase-struggler-1783893223",
+      "user_id": "83ffba23-d906-4282-b463-13db0c2f69aa",
+      "richness_score": 19.5,
+      "stats": {
+        "questions_answered": 40,
+        "accuracy": 57,
+        "top_topics": [
+          "math"
+        ]
+      },
+      "wows": [
+        {
+          "id": "wow.a.improvement_surge",
+          "tier": "A",
+          "title": "MA+NI",
+          "copy_rendered": "Your accuracy is up 39 points across your newest questions vs the batch before. Quietly getting sharper.",
+          "signal": "newest-half vs prior-half accuracy delta = +39 pts"
+        },
+        {
+          "id": "wow.b.comeback_kid",
+          "tier": "B",
+          "title": "NI+MA",
+          "copy_rendered": "You bounced back after 3 straight misses 3 times recently. Your resilience is a pattern, not luck.",
+          "signal": "3 comeback sequences (3+ wrong then correct) in the recent window"
+        },
+        {
+          "id": "wow.a.weakness_targeted",
+          "tier": "A",
+          "title": "SU+MA",
+          "copy_rendered": "I noticed you're stuck on math — 17 misses in your recent questions. Want a 5-min explainer + 3 fresh questions?",
+          "signal": "17 wrong on 'math' inside the newest 50 answers"
+        }
+      ]
+    },
+    {
+      "rank": 2,
+      "username": "struggler-val-1783894089",
+      "user_id": "4d4ea0bc-5cf0-4cc6-a5d3-e8a54baa6fde",
+      "richness_score": 18,
+      "stats": {
+        "questions_answered": 32,
+        "accuracy": 44,
+        "top_topics": [
+          "math"
+        ]
+      },
+      "wows": [
+        {
+          "id": "wow.b.comeback_kid",
+          "tier": "B",
+          "title": "NI+MA",
+          "copy_rendered": "You bounced back after 3 straight misses 2 times recently. Your resilience is a pattern, not luck.",
+          "signal": "2 comeback sequences (3+ wrong then correct) in the recent window"
+        },
+        {
+          "id": "wow.a.weakness_targeted",
+          "tier": "A",
+          "title": "SU+MA",
+          "copy_rendered": "I noticed you're stuck on math — 18 misses in your recent questions. Want a 5-min explainer + 3 fresh questions?",
+          "signal": "18 wrong on 'math' inside the newest 50 answers"
+        },
+        {
+          "id": "wow.a.lock_it_in",
+          "tier": "A",
+          "title": "MA+LA",
+          "copy_rendered": "You nailed math — 8 in a row. Lock it in with a 3-day Smart Review?",
+          "signal": "8 consecutive correct on 'math' at the end of the ledger"
+        }
+      ]
+    },
+    {
+      "rank": 3,
+      "username": "smoketest1783894563",
+      "user_id": "3cd94844-e542-4f86-9b5d-74427666cb20",
+      "richness_score": 16.8,
+      "stats": {
+        "questions_answered": 56,
+        "accuracy": 89,
+        "top_topics": [
+          "math",
+          "science",
+          "history"
+        ]
+      },
+      "wows": [
+        {
+          "id": "wow.a.weakness_targeted",
+          "tier": "A",
+          "title": "SU+MA",
+          "copy_rendered": "I noticed you're stuck on science — 5 misses in your recent questions. Want a 5-min explainer + 3 fresh questions?",
+          "signal": "5 wrong on 'science' inside the newest 50 answers"
+        },
+        {
+          "id": "wow.a.warming_up",
+          "tier": "A",
+          "title": "FP+MA",
+          "copy_rendered": "5 in a row. You're flying.",
+          "signal": "current correct run of 5 at the tail of the answer ledger"
+        },
+        {
+          "id": "wow.b.weekly_recap",
+          "tier": "B",
+          "title": "NI+CB",
+          "copy_rendered": "Your week: 50 questions · 90% accuracy · top topics math, science, history. Tap for the full recap.",
+          "signal": "50 answers in the recent window (≥20 threshold)"
+        }
+      ]
+    },
+    {
+      "rank": 4,
+      "username": "whiz-val-1783894089",
+      "user_id": "aa3f7193-8159-4f24-92ed-aa0cf3cb7d35",
+      "richness_score": 16.8,
+      "stats": {
+        "questions_answered": 32,
+        "accuracy": 97,
+        "top_topics": [
+          "math"
+        ]
+      },
+      "wows": [
+        {
+          "id": "wow.a.lock_it_in",
+          "tier": "A",
+          "title": "MA+LA",
+          "copy_rendered": "You nailed math — 8 in a row. Lock it in with a 3-day Smart Review?",
+          "signal": "8 consecutive correct on 'math' at the end of the ledger"
+        },
+        {
+          "id": "wow.a.warming_up",
+          "tier": "A",
+          "title": "FP+MA",
+          "copy_rendered": "8 in a row. You're flying.",
+          "signal": "current correct run of 8 at the tail of the answer ledger"
+        },
+        {
+          "id": "wow.b.weekly_recap",
+          "tier": "B",
+          "title": "NI+CB",
+          "copy_rendered": "Your week: 32 questions · 97% accuracy · top topics math. Tap for the full recap.",
+          "signal": "32 answers in the recent window (≥20 threshold)"
+        }
+      ]
+    },
+    {
+      "rank": 5,
+      "username": "showcase-mathwhiz-1783893223",
+      "user_id": "fa5ab60d-ea37-44e5-b264-5dd76cc5d37d",
+      "richness_score": 16.8,
+      "stats": {
+        "questions_answered": 24,
+        "accuracy": 96,
+        "top_topics": [
+          "math"
+        ]
+      },
+      "wows": [
+        {
+          "id": "wow.a.lock_it_in",
+          "tier": "A",
+          "title": "MA+LA",
+          "copy_rendered": "You nailed math — 8 in a row. Lock it in with a 3-day Smart Review?",
+          "signal": "8 consecutive correct on 'math' at the end of the ledger"
+        },
+        {
+          "id": "wow.a.warming_up",
+          "tier": "A",
+          "title": "FP+MA",
+          "copy_rendered": "8 in a row. You're flying.",
+          "signal": "current correct run of 8 at the tail of the answer ledger"
+        },
+        {
+          "id": "wow.b.weekly_recap",
+          "tier": "B",
+          "title": "NI+CB",
+          "copy_rendered": "Your week: 24 questions · 96% accuracy · top topics math. Tap for the full recap.",
+          "signal": "24 answers in the recent window (≥20 threshold)"
+        }
+      ]
+    }
+  ],
+  "top_moments": [
+    {
+      "id": "wow.a.weakness_targeted",
+      "count": 10,
+      "tier": "A"
+    },
+    {
+      "id": "wow.a.warming_up",
+      "count": 8,
+      "tier": "A"
+    },
+    {
+      "id": "wow.b.comeback_kid",
+      "count": 8,
+      "tier": "B"
+    },
+    {
+      "id": "wow.b.weekly_recap",
+      "count": 8,
+      "tier": "B"
+    },
+    {
+      "id": "wow.e.frustration_softpause",
+      "count": 6,
+      "tier": "E"
+    }
+  ]
+}

@@ -972,6 +972,39 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.error("[Research] Failed to register: " + (err && err.message ? err.message : String(err)));
   }
 
+  // ---- Seed Questions ("Staged Questions") engine ----
+  // Keeps 2–3 quality-gated, never-seen, difficulty-adapted question sets
+  // staged per (user, mode, topic), fed by 13 external content-source
+  // connectors (archive.org, WolframAlpha, Gutenberg, everynoise/Deezer,
+  // Semantic Scholar, JustWatch, YouTube→LLM, TinEye provenance, ...).
+  // Public surface: seedquestions.quizverse.world (deploy/seedquestions/).
+  // Single-arg register() so postbuild's autoInvokeRegister re-runs it on
+  // every pooled Goja VM. See data/modules/src/seed-questions/.
+  try {
+    logger.info("[SeedQ] Registering quizverse_seedq_* RPCs (staged sets, review, ingest, sources, focus tracks)...");
+    SeedQuestions.register(initializer);
+    logger.info("[SeedQ] quizverse_seedq_get_staged/_consume_set/_review/_focus_tracks/_sources/_ingest/_ingest_tick/_pool_stats/_asset_job/_provenance registered");
+  } catch (err: any) {
+    logger.error("[SeedQ] Failed to register: " + (err && err.message ? err.message : String(err)));
+  }
+
+  // ---- Aahaa (Wow Moments) engine ----
+  // Per-userID "the app gets me" moments: deterministic Fact Pack (KB-1) →
+  // deducible catalog (tiers S–E) → respect-ladder ranking with server-side
+  // caps/cooldowns/mutes/CTR kill switch → per-user feed. Includes the
+  // Repetition-Fatigue intercept (wow.e.pool_exhausted + rating suppression,
+  // fed by the seedq engine), the No-Hallucination validator for AI Host /
+  // Fortune Teller / Tutor narration, and the generate-all cron batch that
+  // builds an Aahaa feed for EVERY userID with quiz history.
+  // See data/modules/src/aahaa/ + docs/AAHAA_WOW_ENGINE.md.
+  try {
+    logger.info("[Aahaa] Registering quizverse_aahaa_* RPCs (feed, react, fact pack, profile, generate-all, validator, catalog)...");
+    Aahaa.register(initializer);
+    logger.info("[Aahaa] quizverse_aahaa_get/_react/_fact_pack/_profile_set/_generate_all/_validate/_catalog registered");
+  } catch (err: any) {
+    logger.error("[Aahaa] Failed to register: " + (err && err.message ? err.message : String(err)));
+  }
+
   // ---- Fantasy Cricket RPCs ----
   try {
     logger.info("[Fantasy] Registering Team RPCs...");

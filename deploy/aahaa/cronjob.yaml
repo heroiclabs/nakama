@@ -1,0 +1,73 @@
+# Aahaa (Wow Moments) batch generation cron — "an Aahaa for each userID".
+#
+# quizverse_aahaa_generate_all pages across every user that owns rows in the
+# quiz-history / staged-questions / stats collections, builds a deterministic
+# Fact Pack per user, evaluates the Aahaa catalog against it, and persists a
+# ranked feed (aahaa_feed). The engine keeps a paging cursor in system storage
+# (aahaa_batch/state), so each cron tick resumes where the last one stopped and
+# wraps around once all users are done — every 15 min × 200 users/run covers
+# ~19k users/day.
+#
+# Clients then read the pre-generated feed with quizverse_aahaa_get (and force
+# a fresh compute post-quiz with {"generate":true}).
+#
+# Same external-caller pattern as seedq-ingest-tick:
+#   nakama-secret            key: http_key
+#   seedq-secrets:           key: service_token  (== SEEDQ_SERVICE_TOKEN)
+#
+# Apply:
+#   kubectl apply -f deploy/aahaa/cronjob.yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: aahaa-generate-all
+  namespace: aicart
+  labels:
+    component: aahaa
+spec:
+  schedule: "*/15 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 240
+      template:
+        metadata:
+          labels:
+            component: aahaa
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          containers:
+            - name: tick
+              image: curlimages/curl:8.7.1
+              env:
+                - name: NAKAMA_URL
+                  value: http://intelliverse-nakama.aicart.svc.cluster.local:7350
+                - name: HTTP_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: nakama-secret
+                      key: http_key
+                - name: SEEDQ_SERVICE_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: seedq-secrets
+                      key: service_token
+                      optional: true
+              command:
+                - /bin/sh
+                - -ec
+                - |
+                  curl -sS --fail-with-body -X POST \
+                    "$NAKAMA_URL/v2/rpc/quizverse_aahaa_generate_all?http_key=$HTTP_KEY&unwrap" \
+                    -H 'Content-Type: application/json' \
+                    -d "{\"service_token\":\"$SEEDQ_SERVICE_TOKEN\",\"max_users\":200}"
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  cpu: 100m
+                  memory: 64Mi

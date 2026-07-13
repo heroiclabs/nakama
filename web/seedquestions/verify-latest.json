@@ -1,0 +1,103 @@
+{
+  "ts": "2026-07-13T00:23:36.715Z",
+  "host": "https://seedquestions.quizverse.world",
+  "overall": "PASS",
+  "checks": [
+    {
+      "id": 1,
+      "name": "RPC registration ×17",
+      "deliverable": "RPC Surface",
+      "pass": true,
+      "detail": "all 17 RPC ids registered in data/modules/index.js",
+      "ms": 20
+    },
+    {
+      "id": 2,
+      "name": "Fresh persona staging",
+      "deliverable": "SeedQ Adaptive",
+      "pass": true,
+      "detail": "persona vfy_a_qzje3b: 3 sets × 6 questions, adaptive basis \"default\" (target d2)",
+      "ms": 326
+    },
+    {
+      "id": 3,
+      "name": "Adaptive difficulty hi>lo",
+      "deliverable": "SeedQ Adaptive",
+      "pass": true,
+      "detail": "high 100% acc → target d5 (topic, n=24) > low 25% acc → d1 (topic, n=24)",
+      "ms": 2245
+    },
+    {
+      "id": 4,
+      "name": "Pre-staged depth 2–3",
+      "deliverable": "D1 No-repeat",
+      "pass": true,
+      "detail": "sets 2–3 pre-built behind set 1: set_mrihbge9_aqw0tv, set_mrihbge9_c3tie6",
+      "ms": 0
+    },
+    {
+      "id": 5,
+      "name": "Staged id uniqueness ×18",
+      "deliverable": "D1 No-repeat",
+      "pass": true,
+      "detail": "18 staged question ids, all distinct",
+      "ms": 0
+    },
+    {
+      "id": 6,
+      "name": "Consume → restage no-overlap",
+      "deliverable": "D1 No-repeat",
+      "pass": true,
+      "detail": "consumed set_mrihbge9_4tb1ua (6 ids) → restaged 3 sets, 0 overlap with consumed ids",
+      "ms": 545
+    },
+    {
+      "id": 7,
+      "name": "No-repeat chokepoint ×2",
+      "deliverable": "D1 No-repeat",
+      "pass": true,
+      "detail": "disjoint: [vq_9f6im5f2_1,vq_9f6im5f2_2,vq_9f6im5f2_3,vq_9f6im5f2_4,vq_9f6im5f2_5,vq_9f6im5f2_6] vs [vq_9f6im5f2_7,vq_9f6im5f2_8,vq_9f6im5f2_9,vq_9f6im5f2_10,vq_9f6im5f2_11,vq_9f6im5f2_12]; policies fresh=6/6 review=0/0",
+      "ms": 355
+    },
+    {
+      "id": 8,
+      "name": "Quality approved + honesty",
+      "deliverable": "SeedQ Quality",
+      "pass": true,
+      "detail": "18/18 served questions quality.status=\"approved\"; repeat_policy + suppress_rating_prompt present",
+      "ms": 0
+    },
+    {
+      "id": 9,
+      "name": "Media wsrv.nl + provenance",
+      "deliverable": "SeedQ Media",
+      "pass": true,
+      "detail": "4 image questions: all media_url via wsrv.nl, all with provenance (public_domain)",
+      "ms": 176
+    },
+    {
+      "id": 10,
+      "name": "Aahaa feed + fact pack",
+      "deliverable": "D2 Fact-pack · D3 Aahaa",
+      "pass": true,
+      "detail": "feed=3 wows (top: wow.a.lock_it_in, tier A); fact pack answered=24 ≥ 24; react(shown) ok",
+      "ms": 807
+    },
+    {
+      "id": 11,
+      "name": "Validator no-hallucination",
+      "deliverable": "D4 Validator",
+      "pass": true,
+      "detail": "fabricated → pass:false (2 violations: numeric claims not present in fact pack: 987654); faithful \"You answered 24 questions with 100% accuracy. Keep going.\" → pass:true",
+      "ms": 96
+    },
+    {
+      "id": 12,
+      "name": "Sources ×13 + pool stats",
+      "deliverable": "Sources",
+      "pass": true,
+      "detail": "13 connectors registered; 14 pools (e.g. customtopic_science:0, brainsprint_arithmetic:20, mediaquiz_film:20)",
+      "ms": 153
+    }
+  ]
+}

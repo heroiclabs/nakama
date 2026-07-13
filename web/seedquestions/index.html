@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Seed Questions × Aahaa — Live Engine Showcase</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='13'%3E%E2%9A%A1%3C/text%3E%3C/svg%3E">
+<meta name="description" content="Live, interactive showcase of the QuizVerse Seed Questions staging engine and the Aahaa wow-moments engine — real RPC calls against a Nakama backend.">
+<link rel="canonical" href="https://seedquestions.quizverse.world/">
+<style>
+:root{
+  --bg:#0b1020; --bg-2:#0f172a; --panel:#111a30; --panel-2:#16223f; --line:#233252;
+  --ink:#e6ecff; --ink-2:#9fb0d6; --ink-3:#64748b;
+  --brand:#6366f1; --brand-2:#a855f7; --cyan:#22d3ee; --ok:#34d399; --warn:#fbbf24; --bad:#f87171;
+  --radius:14px; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);line-height:1.55}
+a{color:var(--cyan);text-decoration:none}
+.wrap{max-width:1120px;margin:0 auto;padding:0 22px}
+header{position:sticky;top:0;z-index:20;background:rgba(11,16,32,.9);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+nav{display:flex;align-items:center;justify-content:space-between;height:60px;gap:12px}
+.nav-links{display:flex;align-items:center;gap:14px;font-size:.82rem}
+.nav-links a{color:var(--ink-2);border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-weight:600}
+.nav-links a:hover{color:var(--cyan);border-color:rgba(34,211,238,.4)}
+.top5-table{width:100%;border-collapse:collapse;margin-top:14px;font-size:.82rem}
+.top5-table th,.top5-table td{border:1px solid var(--line);padding:10px 12px;text-align:left;vertical-align:top}
+.top5-table th{background:var(--panel-2);color:var(--ink-3);font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+.top5-table tr:hover td{background:rgba(99,102,241,.06)}
+.top5-user{font-weight:650}
+.top5-wow{margin:6px 0;padding:8px 10px;background:var(--bg-2);border-radius:8px;border-left:3px solid var(--brand)}
+.top5-wow.t-A{border-left-color:var(--warn)}.top5-wow.t-B{border-left-color:var(--cyan)}.top5-wow.t-E{border-left-color:var(--ink-3)}
+.logo{font-weight:800;font-size:1.05rem;letter-spacing:-.02em}
+.logo em{font-style:normal;background:linear-gradient(90deg,var(--brand),var(--brand-2),var(--cyan));-webkit-background-clip:text;background-clip:text;color:transparent}
+#conn-pill{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:.8rem;color:var(--ink-2);font-family:var(--mono)}
+#conn-pill .dot{width:9px;height:9px;border-radius:50%;background:var(--ink-3)}
+#conn-pill.on .dot{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+.hero{padding:56px 0 30px;text-align:center;background:
+  radial-gradient(700px 320px at 15% -10%, rgba(99,102,241,.18), transparent 60%),
+  radial-gradient(700px 320px at 85% -10%, rgba(168,85,247,.14), transparent 60%)}
+.eyebrow{display:inline-flex;gap:8px;align-items:center;background:rgba(99,102,241,.14);color:#a5b4fc;font-weight:600;font-size:.78rem;padding:6px 15px;border-radius:999px;margin-bottom:18px;border:1px solid rgba(99,102,241,.3)}
+h1{font-size:clamp(1.8rem,4.4vw,2.9rem);line-height:1.14;letter-spacing:-.03em;font-weight:800;max-width:860px;margin:0 auto}
+h1 .grad{background:linear-gradient(90deg,#818cf8,#c084fc,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{max-width:680px;margin:16px auto 0;color:var(--ink-2);font-size:1.02rem}
+section{padding:34px 0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px}
+.sec-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.sec-num{display:inline-flex;width:30px;height:30px;border-radius:9px;background:rgba(99,102,241,.16);color:#a5b4fc;font-weight:800;align-items:center;justify-content:center;font-size:.9rem;flex:none}
+h2{font-size:1.25rem;letter-spacing:-.01em;font-weight:750}
+.sec-sub{color:var(--ink-3);font-size:.86rem;width:100%}
+label{display:block;font-size:.74rem;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-3);margin-bottom:5px;font-weight:700}
+input[type=text]{background:var(--bg-2);border:1px solid var(--line);color:var(--ink);border-radius:9px;padding:9px 12px;font-size:.9rem;font-family:var(--mono);width:100%;outline:none}
+input[type=text]:focus{border-color:var(--brand)}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+.row>div{flex:1;min-width:170px}
+button{background:linear-gradient(90deg,var(--brand),var(--brand-2));color:#fff;border:none;border-radius:999px;padding:10px 20px;font-weight:650;font-size:.88rem;cursor:pointer;transition:transform .1s,opacity .1s}
+button:hover:not(:disabled){transform:translateY(-1px)}
+button:disabled{opacity:.35;cursor:not-allowed;transform:none}
+button.ghost{background:transparent;border:1.5px solid var(--line);color:var(--ink-2)}
+button.ghost:hover:not(:disabled){border-color:var(--brand);color:#a5b4fc}
+button.small{padding:6px 13px;font-size:.78rem}
+.chip{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 11px;font-size:.74rem;font-weight:700;border:1px solid var(--line);color:var(--ink-2);background:var(--bg-2)}
+.chip.ok{background:rgba(52,211,153,.12);color:var(--ok);border-color:rgba(52,211,153,.35)}
+.chip.warn{background:rgba(251,191,36,.1);color:var(--warn);border-color:rgba(251,191,36,.3)}
+.chip.bad{background:rgba(248,113,113,.12);color:var(--bad);border-color:rgba(248,113,113,.35)}
+.chip.info{background:rgba(34,211,238,.1);color:var(--cyan);border-color:rgba(34,211,238,.3)}
+.mono{font-family:var(--mono);font-size:.8rem}
+.kv{font-family:var(--mono);font-size:.8rem;color:var(--ink-2)}
+.kv b{color:var(--ink)}
+.status{margin-top:12px;font-size:.82rem;color:var(--ink-3);font-family:var(--mono)}
+.errbox{margin-top:12px;display:none;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.35);border-radius:10px;padding:12px 14px;font-family:var(--mono);font-size:.76rem;color:#fca5a5;white-space:pre-wrap;word-break:break-all;max-height:170px;overflow:auto}
+.grid{display:grid;gap:14px;margin-top:16px}
+.grid.g3{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.grid.g2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+.subcard{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:16px}
+.subcard.shown{border-color:rgba(52,211,153,.5);box-shadow:0 0 0 1px rgba(52,211,153,.25)}
+.subcard h4{font-size:.86rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.hist{display:flex;gap:5px;align-items:flex-end;height:52px;margin:10px 0 4px}
+.hist .bar{flex:1;background:linear-gradient(180deg,var(--brand),var(--brand-2));border-radius:4px 4px 0 0;min-height:3px;position:relative}
+.hist .bar span{position:absolute;top:-16px;left:0;right:0;text-align:center;font-size:.62rem;color:var(--ink-2);font-family:var(--mono)}
+.hist-x{display:flex;gap:5px;font-size:.62rem;color:var(--ink-3);font-family:var(--mono)}
+.hist-x i{flex:1;text-align:center;font-style:normal}
+.qrow{display:flex;gap:8px;align-items:center;font-size:.78rem;color:var(--ink-2);padding:5px 0;border-top:1px dashed var(--line)}
+.qrow .qtxt{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dpill{font-family:var(--mono);font-size:.66rem;color:var(--cyan);border:1px solid rgba(34,211,238,.3);border-radius:5px;padding:1px 5px;flex:none}
+.depth{display:flex;flex-direction:column;gap:6px;margin-top:14px}
+.depth .lvl{border:1px dashed var(--line);border-radius:9px;padding:7px 13px;font-size:.76rem;color:var(--ink-3);display:flex;justify-content:space-between;gap:8px;font-family:var(--mono)}
+.depth .lvl.live{border-style:solid;border-color:rgba(52,211,153,.5);color:var(--ok)}
+.mediacard img{width:100%;height:150px;object-fit:cover;border-radius:9px;background:#0b1020;border:1px solid var(--line)}
+.cite{font-size:.7rem;color:var(--ink-3);margin-top:8px;font-family:var(--mono);word-break:break-all}
+.wow{border-left:3px solid var(--brand)}
+.wow.tier-S{border-left-color:#f472b6}.wow.tier-A{border-left-color:var(--warn)}.wow.tier-B{border-left-color:var(--cyan)}
+.wow.tier-C{border-left-color:#a78bfa}.wow.tier-D{border-left-color:var(--ok)}.wow.tier-E{border-left-color:var(--ink-3)}
+.tierbadge{font-family:var(--mono);font-weight:800;font-size:.72rem;border-radius:6px;padding:2px 8px;background:rgba(99,102,241,.15);color:#a5b4fc}
+.tierbadge.t-S{background:rgba(244,114,182,.16);color:#f9a8d4}.tierbadge.t-A{background:rgba(251,191,36,.14);color:var(--warn)}
+.tierbadge.t-B{background:rgba(34,211,238,.13);color:var(--cyan)}.tierbadge.t-C{background:rgba(167,139,250,.15);color:#c4b5fd}
+.tierbadge.t-D{background:rgba(52,211,153,.13);color:var(--ok)}.tierbadge.t-E{background:rgba(100,116,139,.2);color:#94a3b8}
+.cat-copy{font-size:.86rem;margin:9px 0;background:var(--bg-2);border:1px dashed var(--line);border-radius:9px;padding:9px 12px;line-height:1.6}
+.cat-copy .ph{font-family:var(--mono);font-size:.76rem;color:var(--cyan);background:rgba(34,211,238,.1);border:1px solid rgba(34,211,238,.3);border-radius:5px;padding:0 4px}
+.catrow{display:flex;gap:7px;font-size:.74rem;color:var(--ink-2);padding:4px 0;border-top:1px dashed var(--line);align-items:baseline}
+.catrow b{flex:none;width:74px;color:var(--ink-3);font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;font-weight:700}
+.catrow span{font-family:var(--mono);font-size:.72rem;word-break:break-word}
+.cat-live{border-color:rgba(52,211,153,.6)!important;box-shadow:0 0 0 1px rgba(52,211,153,.35),0 0 18px rgba(52,211,153,.12)}
+.cat-filter{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 2px}
+.cat-filter button.active{background:linear-gradient(90deg,var(--brand),var(--brand-2));border-color:transparent;color:#fff}
+.wow .copy{font-size:.95rem;margin:8px 0 10px;font-weight:550}
+.signal{display:inline-flex;gap:6px;align-items:flex-start;background:rgba(34,211,238,.07);border:1px solid rgba(34,211,238,.25);border-radius:9px;padding:6px 11px;font-size:.73rem;color:#67e8f9;margin-bottom:10px}
+.reacts{display:flex;gap:7px;flex-wrap:wrap}
+.tip{position:relative;cursor:help;border-bottom:1px dotted var(--ink-3)}
+.tip .tipbox{display:none;position:absolute;bottom:125%;left:0;z-index:9;background:#1e293b;border:1px solid var(--line);border-radius:9px;padding:10px 13px;font-size:.72rem;color:var(--ink-2);width:290px;font-family:var(--mono);box-shadow:0 10px 30px rgba(0,0,0,.5)}
+.tip:hover .tipbox{display:block}
+.accbar{height:7px;background:var(--bg-2);border-radius:99px;overflow:hidden;margin-top:3px}
+.accbar i{display:block;height:100%;background:linear-gradient(90deg,var(--brand),var(--cyan));border-radius:99px}
+.idcol{font-family:var(--mono);font-size:.72rem;line-height:1.9}
+.idcol .id{display:block;color:var(--ink-2);border-bottom:1px dashed var(--line);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.idcol .id.dup{color:var(--bad);background:rgba(248,113,113,.1);font-weight:700}
+.verdict{margin-top:14px;border-radius:10px;padding:12px 16px;font-weight:700;font-size:.9rem;display:none}
+.verdict.ok{display:block;background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.4);color:var(--ok)}
+.verdict.bad{display:block;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.4);color:var(--bad)}
+.banner{margin-top:12px;border-radius:10px;padding:9px 14px;font-size:.8rem;display:none;font-family:var(--mono)}
+.banner.show{display:block}
+.banner.suppress{background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);color:var(--warn)}
+.banner.calm{background:rgba(52,211,153,.06);border:1px solid rgba(52,211,153,.25);color:var(--ok)}
+footer{border-top:1px solid var(--line);padding:26px 0;color:var(--ink-3);font-size:.8rem;margin-top:30px}
+@media(max-width:640px){.hero{padding-top:36px}}
+</style>
+</head>
+<body>
+
+<header><div class="wrap"><nav>
+  <div class="logo">Seed<em>Questions</em> × <em>Aahaa</em> · Live Showcase</div>
+  <div class="nav-links"><a href="verify.html">Verifier loop</a></div>
+  <span id="conn-pill"><span class="dot"></span><span id="conn-txt">not connected</span></span>
+</nav></div></header>
+
+<section class="hero"><div class="wrap">
+  <span class="eyebrow">⚡ Every number below is a live RPC call — nothing is mocked</span>
+  <h1>Adaptive, <span class="grad">zero-repeat</span> question staging.<br>Wow moments <span class="grad">deduced from real data</span>.</h1>
+  <p class="sub">This page talks directly to a Nakama backend: the <strong>Seed Questions</strong> staging engine (13-connector ingest, adaptive difficulty, no-repeat ledger) and the <strong>Aahaa</strong> engine (deducible-insight wow cards with on-surface data lineage).</p>
+</div></section>
+
+<!-- 1 · CONNECT -->
+<section><div class="wrap"><div class="card" id="sec1">
+  <div class="sec-head"><span class="sec-num">1</span><h2>Connect &amp; Persona</h2>
+    <span class="sec-sub">Device-auth a persona against any Nakama host, then seed quiz history so the adaptive engine has something to chew on.</span></div>
+  <div class="row">
+    <div style="flex:2"><label>Nakama base URL</label><input type="text" id="host" value="http://localhost:7350"></div>
+    <div><label>Client key (basic auth)</label><input type="text" id="ckey" value="defaultkey"></div>
+    <div style="flex:0"><button id="btn-connect">Connect persona</button></div>
+    <div style="flex:0"><button class="ghost" id="btn-fresh">Fresh persona</button></div>
+  </div>
+  <div class="status" id="s1-status">Saved persona reconnects with the same device id (localStorage) — fresh mints a new one.</div>
+  <div class="row" style="margin-top:14px">
+    <div style="flex:0"><button class="small ghost" id="btn-seed-hi" disabled>Seed history · High accuracy</button></div>
+    <div style="flex:0"><button class="small ghost" id="btn-seed-lo" disabled>Seed history · Low accuracy</button></div>
+    <div class="status" style="margin-top:0;flex:1" id="s1-seed">Each click submits 3 games via <b>quiz_submit_result</b> (math-weighted questionHistory).</div>
+  </div>
+  <div class="errbox" id="s1-err"></div>
+</div></div></section>
+
+<!-- 2 · STAGED QUESTIONS -->
+<section style="padding-top:0"><div class="wrap"><div class="card" id="sec2">
+  <div class="sec-head"><span class="sec-num">2</span><h2>Staged Questions — adaptive, pre-built, honest about repeats</h2>
+    <span class="sec-sub"><b>quizverse_seedq_get_staged</b> {mode:"CustomTopic", topic:"math", set_size:6, want_sets:3} — 3 sets staged per user; set 1 is served, sets 2–3 sit pre-adapted behind the scenes.</span></div>
+  <button id="btn-stage" disabled>Fetch staged sets</button>
+  <div id="s2-adaptive"></div>
+  <div id="s2-policy" style="margin-top:12px"></div>
+  <div class="grid g3" id="s2-sets"></div>
+  <div class="depth" id="s2-depth"></div>
+  <div class="verdict" id="s2-verdict"></div>
+  <div class="errbox" id="s2-err"></div>
+</div></div></section>
+
+<!-- 3 · MEDIA -->
+<section style="padding-top:0"><div class="wrap"><div class="card" id="sec3">
+  <div class="sec-head"><span class="sec-num">3</span><h2>Media adaptivity — provenance-checked image questions</h2>
+    <span class="sec-sub"><b>quizverse_seedq_get_staged</b> {mode:"ImageGuess", topic:"space", set_size:4} — media URLs are served through the wsrv.nl optimizer, each with citation + license provenance.</span></div>
+  <button id="btn-media" disabled>Fetch image set</button>
+  <div class="grid g3" id="s3-grid"></div>
+  <div class="errbox" id="s3-err"></div>
+</div></div></section>
+
+<!-- 4 · AAHAA -->
+<section style="padding-top:0"><div class="wrap"><div class="card" id="sec4">
+  <div class="sec-head"><span class="sec-num">4</span><h2>Aahaa feed — wow moments with on-surface lineage</h2>
+    <span class="sec-sub"><b>quizverse_aahaa_get</b> {generate:true} — every card shows the “why this appeared” signal chip. React buttons hit <b>quizverse_aahaa_react</b>.</span></div>
+  <button id="btn-aahaa" disabled>Generate my feed</button>
+  <div class="banner" id="s4-banner"></div>
+  <div class="grid g2" id="s4-grid"></div>
+  <div class="errbox" id="s4-err"></div>
+</div></div></section>
+
+<!-- 5 · AAHAA CATALOG -->
+<section style="padding-top:0"><div class="wrap"><div class="card" id="sec-cat">
+  <div class="sec-head"><span class="sec-num">5</span><h2>Aahaa Catalog — every wow moment we can send</h2>
+    <span class="sec-sub">The full server catalog from <b>aahaa_catalog.ts</b> (same data <b>quizverse_aahaa_catalog</b> dumps): trigger, surface, copy template, loop event, mechanic, priority and cooldown for each of the <b id="cat-count">22</b> moments. Generate a feed in section 4 and the entries currently live for this persona <span class="chip ok" style="font-size:.68rem">light up green</span>.</span></div>
+  <div class="cat-filter" id="cat-filter"></div>
+  <div class="banner" id="cat-live-banner"></div>
+  <div class="grid g2" id="cat-grid"></div>
+</div></div></section>
+
+<!-- 5b · TOP 5 REAL USERS -->
+<section style="padding-top:0"><div class="wrap"><div class="card" id="sec-top5">
+  <div class="sec-head"><span class="sec-num">★</span><h2>Top 5 Real Users — Live Aahaa</h2>
+    <span class="sec-sub">Ranked from <b>top5-real-users.json</b> — real Nakama accounts with the richest gameplay history on this stack, each with an active wow feed (tier, rendered copy, signal lineage). See <a href="../../docs/AAHAA_TOP5_REAL_USERS.md">methodology doc</a>. Local DB holds dev/showcase personas only.</span></div>
+  <div class="status" id="top5-meta">Loading…</div>
+  <div id="top5-table-wrap"></div>
+  <div class="subcard" id="top5-moments" style="margin-top:14px;display:none">
+    <h4>Top wow-moment types (across all users with feeds)</h4>
+    <div id="top5-moments-list" class="kv"></div>
+  </div>
+  <div class="errbox" id="top5-err"></div>
+</div></div></section>
+
+<!-- 6 · FACT PACK -->
+<section style="padding-top:0"><div class="wrap"><div class="card" id="sec5">
+  <div class="sec-head"><span class="sec-num">6</span><h2>Fact Pack — the deducible-numbers ledger</h2>
+    <span class="sec-sub"><b>quizverse_aahaa_fact_pack</b> — hover any group title for its lineage (“where this comes from”). This is the only data the wow copy is allowed to use.</span></div>
+  <button id="btn-facts" disabled>Build my fact pack</button>
+  <div class="grid g3" id="s5-grid"></div>
+  <div class="errbox" id="s5-err"></div>
+</div></div></section>
+
+<!-- 7 · NO-REPEAT -->
+<section style="padding-top:0"><div class="wrap"><div class="card" id="sec6">
+  <div class="sec-head"><span class="sec-num">7</span><h2>No-Repeat proof — same request twice, zero overlap</h2>
+    <span class="sec-sub"><b>quizverse_request_questions</b> (kind "deduped_s3", 12 inline questions, unique topic per session) called back-to-back. The qv_seen ledger guarantees the second call serves only unseen ids.</span></div>
+  <button id="btn-norepeat" disabled>Run the double-call</button>
+  <div class="grid g2" id="s6-grid"></div>
+  <div class="verdict" id="s6-verdict"></div>
+  <div class="errbox" id="s6-err"></div>
+</div></div></section>
+
+<footer><div class="wrap">
+  © 2026 IntelliVerseX · QuizVerse — Seed Questions &amp; Aahaa engines · served by Nakama ·
+  <a href="verify.html">verifier loop</a> · <a href="https://quizverse.world">quizverse.world</a>
+</div></footer>
+
+<script>
+"use strict";
+var $ = function(id){ return document.getElementById(id); };
+var session = { token:null, userId:null, username:null };
+var lastStage = null;
+var demoTopic = "norepeat_demo_" + Math.random().toString(36).slice(2,10);
+
+// ?host= override
+(function(){
+  var p = new URLSearchParams(location.search);
+  if (p.get("host")) $("host").value = p.get("host");
+  if (p.get("key"))  $("ckey").value = p.get("key");
+})();
+
+function base(){ return $("host").value.trim().replace(/\/+$/,""); }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];}); }
+function showErr(id, e){
+  var box = $(id);
+  box.style.display = "block";
+  box.textContent = typeof e === "string" ? e : JSON.stringify(e, null, 2);
+}
+function clearErr(id){ $(id).style.display = "none"; }
+
+async function rpc(id, body){
+  var r = await fetch(base()+"/v2/rpc/"+id+"?unwrap", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json", "Authorization":"Bearer "+session.token },
+    body: JSON.stringify(body || {})
+  });
+  var text = await r.text();
+  var data; try { data = JSON.parse(text); } catch(_){ data = { raw:text }; }
+  if (!r.ok) throw { rpc:id, http_status:r.status, error_envelope:data };
+  return data;
+}
+
+// ── 1 · Connect ──────────────────────────────────────────────────────────────
+async function connect(fresh){
+  clearErr("s1-err");
+  try{
+    var did = localStorage.getItem("sq_device_id");
+    if (fresh || !did){
+      did = "sq-showcase-" + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2) + Date.now().toString(36);
+      localStorage.setItem("sq_device_id", did);
+    }
+    var uname = "seedq_demo_" + did.slice(-8).replace(/[^a-z0-9]/g,"x");
+    var r = await fetch(base()+"/v2/account/authenticate/device?create=true&username="+encodeURIComponent(uname), {
+      method:"POST",
+      headers:{ "Content-Type":"application/json", "Authorization":"Basic "+btoa($("ckey").value+":") },
+      body: JSON.stringify({ id: did })
+    });
+    var data = await r.json();
+    if (!r.ok || !data.token) throw { step:"device_auth", http_status:r.status, error_envelope:data };
+    session.token = data.token;
+    var claims = JSON.parse(atob(data.token.split(".")[1]));
+    session.userId = claims.uid; session.username = claims.usn;
+    $("conn-pill").classList.add("on");
+    $("conn-txt").textContent = session.username + " @ " + base().replace(/^https?:\/\//,"");
+    $("s1-status").innerHTML = 'Token <span class="chip ok">valid</span> &nbsp; userID <b class="mono">'+esc(session.userId)+'</b> &nbsp; username <b class="mono">'+esc(session.username)+'</b>';
+    ["btn-seed-hi","btn-seed-lo","btn-stage","btn-media","btn-aahaa","btn-facts","btn-norepeat"].forEach(function(b){ $(b).disabled = false; });
+  } catch(e){ showErr("s1-err", e); }
+}
+
+function mkHistory(correctRate){
+  var cats = ["math","math","math","science","history","math","math","science","math","math"];
+  return cats.map(function(c){
+    return { category:c, correct: Math.random() < correctRate, time_ms: 3000 + Math.floor(Math.random()*4000) };
+  });
+}
+async function seed(rate, label){
+  clearErr("s1-err");
+  $("s1-seed").textContent = "Submitting 3 games…";
+  try{
+    for (var i=0;i<3;i++){
+      var qh = mkHistory(rate);
+      var correct = qh.filter(function(q){return q.correct;}).length;
+      await rpc("quiz_submit_result", {
+        score: Math.round(correct/qh.length*100), totalQuestions: qh.length,
+        correctAnswers: correct, category:"math", questionHistory: qh
+      });
+    }
+    $("s1-seed").innerHTML = '<span class="chip ok">✓ 3 games submitted</span> '+label+' history added — re-run sections 2, 4, 5 to see the profile shift.';
+  } catch(e){ showErr("s1-err", e); $("s1-seed").textContent = "Seed failed — see error."; }
+}
+$("btn-connect").onclick = function(){ connect(false); };
+$("btn-fresh").onclick   = function(){ connect(true); };
+$("btn-seed-hi").onclick = function(){ seed(0.9, "High-accuracy"); };
+$("btn-seed-lo").onclick = function(){ seed(0.25, "Low-accuracy"); };
+
+// ── 2 · Staged sets ──────────────────────────────────────────────────────────
+function policyChips(p, suppress){
+  if (!p) return "";
+  var h = '<span class="chip ok">fresh '+(p.fresh_count|0)+'</span> ';
+  h += '<span class="chip '+((p.review_count|0)>0?"warn":"info")+'">smart-review repeats '+(p.review_count|0)+'</span> ';
+  h += p.pool_exhausted ? '<span class="chip bad">pool exhausted</span> ' : '<span class="chip info">pool healthy</span> ';
+  if (p.content_generation_queued) h += '<span class="chip warn">refill queued · ETA '+(p.next_refresh_eta_seconds|0)+'s</span> ';
+  if (suppress !== undefined) h += suppress ? '<span class="chip warn">rating prompt suppressed</span>' : '<span class="chip">rating prompt allowed</span>';
+  return h;
+}
+function histBars(questions){
+  var counts = [0,0,0,0,0];
+  (questions||[]).forEach(function(q){ var d=(q.difficulty|0)||3; counts[Math.min(5,Math.max(1,d))-1]++; });
+  var max = Math.max.apply(null, counts.concat([1]));
+  var bars = counts.map(function(c){
+    return '<div class="bar" style="height:'+Math.max(6, c/max*100)+'%"><span>'+(c||"")+'</span></div>';
+  }).join("");
+  return '<div class="hist">'+bars+'</div><div class="hist-x"><i>d1</i><i>d2</i><i>d3</i><i>d4</i><i>d5</i></div>';
+}
+function renderStage(res, consumedIds){
+  var a = res.adaptive || {};
+  $("s2-adaptive").innerHTML =
+    '<div class="subcard" style="margin-top:14px"><h4>🧠 Adaptive profile <span class="chip info">basis: '+esc(a.basis)+'</span></h4>'+
+    '<div class="kv">accuracy <b>'+(a.accuracy_pct|0)+'%</b> over <b>'+(a.sample_size|0)+'</b> answers → target difficulty <b>'+
+    "●".repeat(a.target_difficulty|0)+"○".repeat(5-(a.target_difficulty|0))+' ('+(a.target_difficulty|0)+'/5)</b>'+
+    ' &nbsp;·&nbsp; set mix: 60% at target, 20% easier, 20% harder</div></div>';
+  $("s2-policy").innerHTML = policyChips(res.repeat_policy, res.suppress_rating_prompt) +
+    ' <span class="chip">pool '+esc(res.pool && res.pool.size)+' · unseen '+esc(res.pool && res.pool.available_unseen)+'</span>';
+
+  var sets = res.sets || [];
+  $("s2-sets").innerHTML = sets.map(function(st, i){
+    var overlap = 0;
+    if (consumedIds) st.question_ids.forEach(function(id){ if (consumedIds[id]) overlap++; });
+    var qs = (st.questions||[]).slice(0,6).map(function(q){
+      var qual = q.quality && q.quality.status;
+      return '<div class="qrow"><span class="dpill">d'+((q.difficulty|0)||3)+'</span><span class="qtxt">'+esc(q.question)+'</span>'+
+        '<span class="chip '+(qual==="approved"?"ok":"warn")+'" style="font-size:.62rem;padding:1px 7px">'+esc(qual||"?")+'</span>'+
+        (q.recycled?'<span class="chip warn" style="font-size:.62rem;padding:1px 7px">review</span>':"")+'</div>';
+    }).join("");
+    return '<div class="subcard '+(i===0?"shown":"")+'"><h4>Set '+(i+1)+
+      (i===0?' <span class="chip ok">SHOWN to player</span>':' <span class="chip info">pre-adapted · behind the scenes</span>')+
+      (consumedIds?' <span class="chip '+(overlap===0?"ok":"bad")+'">'+overlap+' overlap vs consumed</span>':"")+
+      '</h4><div class="kv">'+esc(st.set_id)+' · target d'+esc(st.difficulty_target)+' · '+esc(st.fresh_count)+' fresh + '+esc(st.review_count)+' review</div>'+
+      histBars(st.questions)+qs+
+      (i===0?'<div style="margin-top:12px"><button class="small" id="btn-consume">Consume set 1 → auto-restage</button></div>':"")+
+      '</div>';
+  }).join("");
+
+  var depth = [0,1,2].map(function(i){
+    var st = sets[i];
+    return '<div class="lvl '+(st?"live":"")+'"><span>depth '+(i+1)+(i===0?" · serving":" · staged ahead")+'</span><span>'+(st?esc(st.set_id):"—")+'</span></div>';
+  }).join("");
+  $("s2-depth").innerHTML = '<label style="margin-top:14px">Staged depth — the client never waits for generation</label>'+depth;
+
+  var btn = $("btn-consume");
+  if (btn && sets.length) btn.onclick = function(){ consumeSet(sets[0]); };
+}
+async function fetchStage(consumedIds){
+  clearErr("s2-err"); $("s2-verdict").className = "verdict";
+  try{
+    var res = await rpc("quizverse_seedq_get_staged", { mode:"CustomTopic", topic:"math", set_size:6, want_sets:3 });
+    if (res.ok === false) throw res;
+    lastStage = res;
+    renderStage(res, consumedIds || null);
+    if (consumedIds){
+      var total = 0; (res.sets||[]).forEach(function(st){ st.question_ids.forEach(function(id){ if (consumedIds[id]) total++; }); });
+      var v = $("s2-verdict");
+      v.className = "verdict " + (total===0 ? "ok" : "bad");
+      v.textContent = total===0
+        ? "✓ Restaged with ZERO overlap — every consumed question id was merged into the qv_seen ledger and excluded."
+        : "✗ " + total + " consumed ids reappeared (unexpected — pool may be exhausted).";
+    }
+  } catch(e){ showErr("s2-err", e); }
+}
+async function consumeSet(st){
+  clearErr("s2-err");
+  try{
+    var consumed = {}; st.question_ids.forEach(function(id){ consumed[id]=true; });
+    var res = await rpc("quizverse_seedq_consume_set", { mode:st.mode, topic:st.topic, set_id:st.set_id });
+    if (res.ok === false) throw res;
+    await fetchStage(consumed);
+  } catch(e){ showErr("s2-err", e); }
+}
+$("btn-stage").onclick = function(){ fetchStage(null); };
+
+// ── 3 · Media ────────────────────────────────────────────────────────────────
+$("btn-media").onclick = async function(){
+  clearErr("s3-err");
+  try{
+    var res = await rpc("quizverse_seedq_get_staged", { mode:"ImageGuess", topic:"space", set_size:4, want_sets:1 });
+    if (res.ok === false) throw res;
+    var qs = (res.sets && res.sets[0] && res.sets[0].questions) || [];
+    if (!qs.length){ $("s3-grid").innerHTML = '<div class="subcard kv">No image questions staged — pool may need an ingest run.</div>'; return; }
+    $("s3-grid").innerHTML = qs.map(function(q){
+      var prov = q.media_provenance || {};
+      return '<div class="subcard mediacard">'+
+        (q.media_url?'<img src="'+esc(q.media_url)+'" alt="question media" loading="lazy">':"")+
+        '<div style="font-size:.82rem;margin-top:9px">'+esc(q.question)+'</div>'+
+        '<div style="margin-top:8px"><span class="chip '+(prov.license && prov.license!=="unknown"?"ok":"warn")+'">'+esc(prov.license||"unchecked")+'</span> '+
+        '<span class="chip info">'+esc(prov.method||"—")+'</span> '+
+        '<span class="chip">'+esc(prov.source_domain||"")+'</span></div>'+
+        '<div class="cite">📎 '+esc(q.citation)+'</div></div>';
+    }).join("");
+  } catch(e){ showErr("s3-err", e); }
+};
+
+// ── 4 · Aahaa ────────────────────────────────────────────────────────────────
+$("btn-aahaa").onclick = async function(){
+  clearErr("s4-err");
+  try{
+    var res = await rpc("quizverse_aahaa_get", { generate:true });
+    if (res.ok === false) throw res;
+    var b = $("s4-banner");
+    b.className = "banner show " + (res.rating_prompt_suppressed ? "suppress" : "calm");
+    b.textContent = res.rating_prompt_suppressed
+      ? "⚠ rating_prompt_suppressed = true — the App Store rating prompt is being held back for this user right now."
+      : "✓ rating_prompt_suppressed = false — no suppression signals active for this user.";
+    var feed = res.feed || [];
+    updateCatalogLive(feed);
+    if (!feed.length){
+      $("s4-grid").innerHTML = '<div class="subcard kv">Feed is empty — seed some history in section 1 (2+ games), then regenerate.</div>';
+      return;
+    }
+    $("s4-grid").innerHTML = feed.map(function(w,i){
+      return '<div class="subcard wow tier-'+esc(w.tier)+'"><h4><span class="tierbadge">TIER '+esc(w.tier)+'</span> '+
+        '<span class="mono" style="color:var(--ink-3)">'+esc(w.wow_id)+'</span>'+
+        (w.fullscreen?' <span class="chip warn">fullscreen</span>':"")+'</h4>'+
+        '<div class="copy">'+esc(w.copy)+'</div>'+
+        '<div class="signal">🔍 Why this appeared: '+esc(w.signal)+'</div>'+
+        '<div class="kv" style="margin-bottom:10px">CTA <b>'+esc(w.cta_action_id)+'</b> · score '+esc(w.score)+' · sources '+esc((w.data_sources||[]).join(", "))+'</div>'+
+        '<div class="reacts">'+
+          '<button class="small ghost" onclick="react(\''+esc(w.wow_id)+'\',\'shown\',this)">👁 shown</button>'+
+          '<button class="small ghost" onclick="react(\''+esc(w.wow_id)+'\',\'clicked\',this)">👆 clicked</button>'+
+          '<button class="small ghost" onclick="react(\''+esc(w.wow_id)+'\',\'muted\',this)">🔇 mute</button>'+
+        '</div></div>';
+    }).join("");
+  } catch(e){ showErr("s4-err", e); }
+};
+window.react = async function(wowId, action, btn){
+  try{
+    var res = await rpc("quizverse_aahaa_react", { wow_id:wowId, action:action });
+    if (res.ok === false) throw res;
+    btn.textContent = "✓ " + action;
+    btn.disabled = true;
+  } catch(e){ showErr("s4-err", e); }
+};
+
+// ── 5 · Aahaa catalog (static mirror of aahaa_catalog.ts — 22 entries) ──────
+// Trigger text is a human rendering of each entry's deterministic eval();
+// every other field is copied verbatim from the catalog source.
+var AAHAA_CATALOG = [
+  {id:"wow.s.thousand_questions",title:"Question Milestone",tier:"S",
+   trigger:"Lifetime questions_answered crosses 100 / 500 / 1,000 / 5,000 / 10,000 (each threshold fires once — milestone ledger)",
+   surface:"web:/me/celebration/[milestone_id] (Unity: WebSurfaceLauncher modal)",
+   copy:"Your {milestone}th question, {first_name}. Top topic: {topic}. The {milestone}-question badge is yours forever.",
+   cta:"open_milestone_share",loop:"milestone_share_tapped",mechanic:"MA+NI",priority:"trust",
+   celebratory:true,fullscreen:true,cooldown:1,score:96,
+   sources:["lifetime.questions_answered","topics.top3","identity.username"]},
+  {id:"wow.s.year_in_quizverse",title:"Anniversary Recap",tier:"S",
+   trigger:"days_since_install crosses 30 / 100 / 365 (once each) AND ≥10 lifetime questions answered",
+   surface:"web:/me/celebration/[milestone_id] (Unity: WebSurfaceLauncher modal)",
+   copy:"{days} days in QuizVerse. {question_count} questions answered, {fact_count} facts locked in. {topic_top_3} were your obsessions. Your archetype: {archetype}.",
+   cta:"open_anniversary_card",loop:"anniversary_share_tapped",mechanic:"NI",priority:"trust",
+   celebratory:true,fullscreen:true,cooldown:1,score:95,
+   sources:["identity.days_since_install","lifetime.questions_answered","lifetime.questions_correct","topics.top3","derived.personality_archetype"]},
+  {id:"wow.s.you_did_it_exam_passed",title:"Exam Day Support",tier:"S",
+   trigger:"User-set exam date reached (day 0 to −3 after the exam) — requires exam_date_iso set in onboarding",
+   surface:"web:/me/celebration/[milestone_id] + AIHost voiceover (Unity native captions)",
+   copy:"Today was {exam}. You answered {question_count} questions preparing for it. However it went, you showed up. We're proud of you.",
+   cta:"open_post_exam_followup",loop:"post_exam_followup_started",mechanic:"NI+LA",priority:"trust",
+   celebratory:false,fullscreen:true,cooldown:30,score:99,
+   sources:["onboarding.target_exam_id","onboarding.days_to_exam","lifetime.questions_answered"]},
+  {id:"wow.s.birthday_quiz",title:"Birthday Quiz",tier:"S",
+   trigger:"User-set birthday matches today AND was set ≥30 days ago (anti-fake guard on birthday_set_ms)",
+   surface:"web:/me/celebration/birthday (first app_open of the day)",
+   copy:"Happy birthday, {first_name}. We made you a quiz from {topic_top_3} — no energy cost, custom from your year of learning.",
+   cta:"start_birthday_quiz",loop:"birthday_quiz_started",mechanic:"NI+BL",priority:"trust",
+   celebratory:true,fullscreen:true,cooldown:300,score:97,
+   sources:["onboarding.birthday","topics.top3","identity.username"]},
+  {id:"wow.a.lock_it_in",title:"Lock It In",tier:"A",
+   trigger:"≥5 consecutive correct answers on one topic at the tail of the answer ledger",
+   surface:"web:/me/wow/[wow_id] (post-quiz; Unity: WebSurfaceLauncher after quiz_completed)",
+   copy:"You nailed {topic} — {run} in a row. Lock it in with a 3-day Smart Review?",
+   cta:"enroll_smart_review",loop:"smart_review_accepted",mechanic:"MA+LA",priority:"engagement",
+   celebratory:true,fullscreen:false,cooldown:1,score:78,
+   sources:["recent.lock_topic","recent.lock_run"]},
+  {id:"wow.a.weakness_targeted",title:"Weakness Targeted",tier:"A",
+   trigger:"A struggling topic detected in the recent answer window (repeated misses on the same topic)",
+   surface:"web:/me/wow/[wow_id] OR AIHost intro (Unity native captions)",
+   copy:"I noticed you're stuck on {topic} — {wrong} misses in your recent questions. Want a 5-min explainer + 3 fresh questions?",
+   cta:"start_weakness_quiz",loop:"weakness_targeted_quiz_started",mechanic:"SU+MA",priority:"engagement",
+   celebratory:false,fullscreen:false,cooldown:2,score:85,
+   sources:["recent.struggling_topic","recent.struggling_wrong"]},
+  {id:"wow.a.warming_up",title:"Warming Up",tier:"A",
+   trigger:"Current correct-run ≥5 at the tail of the ledger (mid-quiz hot streak)",
+   surface:"Unity mid-quiz toast (latency-critical, stays native)",
+   copy:"{run} in a row. You're flying.",
+   cta:"none",loop:"wow_moment_clicked",mechanic:"FP+MA",priority:"engagement",
+   celebratory:true,fullscreen:false,cooldown:1,score:60,
+   sources:["recent.tail_correct_run"]},
+  {id:"wow.a.goal_progress",title:"Goal Progress",tier:"A",
+   trigger:"User-set exam goal with days_to_exam > 0 (boosted score when ≤30 days out)",
+   surface:"web:/me (home hero card)",
+   copy:"{first_name}, {days_to_exam} days to {exam}. You've answered {answered} questions — your recent accuracy is {recent_acc}%.",
+   cta:"start_next_8_quizzes",loop:"goal_card_clicked",mechanic:"CB+MA",priority:"engagement",
+   celebratory:false,fullscreen:false,cooldown:1,score:80,
+   sources:["onboarding.days_to_exam","onboarding.target_exam_id","lifetime.questions_answered","recent.accuracy_pct"]},
+  {id:"wow.a.improvement_surge",title:"Improvement Surge",tier:"A",
+   trigger:"Recent accuracy up ≥10 points: newest half of the window vs the half before it",
+   surface:"web:/me/wow/[wow_id] (post-quiz)",
+   copy:"Your accuracy is up {pts} points across your newest questions vs the batch before. Quietly getting sharper.",
+   cta:"open_growth_dashboard",loop:"growth_dashboard_opened",mechanic:"MA+NI",priority:"trust",
+   celebratory:true,fullscreen:false,cooldown:7,score:72,
+   sources:["recent.improvement_pts"]},
+  {id:"wow.b.weekly_recap",title:"Weekly Recap",tier:"B",
+   trigger:"≥20 answers in the recent window (weekly cadence via 6-day cooldown)",
+   surface:"web:/me (home hero) + push deep-link /me/wow/[id]",
+   copy:"Your week: {answered} questions · {acc}% accuracy · top topics {topics}. Tap for the full recap.",
+   cta:"open_weekly_recap",loop:"weekly_recap_opened",mechanic:"NI+CB",priority:"engagement",
+   celebratory:false,fullscreen:false,cooldown:6,score:65,
+   sources:["recent.answered","recent.accuracy_pct","topics.top3"]},
+  {id:"wow.b.return_after_long_gap",title:"Welcome Back",tier:"B",
+   trigger:"≥7 days since the last stats write (lapsed player returning)",
+   surface:"web:/me (home hero)",
+   copy:"Welcome back, {first_name} — {days} days away. We saved your top topic: {topic}. Pick up where you left off?",
+   cta:"resume_from_last_topic",loop:"resume_from_last_topic",mechanic:"LA+RC",priority:"trust",
+   celebratory:false,fullscreen:false,cooldown:7,score:88,
+   sources:["lifetime.days_since_last_played","topics.top3","identity.username"]},
+  {id:"wow.b.month_summary",title:"Month Summary",tier:"B",
+   trigger:"First feed generation in a new calendar month AND ≥3 lifetime games (one per month via ledger key)",
+   surface:"web:/me/celebration/month (small variant, not fullscreen)",
+   copy:"Your month: {games} quizzes, {acc}% lifetime accuracy, {topics} on the podium. Set a goal for next month?",
+   cta:"set_monthly_goal",loop:"monthly_goal_set",mechanic:"CB+NI",priority:"engagement",
+   celebratory:false,fullscreen:false,cooldown:25,score:62,
+   sources:["lifetime.total_games","lifetime.accuracy_pct","topics.top3"]},
+  {id:"wow.b.comeback_kid",title:"Comeback Kid",tier:"B",
+   trigger:"≥2 comeback sequences (3+ wrong then a correct) inside the recent window",
+   surface:"web:/me/reveal (settings reveal card)",
+   copy:"You bounced back after 3 straight misses {n} times recently. Your resilience is a pattern, not luck.",
+   cta:"open_reveal_screen",loop:"reveal_screen_opened",mechanic:"NI+MA",priority:"trust",
+   celebratory:false,fullscreen:false,cooldown:7,score:70,
+   sources:["recent.comebacks_after_3_wrong"]},
+  {id:"wow.c.speed_pr",title:"Speed PR",tier:"C",
+   trigger:"Recent avg answer time ≤80% of the lifetime average, over ≥20 recent answers",
+   surface:"web:/me/wow/[wow_id] (post-quiz)",
+   copy:"New pace: {recent_s}s per question in your recent answers — faster than your lifetime {lifetime_s}s average.",
+   cta:"share_speed_pr",loop:"speed_pr_shared",mechanic:"MA",priority:"engagement",
+   celebratory:true,fullscreen:false,cooldown:14,score:66,
+   sources:["recent.avg_time_ms","lifetime.avg_time_ms","recent.answered"]},
+  {id:"wow.c.mode_specialist",title:"Mode Specialist",tier:"C",
+   trigger:"Top mode holds ≥60% of all games AND ≥10 games played in it",
+   surface:"web:/me/reveal (archetype card)",
+   copy:"{pct}% of your {games} games are {mode}. You're a Specialist — want the deep-dive {mode} pack?",
+   cta:"open_mode_pack",loop:"mode_pack_opened",mechanic:"NI+DI",priority:"engagement",
+   celebratory:false,fullscreen:false,cooldown:14,score:64,
+   sources:["modes.top_mode","modes.top_mode_share_pct","lifetime.total_games"]},
+  {id:"wow.c.renaissance_learner",title:"Renaissance Learner",tier:"C",
+   trigger:"≥6 distinct game modes played (from quiz_user_stats.modeStats)",
+   surface:"web:/me/reveal (archetype card)",
+   copy:"You've played {n} distinct modes. Renaissance brain — most players stick to 2.",
+   cta:"open_mode_catalog",loop:"mode_catalog_opened",mechanic:"NI+DI",priority:"engagement",
+   celebratory:false,fullscreen:false,cooldown:30,score:58,
+   sources:["modes.distinct"]},
+  {id:"wow.c.aifortuneteller_lucky_mode",title:"Lucky Mode (Fortune Teller)",tier:"C",
+   trigger:"A mode with ≥70% win rate over ≥5 games — ONLY shown when the user opens Fortune Teller (entertainment-framed)",
+   surface:"AIFortuneTeller (Unity native; ONLY when user opened Fortune Teller)",
+   copy:"Your lucky arena this week is {mode} — not magic exactly, just a pattern the cards noticed: {pct}% wins there. For fun, based on your recent QuizVerse patterns.",
+   cta:"start_lucky_mode_quiz",loop:"lucky_mode_quiz_started",mechanic:"NI+SU",priority:"engagement",
+   celebratory:false,fullscreen:false,cooldown:7,score:50,
+   sources:["modes.lucky_mode","modes.lucky_mode_win_rate_pct"]},
+  {id:"wow.d.first_friend_added",title:"First Friend",tier:"D",
+   trigger:"friends_count moves 0 → ≥1 (fires exactly once, ever — 3650-day cooldown + milestone ledger)",
+   surface:"web:/me/friends (friend card highlight; Unity in-match stays native)",
+   copy:"Your first friend! Compatibility Quiz unlocks at 7 days of friendship.",
+   cta:"open_friend_card",loop:"friend_card_opened",mechanic:"DI+BL",priority:"engagement",
+   celebratory:false,fullscreen:false,cooldown:3650,score:68,
+   sources:["social.friends_count"]},
+  {id:"wow.d.network_growing",title:"Network Growing",tier:"D",
+   trigger:"friends_count crosses 5 / 10 / 25 (each threshold fires once)",
+   surface:"web:/me/friends (banner)",
+   copy:"{n} friends in your network now. Active networks win more weekly challenges — start one?",
+   cta:"start_friend_challenge",loop:"friend_challenge_started",mechanic:"BL+CB",priority:"engagement",
+   celebratory:false,fullscreen:false,cooldown:14,score:55,
+   sources:["social.friends_count"]},
+  {id:"wow.e.pool_exhausted",title:"You Beat the Game",tier:"E",
+   trigger:"Seedq staged engine reported a fully-exhausted question pool for this user within 7 days (also arms rating-prompt suppression)",
+   surface:"web:/me/wow/[wow_id] (EndOfQuizReviewScreen intercept)",
+   copy:"You just answered every {topic} question we have, {first_name}. You literally beat the game. We're generating more right now — want to try {recommended_topic} while you wait?",
+   cta:"start_recommended_topic",loop:"recommended_topic_started",mechanic:"MA+DI",priority:"trust",
+   celebratory:false,fullscreen:false,cooldown:1,score:92,
+   sources:["seedq.exhausted_pools_7d","topics.top3","identity.username"]},
+  {id:"wow.e.frustration_softpause",title:"Frustration Soft-Pause",tier:"E",
+   trigger:"≥3 wrong in a row at the tail of the ledger (also blocks all celebratory wows this session)",
+   surface:"Unity mid-quiz toast (latency-critical, stays native)",
+   copy:"Want a hint, or skip this one? {topic} will still be here after a 2-min break.",
+   cta:"offer_hint_or_skip",loop:"softpause_accepted",mechanic:"FP+RC",priority:"trust",
+   celebratory:false,fullscreen:false,cooldown:1,score:90,
+   sources:["recent.tail_wrong_run","recent.struggling_topic"]},
+  {id:"wow.e.morning_greeting",title:"Personalized Greeting",tier:"E",
+   trigger:"User set preferred_play_time in onboarding AND ≥10 lifetime questions answered (ambient, every session)",
+   surface:"web:/me (welcome line replaces generic greeting)",
+   copy:"Good {bucket}, {first_name}. {stat}.",
+   cta:"none",loop:"wow_moment_clicked",mechanic:"HF+NI",priority:"trust",
+   celebratory:false,fullscreen:false,cooldown:1,score:40,
+   sources:["onboarding.preferred_play_time","lifetime.accuracy_pct","streaks.win"]}
+];
+var TIER_LABELS = { S:"S · life-changing", A:"A · daily dopamine", B:"B · habit-shaping", C:"C · per-mode signature", D:"D · per-social-action", E:"E · ambient / intercepts" };
+var liveWowIds = {};
+var catFilterTier = "all";
+
+function styledCopy(t){
+  return esc(t).replace(/\{([a-z0-9_]+)\}/gi, '<span class="ph">{$1}</span>');
+}
+function cooldownLabel(d){
+  if (d >= 3650) return "once ever";
+  if (d >= 300) return d + "d (~yearly)";
+  return d + "d";
+}
+function renderCatalog(){
+  $("cat-count").textContent = AAHAA_CATALOG.length;
+  var tiers = ["all","S","A","B","C","D","E"];
+  $("cat-filter").innerHTML = tiers.map(function(t){
+    var n = t==="all" ? AAHAA_CATALOG.length : AAHAA_CATALOG.filter(function(e){return e.tier===t;}).length;
+    return '<button class="small ghost'+(catFilterTier===t?" active":"")+'" onclick="setCatFilter(\''+t+'\')">'+
+      (t==="all"?"All":"Tier "+t)+' · '+n+'</button>';
+  }).join("");
+  var entries = AAHAA_CATALOG.filter(function(e){ return catFilterTier==="all" || e.tier===catFilterTier; });
+  var html = "", lastTier = null;
+  entries.forEach(function(e){
+    if (e.tier !== lastTier){
+      html += '<div style="grid-column:1/-1;margin-top:'+(lastTier?"8px":"0")+'"><label>Tier '+esc(TIER_LABELS[e.tier]||e.tier)+'</label></div>';
+      lastTier = e.tier;
+    }
+    var live = !!liveWowIds[e.id];
+    html += '<div class="subcard wow tier-'+e.tier+(live?" cat-live":"")+'" id="cat-'+esc(e.id)+'">'+
+      '<h4><span class="tierbadge t-'+e.tier+'">TIER '+e.tier+'</span> '+esc(e.title)+
+      ' <span class="mono" style="color:var(--ink-3);font-size:.68rem">'+esc(e.id)+'</span>'+
+      (live?' <span class="chip ok">● LIVE for this persona</span>':"")+
+      (e.fullscreen?' <span class="chip warn">fullscreen</span>':"")+
+      (e.celebratory?' <span class="chip info">celebratory</span>':"")+'</h4>'+
+      '<div class="cat-copy">'+styledCopy(e.copy)+'</div>'+
+      '<div class="catrow"><b>Trigger</b><span style="font-family:inherit">'+esc(e.trigger)+'</span></div>'+
+      '<div class="catrow"><b>Surface</b><span>'+esc(e.surface)+'</span></div>'+
+      '<div class="catrow"><b>Loop</b><span>'+esc(e.loop)+' · CTA '+esc(e.cta)+' · reactions shown/clicked/dismissed/converted/muted → quizverse_aahaa_react</span></div>'+
+      '<div class="catrow"><b>Mechanic</b><span>'+esc(e.mechanic)+' · priority '+esc(e.priority)+' · base score '+e.score+'</span></div>'+
+      '<div class="catrow"><b>Cooldown</b><span>'+cooldownLabel(e.cooldown)+
+        (e.fullscreen?' · counts against 1-fullscreen/day cap':'')+
+        (e.celebratory?' · blocked in frustration window':'')+'</span></div>'+
+      '<div class="catrow"><b>Reads</b><span>'+esc(e.sources.join(", "))+'</span></div>'+
+      '</div>';
+  });
+  $("cat-grid").innerHTML = html;
+}
+window.setCatFilter = function(t){ catFilterTier = t; renderCatalog(); };
+function updateCatalogLive(feed){
+  liveWowIds = {};
+  (feed||[]).forEach(function(w){ liveWowIds[w.wow_id] = true; });
+  var n = Object.keys(liveWowIds).length;
+  var b = $("cat-live-banner");
+  b.className = "banner show calm";
+  b.textContent = n
+    ? "● " + n + " of " + AAHAA_CATALOG.length + " catalog moments are LIVE in " + (session.username||"this persona") + "'s current feed: " + Object.keys(liveWowIds).join(", ")
+    : "Feed generated — no catalog entries currently firing for this persona (seed more history in section 1).";
+  renderCatalog();
+}
+renderCatalog();
+
+// ── Top 5 real users (static JSON) ─────────────────────────────────────────
+(function loadTop5(){
+  var meta = $("top5-meta"), wrap = $("top5-table-wrap");
+  fetch("top5-real-users.json").then(function(r){
+    if (!r.ok) throw new Error("HTTP "+r.status+" loading top5-real-users.json");
+    return r.json();
+  }).then(function(data){
+    clearErr("top5-err");
+    var users = data.users || [];
+    meta.innerHTML = 'Generated <b>'+esc(data.generated_at||"?")+'</b> from <b>'+esc(data.host||"?")+'</b> · richness = tier×priority over active wows';
+    if (!users.length){
+      wrap.innerHTML = '<div class="status">No ranked users in artifact yet.</div>';
+      return;
+    }
+    var rows = users.map(function(u){
+      var st = u.stats || {};
+      var stats = esc(st.questions_answered)+' answered · <b>'+esc(st.accuracy)+'%</b> acc · '+
+        esc((st.top_topics||[]).join(", ")||"—");
+      var wows = (u.wows||[]).map(function(w){
+        return '<div class="top5-wow t-'+esc(w.tier)+'">'+
+          '<span class="tierbadge t-'+esc(w.tier)+'">'+esc(w.tier)+'</span> '+
+          '<span class="mono" style="font-size:.72rem;color:var(--ink-3)">'+esc(w.id)+'</span>'+
+          (w.title?' <span class="chip info" style="font-size:.66rem">'+esc(w.title)+'</span>':"")+
+          '<div class="copy" style="margin-top:6px;font-size:.86rem">'+esc(w.copy_rendered)+'</div>'+
+          '<div class="signal" style="margin-top:6px;margin-bottom:0">'+esc(w.signal)+'</div></div>';
+      }).join("");
+      return '<tr><td><b>#'+esc(u.rank)+'</b></td>'+
+        '<td><div class="top5-user">'+esc(u.username)+'</div>'+
+        '<div class="mono" style="font-size:.68rem;color:var(--ink-3);margin-top:3px">'+esc((u.user_id||"").slice(0,8))+'… · score '+esc(u.richness_score)+'</div></td>'+
+        '<td>'+stats+'</td><td>'+wows+'</td></tr>';
+    }).join("");
+    wrap.innerHTML = '<table class="top5-table"><thead><tr><th>Rank</th><th>User</th><th>Stats</th><th>Active wow moments</th></tr></thead><tbody>'+
+      rows+'</tbody></table>';
+    var moments = data.top_moments || [];
+    if (moments.length){
+      $("top5-moments").style.display = "block";
+      $("top5-moments-list").innerHTML = moments.map(function(m,i){
+        return (i+1)+'. <b>'+esc(m.id)+'</b> (tier '+esc(m.tier)+') — fired for '+esc(m.count)+' users';
+      }).join("<br>");
+    }
+  }).catch(function(e){
+    showErr("top5-err", String(e && e.message || e));
+    meta.textContent = "Could not load top5-real-users.json";
+    wrap.innerHTML = "";
+  });
+})();
+
+// ── 6 · Fact pack ────────────────────────────────────────────────────────────
+function lineageTip(lin){
+  if (!lin) return "";
+  return '<span class="tip">ⓘ where this comes from<span class="tipbox">source: '+esc(lin.source)+
+    '\u000Aderivation: '+esc(lin.derivation)+'\u000Asample size: '+esc(lin.sample_size)+'</span></span>';
+}
+$("btn-facts").onclick = async function(){
+  clearErr("s5-err");
+  try{
+    var res = await rpc("quizverse_aahaa_fact_pack", {});
+    if (res.ok === false) throw res;
+    var f = res.facts || {}, lin = f.lineage || {};
+    var lt = f.lifetime || {}, rc = f.recent || {}, tp = f.topics || {};
+    var topicRows = (tp.list||[]).slice(0,6).map(function(t){
+      return '<div style="margin-top:9px"><div class="kv">'+esc(t.topic)+' — <b>'+esc(t.accuracy_pct)+'%</b> ('+esc(t.answered)+' answered)</div>'+
+        '<div class="accbar"><i style="width:'+Math.min(100,t.accuracy_pct|0)+'%"></i></div></div>';
+    }).join("");
+    $("s5-grid").innerHTML =
+      '<div class="subcard"><h4>📊 Lifetime '+lineageTip(lin.lifetime)+'</h4><div class="kv">'+
+        'answered <b>'+esc(lt.questions_answered)+'</b> · correct <b>'+esc(lt.questions_correct)+'</b> · accuracy <b>'+esc(lt.accuracy_pct)+'%</b><br>'+
+        'games <b>'+esc(lt.total_games)+'</b> · avg <b>'+esc(lt.avg_time_ms)+'ms</b>/answer<br>'+
+        'longest win streak <b>'+esc(lt.longest_win_streak)+'</b></div>'+
+        '<div style="margin-top:10px"><span class="chip info">archetype: '+esc(f.derived && f.derived.personality_archetype)+'</span></div></div>'+
+      '<div class="subcard"><h4>🕑 Recent (newest '+esc(rc.window)+') '+lineageTip(lin.recent)+'</h4><div class="kv">'+
+        'answered <b>'+esc(rc.answered)+'</b> · accuracy <b>'+esc(rc.accuracy_pct)+'%</b><br>'+
+        'tail correct run <b>'+esc(rc.tail_correct_run)+'</b> · comebacks <b>'+esc(rc.comebacks_after_3_wrong)+'</b><br>'+
+        'improvement <b>'+esc(rc.improvement_pts)+' pts</b>'+
+        (rc.struggling_topic?'<br>struggling: <b>'+esc(rc.struggling_topic)+'</b> ('+esc(rc.struggling_wrong)+' wrong)':"")+'</div></div>'+
+      '<div class="subcard"><h4>🧭 Topics '+lineageTip(lin.topics)+'</h4>'+
+        '<div>'+(tp.strongest?'<span class="chip ok">strongest: '+esc(tp.strongest.topic)+' '+esc(tp.strongest.accuracy_pct)+'%</span> ':"")+
+        (tp.weakest?'<span class="chip bad">weakest: '+esc(tp.weakest.topic)+' '+esc(tp.weakest.accuracy_pct)+'%</span>':"")+'</div>'+
+        (topicRows||'<div class="kv" style="margin-top:8px">No topic data yet — seed history first.</div>')+'</div>';
+  } catch(e){ showErr("s5-err", e); }
+};
+
+// ── 6 · No-repeat proof ──────────────────────────────────────────────────────
+function inlineQuestions(){
+  var qs = [];
+  for (var i=1;i<=12;i++){
+    qs.push({ id:"demo_q"+i, question:"Demo question #"+i+" — pick option A.",
+      options:["Option A","Option B","Option C"], correct_index:0, category:demoTopic, difficulty:3 });
+  }
+  return qs;
+}
+$("btn-norepeat").onclick = async function(){
+  clearErr("s6-err"); $("s6-verdict").className = "verdict";
+  try{
+    var payload = { kind:"deduped_s3", mode:"Showcase", scope:"global", topic:demoTopic,
+                    count:6, id_prefix:"demo", inline_questions:inlineQuestions() };
+    var r1 = await rpc("quizverse_request_questions", payload);
+    if (r1.ok === false) throw r1;
+    var r2 = await rpc("quizverse_request_questions", payload);
+    if (r2.ok === false) throw r2;
+    var ids1 = (r1.questions||[]).map(function(q){return q.id;});
+    var ids2 = (r2.questions||[]).map(function(q){return q.id;});
+    var set1 = {}; ids1.forEach(function(id){ set1[id]=true; });
+    var overlap = ids2.filter(function(id){ return set1[id]; }).length;
+    function col(title, ids, dupSet, pol){
+      return '<div class="subcard"><h4>'+title+'</h4>'+policyChips(pol)+'<div class="idcol" style="margin-top:10px">'+
+        ids.map(function(id){ return '<span class="id'+(dupSet && dupSet[id]?" dup":"")+'">'+esc(id)+'</span>'; }).join("")+'</div></div>';
+    }
+    $("s6-grid").innerHTML =
+      col("Call 1 — "+ids1.length+" questions served", ids1, null, r1.repeat_policy) +
+      col("Call 2 — immediately after", ids2, set1, r2.repeat_policy);
+    var v = $("s6-verdict");
+    v.className = "verdict " + (overlap===0 ? "ok" : "bad");
+    v.textContent = overlap===0
+      ? "✓ ZERO overlap between the two calls ("+ids1.length+" + "+ids2.length+" unique ids) — the qv_seen ledger deduped server-side."
+      : "✗ " + overlap + " ids repeated across the calls.";
+  } catch(e){ showErr("s6-err", e); }
+};
+</script>
+</body>
+</html>

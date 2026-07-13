@@ -5,6 +5,132 @@ declare var __TS_OWNED_RPCS: {
 declare function groupAfterJoinHook(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, data: void, request: nkruntime.JoinGroupRequest): void;
 declare function groupAfterLeaveHook(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, data: void, request: nkruntime.LeaveGroupRequest): void;
 declare function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, initializer: nkruntime.Initializer): void;
+declare namespace AahaaCatalog {
+    interface WowCandidate {
+        wow_id: string;
+        tier: string;
+        vars: {
+            [k: string]: any;
+        };
+        score: number;
+        signal: string;
+    }
+    interface CatalogEntry {
+        wow_id: string;
+        tier: string;
+        surface: string;
+        copy_template: string;
+        cta_action_id: string;
+        loop_event: string;
+        mechanic: string;
+        priority_class: string;
+        celebratory: boolean;
+        fullscreen: boolean;
+        cooldown_days: number;
+        base_score: number;
+        data_sources: string[];
+        eval: (facts: AahaaFacts.FactPack, profile: any) => WowCandidate | null;
+    }
+    function catalog(): CatalogEntry[];
+    function renderCopy(template: string, vars: {
+        [k: string]: any;
+    }): string;
+}
+declare namespace AahaaEngine {
+    var MODULE_VERSION: string;
+    var COLL_PROFILE: string;
+    var COLL_FEED: string;
+    var COLL_STATS: string;
+    var COLL_BATCH: string;
+    var KEY_PROFILE: string;
+    var KEY_FEED: string;
+    var AAHAA_PER_FEED: number;
+    var WEEKLY_CAP: number;
+    var MUTE_DAYS: number;
+    var RATING_SUPPRESS_DAYS: number;
+    var CTR_MIN_SHOWS: number;
+    var CTR_FLOOR: number;
+    function readProfile(nk: nkruntime.Nakama, userId: string): any;
+    function writeProfile(nk: nkruntime.Nakama, userId: string, profile: any): void;
+    function recordReaction(nk: nkruntime.Nakama, wowId: string, action: string): void;
+    interface GeneratedWow {
+        wow_id: string;
+        tier: string;
+        surface: string;
+        copy: string;
+        copy_template: string;
+        vars: {
+            [k: string]: any;
+        };
+        cta_action_id: string;
+        loop_event: string;
+        mechanic: string;
+        priority_class: string;
+        fullscreen: boolean;
+        signal: string;
+        data_sources: string[];
+        score: number;
+        trace_id: string;
+    }
+    function generateForUser(ctx: nkruntime.Context, nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string): {
+        feed: GeneratedWow[];
+        facts: AahaaFacts.FactPack;
+        suppressed: string[];
+        rating_prompt_suppressed: boolean;
+    };
+    function markFired(nk: nkruntime.Nakama, userId: string, wowId: string, fullscreen: boolean): void;
+    function muteWow(nk: nkruntime.Nakama, userId: string, wowId: string): void;
+    function notePoolExhausted(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, mode: string, topic: string): void;
+    function generateAll(ctx: nkruntime.Context, nk: nkruntime.Nakama, logger: nkruntime.Logger, maxUsers: number, resetCursor: boolean): any;
+}
+declare namespace AahaaFacts {
+    var FACT_PACK_VERSION: string;
+    interface TopicStat {
+        topic: string;
+        answered: number;
+        correct: number;
+        accuracy_pct: number;
+        avg_time_ms: number;
+    }
+    interface FactPack {
+        version: string;
+        computed_ms: number;
+        user_id: string;
+        identity: any;
+        lifetime: any;
+        recent: any;
+        topics: {
+            list: TopicStat[];
+            strongest: TopicStat | null;
+            weakest: TopicStat | null;
+            top3: string[];
+        };
+        modes: any;
+        streaks: any;
+        social: any;
+        seedq: any;
+        onboarding: any;
+        derived: any;
+        lineage: {
+            [group: string]: any;
+        };
+    }
+    function buildFactPack(ctx: nkruntime.Context, nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string): FactPack;
+}
+declare namespace Aahaa {
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace AahaaValidator {
+    interface ValidationResult {
+        pass: boolean;
+        violations: string[];
+        numeric_claims: string[];
+        unmatched_numbers: string[];
+        word_count: number;
+        fallback_template: string;
+    }
+    function validate(text: string, facts: any, opts: any): ValidationResult;
+}
 declare namespace AiPipelines {
     function register(initializer: nkruntime.Initializer): void;
 }
@@ -4054,6 +4180,173 @@ declare namespace SatoriWebhooks {
     function dispatch(nk: nkruntime.Nakama, logger: nkruntime.Logger, eventName: string, payload: any): void;
     function register(initializer: nkruntime.Initializer): void;
     function registerEventHandlers(): void;
+}
+declare var __qvsSeen: any;
+declare namespace SeedQ {
+    var MODULE_VERSION: string;
+    var COLL_POOL: string;
+    var COLL_POOL_INDEX: string;
+    var COLL_REVIEW: string;
+    var COLL_STAGED: string;
+    var COLL_SOURCE_CACHE: string;
+    var COLL_INGEST_STATE: string;
+    var COLL_FOCUS_TRACKS: string;
+    var TARGET_READY_SETS: number;
+    var MIN_READY_SETS: number;
+    var DEFAULT_SET_SIZE: number;
+    var MAX_SET_SIZE: number;
+    var POOL_MAX_QUESTIONS: number;
+    var CONSUMED_SET_TTL_MS: number;
+    var SEEN_SCOPE: string;
+    var HISTORY_READ_CAP: number;
+    interface Provenance {
+        source_domain: string;
+        license: string;
+        checked: boolean;
+        method: string;
+    }
+    interface QualityInfo {
+        score: number;
+        status: string;
+        checks: string[];
+    }
+    interface SeedQuestion {
+        id: string;
+        question: string;
+        options: string[];
+        correct_index: number;
+        explanation: string;
+        category: string;
+        topic: string;
+        mode: string;
+        difficulty: number;
+        question_type: string;
+        media_url: string;
+        media_provenance: Provenance | null;
+        source: string;
+        citation: string;
+        lang: string;
+        created_ms: number;
+        quality: QualityInfo;
+    }
+    interface StagedSet {
+        set_id: string;
+        mode: string;
+        topic: string;
+        status: string;
+        difficulty_target: number;
+        question_ids: string[];
+        questions: SeedQuestion[];
+        fresh_count?: number;
+        review_count?: number;
+        created_ms: number;
+        consumed_ms: number;
+    }
+    function nowMs(): number;
+    function slugify(s: string): string;
+    function poolKey(mode: string, topic: string): string;
+    function questionId(nk: nkruntime.Nakama, source: string, question: string, options: string[]): string;
+    function shuffle<T>(arr: T[]): T[];
+    function randSuffix(): string;
+    function clampInt(v: any, lo: number, hi: number, dflt: number): number;
+    function readSystem(nk: nkruntime.Nakama, collection: string, key: string): any;
+    function writeSystem(nk: nkruntime.Nakama, collection: string, key: string, value: any): void;
+    function readUser(nk: nkruntime.Nakama, collection: string, key: string, userId: string): any;
+    function writeUser(nk: nkruntime.Nakama, collection: string, key: string, userId: string, value: any): void;
+    function seenTopic(mode: string, topic: string): string;
+    function getSeenIdSet(nk: nkruntime.Nakama, userId: string, mode: string, topic: string): {
+        [id: string]: boolean;
+    };
+    function mergeSeenIds(nk: nkruntime.Nakama, userId: string, mode: string, topic: string, ids: string[]): void;
+    interface AdaptiveProfile {
+        target_difficulty: number;
+        basis: string;
+        sample_size: number;
+        accuracy_pct: number;
+    }
+    function computeAdaptiveProfile(nk: nkruntime.Nakama, userId: string, topic: string): AdaptiveProfile;
+    /** Admin/cron RPCs: http_key only (ctx.userId empty). Optional service_token when env is set. */
+    function isHttpKeyAdmin(ctx: nkruntime.Context, data: any): boolean;
+    /** Block SSRF targets (RFC1918, link-local, metadata) for outbound fetches. */
+    function isPublicHttpsUrl(url: string): boolean;
+    function optimizeMediaUrl(url: string): string;
+    function cachedHttpGet(nk: nkruntime.Nakama, logger: nkruntime.Logger, url: string, ttlMs: number, headers?: any): string | null;
+}
+declare namespace SeedQEngine {
+    function readPool(nk: nkruntime.Nakama, mode: string, topic: string): any;
+    function ingestIntoPool(ctx: nkruntime.Context, nk: nkruntime.Nakama, logger: nkruntime.Logger, mode: string, topic: string, candidates: SeedQ.SeedQuestion[]): {
+        accepted: number;
+        rejected: number;
+        duplicates: number;
+        pool_size: number;
+    };
+    interface StageResult {
+        doc: any;
+        ready: SeedQ.StagedSet[];
+        built: number;
+        pool_size: number;
+        pool_available: number;
+        recycled: boolean;
+        pool_exhausted: boolean;
+        content_generation_queued: boolean;
+        next_refresh_eta_sec: number;
+        fresh_count: number;
+        review_count: number;
+        adaptive: SeedQ.AdaptiveProfile;
+    }
+    function queuePriorityCombo(nk: nkruntime.Nakama, logger: nkruntime.Logger, mode: string, topic: string): void;
+    function ensureStaged(ctx: nkruntime.Context, nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, mode: string, topic: string, wantSets: number, setSize: number): StageResult;
+    function consumeSet(ctx: nkruntime.Context, nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, mode: string, topic: string, setId: string): {
+        found: boolean;
+        merged: number;
+    };
+    function defaultCombos(): any[];
+    function ingestTick(ctx: nkruntime.Context, nk: nkruntime.Nakama, logger: nkruntime.Logger, batchCombos: number, perComboCount: number): any;
+}
+declare namespace SeedQQuality {
+    var SAFE_MEDIA_DOMAINS: string[];
+    function mediaDomainSafe(url: string): boolean;
+    function checkProvenance(ctx: nkruntime.Context, nk: nkruntime.Nakama, logger: nkruntime.Logger, url: string): SeedQ.Provenance;
+    function autoQa(q: SeedQ.SeedQuestion): SeedQ.QualityInfo;
+    var FLAG_REASONS: {
+        [k: string]: boolean;
+    };
+    function applyReview(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, mode: string, topic: string, qid: string, vote: string, // "up" | "down" | "flag"
+    reason: string): {
+        entry: any;
+        quarantined: boolean;
+        duplicate: boolean;
+    };
+    function getQuarantineSet(nk: nkruntime.Nakama, mode: string, topic: string): {
+        [qid: string]: boolean;
+    };
+}
+declare namespace SeedQuestions {
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace SeedQSources {
+    interface SourceMeta {
+        rank: number;
+        id: string;
+        site: string;
+        kind: string;
+        modes: string[];
+        env_keys: string[];
+        implemented: string;
+        notes: string;
+    }
+    function registry(): SourceMeta[];
+    function fetchArchiveOrg(ctx: nkruntime.Context, nk: nkruntime.Nakama, logger: nkruntime.Logger, mode: string, topic: string, count: number): SeedQ.SeedQuestion[];
+    function fetchWolfram(ctx: nkruntime.Context, nk: nkruntime.Nakama, logger: nkruntime.Logger, mode: string, topic: string, count: number): SeedQ.SeedQuestion[];
+    function fetchGutenberg(ctx: nkruntime.Context, nk: nkruntime.Nakama, logger: nkruntime.Logger, mode: string, topic: string, count: number): SeedQ.SeedQuestion[];
+    function fetchMusicTv(ctx: nkruntime.Context, nk: nkruntime.Nakama, logger: nkruntime.Logger, mode: string, topic: string, count: number): SeedQ.SeedQuestion[];
+    function fetchYoutubeQuiz(ctx: nkruntime.Context, nk: nkruntime.Nakama, logger: nkruntime.Logger, mode: string, topic: string, count: number, params: any): SeedQ.SeedQuestion[];
+    function fetchScholar(ctx: nkruntime.Context, nk: nkruntime.Nakama, logger: nkruntime.Logger, mode: string, topic: string, count: number): SeedQ.SeedQuestion[];
+    function fetchJustWatch(ctx: nkruntime.Context, nk: nkruntime.Nakama, logger: nkruntime.Logger, mode: string, topic: string, count: number): SeedQ.SeedQuestion[];
+    function getFocusTracks(nk: nkruntime.Nakama, logger: nkruntime.Logger): any;
+    function buildAssetJob(ctx: nkruntime.Context, kind: string, params: any): any;
+    function fetchQuestions(ctx: nkruntime.Context, nk: nkruntime.Nakama, logger: nkruntime.Logger, sourceId: string, mode: string, topic: string, count: number, params: any): SeedQ.SeedQuestion[];
+    var QUESTION_SOURCES: string[];
 }
 declare namespace ActiveRolling {
     interface Touch {

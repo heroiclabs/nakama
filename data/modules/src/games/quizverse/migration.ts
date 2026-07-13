@@ -220,6 +220,114 @@ namespace QuizVerseMigration {
     }
   }
 
+  // ─────────────────────────────────────────────────────────────────────
+  // No-Repeat guarantee (per userID) — serve-time seen ledger chokepoint.
+  // ─────────────────────────────────────────────────────────────────────
+  // Used by the inline-questions delivery path below (SeedQ/Aahaa go-live
+  // proof: showcase page + verify_deliverables.mjs check #7):
+  //   1. every served question gets a stable content-hash id
+  //      (sha256(stem|sorted options) → 12 hex, "prefix_topicslug_hash"),
+  //   2. already-seen questions are excluded from the served picks while
+  //      unseen remain; when the pool is exhausted, seen ones return
+  //      flagged `recycled: true` (honest-repeat disclosure, D1 §6.2),
+  //   3. served ids are merged into qv_seen immediately (via the
+  //      globalThis.__qvsSeen bridge), so the NEXT fetch cannot repeat them.
+  // Fail-open by design: if the seen bridge is missing or anything throws,
+  // questions are served untouched.
+
+  function migSlugify(str: string): string {
+    if (!str) return "unknown";
+    return str.trim().toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_|_$/g, "")
+      .substring(0, 64);
+  }
+
+  function migQuestionId(nk: nkruntime.Nakama, prefix: string, topic: string, q: any): string {
+    var existing = q && (q.question_id || q.id);
+    if (existing) return String(existing);
+    var stem = String((q && (q.question || q.question_text || q.text)) || "").trim().toLowerCase();
+    var opts: string[] = [];
+    var rawOpts: any[] = (q && (q.options || q.choices || q.answers)) || [];
+    for (var i = 0; i < rawOpts.length; i++) {
+      var o = rawOpts[i];
+      opts.push(String(typeof o === "object" && o !== null ? (o.text || o.value || "") : o).trim().toLowerCase());
+    }
+    opts.sort();
+    var raw = stem;
+    for (var j = 0; j < opts.length; j++) raw += "|" + opts[j];
+    return prefix + "_" + migSlugify(topic) + "_" + nk.sha256Hash(raw).substring(0, 12);
+  }
+
+  interface RepeatPolicy {
+    fresh_count: number;
+    review_count: number;
+    pool_exhausted: boolean;
+  }
+
+  // Picks `count` questions from the inline pool: unseen first, honest
+  // `recycled: true` repeats only when unseen alone cannot fill the request.
+  // Marks ONLY the served ids into qv_seen (serve-time chokepoint).
+  function serveInlineNoRepeat(
+    nk: nkruntime.Nakama,
+    logger: nkruntime.Logger,
+    userId: string,
+    scope: string,
+    topic: string,
+    idPrefix: string,
+    pool: any[],
+    count: number
+  ): { questions: any[]; repeat_policy: RepeatPolicy } {
+    var seenIdSet: { [id: string]: boolean } = {};
+    var seenBridge: any = (globalThis as any).__qvsSeen;
+    try {
+      if (seenBridge && seenBridge.getIdSet) {
+        seenIdSet = seenBridge.getIdSet(nk, userId, scope, topic) || {};
+      }
+    } catch (e: any) {
+      logger.warn("[Migration/NoRepeat] seen read failed (fail-open): " + (e && e.message ? e.message : String(e)));
+    }
+
+    var unseen: any[] = [];
+    var repeats: any[] = [];
+    for (var i = 0; i < pool.length; i++) {
+      var q = pool[i];
+      var qid = migQuestionId(nk, idPrefix, topic, q);
+      if (!q.question_id && !q.id) q.id = qid; // additive — only when absent
+      if (seenIdSet[qid]) { q.recycled = true; repeats.push(q); }
+      else unseen.push(q);
+    }
+
+    var served: any[] = unseen.slice(0, count);
+    var freshCount = served.length;
+    if (served.length < count) {
+      served = served.concat(repeats.slice(0, count - served.length));
+    }
+
+    // Serve-time marking: the next fetch for this userID cannot repeat these.
+    try {
+      if (seenBridge && seenBridge.merge && served.length > 0) {
+        var servedIds: string[] = [];
+        for (var s = 0; s < served.length; s++) {
+          servedIds.push(String(served[s].question_id || served[s].id));
+        }
+        seenBridge.merge(nk, userId, scope, topic, servedIds);
+      }
+    } catch (mergeErr: any) {
+      logger.warn("[Migration/NoRepeat] seen merge failed (non-critical): " +
+        (mergeErr && mergeErr.message ? mergeErr.message : String(mergeErr)));
+    }
+
+    return {
+      questions: served,
+      repeat_policy: {
+        fresh_count: freshCount,
+        review_count: served.length - freshCount,
+        pool_exhausted: unseen.length === 0
+      }
+    };
+  }
+
   function rpcRequestQuestions(
     ctx: nkruntime.Context,
     logger: nkruntime.Logger,
@@ -231,11 +339,55 @@ namespace QuizVerseMigration {
     var kind = req.kind || "deduped_s3";
     var sourceTrace: any = { kind: kind, mode: req.mode || "unknown", attempted: [] };
 
-    // P1 is fully superseded by quizverse_get_questions (get_questions.ts).
-    // All Unity quiz modes now call quizverse_get_questions directly.
-    // quizverse_request_questions is kept registered for backward compatibility
-    // with very old client builds, but it always tells the client to fall back
-    // to the new pipeline.
+    // Inline-questions path — the caller supplies its own question pool and
+    // this RPC applies the No-Repeat chokepoint (qv_seen filter + serve-time
+    // marking + honest repeat_policy). This is the production proof surface
+    // for the SeedQ/Aahaa go-live (showcase page §"No-repeat" + verifier
+    // check #7) and the S3-fallback path noted in the go-live runbook §6.
+    var inline: any[] = (req.inline_questions && req.inline_questions.length !== undefined) ? req.inline_questions : [];
+    if (kind === "deduped_s3" && inline.length > 0) {
+      var scope = String(req.scope || "global");
+      var topic = String(req.topic || "general");
+      var idPrefix = String(req.id_prefix || "s3");
+      var count = parseInt(req.count, 10) || 10;
+      if (count < 1) count = 1;
+      if (count > inline.length) count = inline.length;
+
+      sourceTrace.attempted.push("inline_no_repeat");
+      sourceTrace.served_by = "inline_no_repeat";
+
+      var served = serveInlineNoRepeat(nk, logger, userId, scope, topic, idPrefix, inline, count);
+      var packId = newPackId(userId);
+      persistQuestionPack(nk, userId, packId, served.questions, sourceTrace);
+
+      var contextPackVersion = "v1";
+      try {
+        var pack = readPlayerContext(nk, userId);
+        contextPackVersion = (pack && pack.version) || "v1";
+      } catch (_e) {}
+
+      var servedIdList: string[] = [];
+      for (var si = 0; si < served.questions.length; si++) {
+        servedIdList.push(String(served.questions[si].question_id || served.questions[si].id));
+      }
+
+      return JSON.stringify({
+        ok:                   true,
+        questions:            served.questions,
+        question_pack_id:     packId,
+        seen_snapshot:        servedIdList,
+        context_pack_version: contextPackVersion,
+        source_trace:         sourceTrace,
+        repeat_policy:        served.repeat_policy,
+        meta:                 {}
+      });
+    }
+
+    // Every other kind: P1 is fully superseded by quizverse_get_questions
+    // (get_questions.ts). All Unity quiz modes now call quizverse_get_questions
+    // directly. quizverse_request_questions is kept registered for backward
+    // compatibility with very old client builds, but it always tells the
+    // client to fall back to the new pipeline.
     logger.warn("[Migration] quizverse_request_questions called with kind=" + kind +
       " — this RPC is retired. Client should call quizverse_get_questions instead.");
     return JSON.stringify({

@@ -1,0 +1,172 @@
+# seedquestions.quizverse.world — dedicated public surface for the
+# QuizVerse "Staged Questions" (Seed Questions) engine.
+# (Secondary host: seedquestions.intelli-verse-x.ai — same rules, kept for
+# continuity with earlier docs/links.)
+#
+# This is a NEW standalone Ingress (unlike deploy/admin-dashboard which JSON-
+# patches the shared intelliverse-user-frontend ingress). A separate host lets
+# us monitor / WAF the seedq surface independently of the main REST host.
+#
+# Two backends on each host:
+#   /                        → seedq-showcase (nginx, static demo page —
+#                              see showcase.yaml; apply it BEFORE this ingress)
+#   /v2/rpc/quizverse_seedq_ → intelliverse-nakama:7350 (RPC surface)
+#   /v2/rpc/quizverse_aahaa_ → intelliverse-nakama:7350 (Aahaa engine — the
+#                              showcase page demos it on the same origin)
+#   /v2/rpc/quizverse_reques → intelliverse-nakama:7350 (no-repeat proof RPC)
+#   /v2/rpc/quiz_submit_resu → intelliverse-nakama:7350 (history seeding)
+#   /v2/account/authenticate → intelliverse-nakama:7350 (session auth)
+#
+#   https://seedquestions.quizverse.world/v2/rpc/quizverse_seedq_get_staged
+#   https://seedquestions.quizverse.world/v2/rpc/quizverse_seedq_consume_set
+#   https://seedquestions.quizverse.world/v2/rpc/quizverse_seedq_review
+#   ... (see data/modules/src/seed-questions/sq_rpcs.ts for the full list)
+#
+# Cluster reality (verified 2026-07-12 against ai-cart-auto-cluster):
+#   - The ONLY IngressClass is `alb` (aws-load-balancer-controller) — there is
+#     no nginx ingress controller, so this manifest uses the ALB annotation
+#     pattern of the other aicart ingresses (see avatar-page-ingress).
+#   - ALB group: originally this joined the shared `intelliverse-apis` group,
+#     but that ALB is at the hard AWS limit of 100 target groups per ALB
+#     (TooManyUniqueTargetGroupsPerLoadBalancer on 2026-07-12), so this
+#     ingress now uses its own group `seedquestions` → dedicated ALB. The
+#     Route53 ALIAS records for both hosts point at the dedicated ALB
+#     (updated 2026-07-12; originally they pointed at the shared ALB).
+#   - TLS: the ACM certs below are the same pair avatar-page-ingress uses;
+#     c2b20042… covers quizverse.world + *.quizverse.world (verified via SNI),
+#     so seedquestions.quizverse.world needs NO new cert. The intelli-verse-x.ai
+#     wildcard cert is already attached at the ALB group level.
+#   - Rate limiting: ALB has no per-route rps annotation (the old nginx
+#     limit-rps annotations were no-ops here). If throttling is needed, attach
+#     an AWS WAF rate-based rule to the intelliverse-apis ALB.
+#
+# DNS (DONE 2026-07-12):
+#   seedquestions.quizverse.world       (zone Z07562523B3TD6EXI0N6A) and
+#   seedquestions.intelli-verse-x.ai    (zone Z0145313YX71CJ73SY5B)
+#   both ALIAS to the DEDICATED `seedquestions` ALB (see group note above —
+#   they were re-pointed off the shared intelliverse-apis ALB on 2026-07-12).
+#   Verified: both hosts resolve to the same ALB IP set, distinct from
+#   nakama-rest.intelli-verse-x.ai (which stays on the shared ALB).
+#
+# Apply:
+#   kubectl apply -f deploy/seedquestions/showcase.yaml   # first
+#   kubectl apply -f deploy/seedquestions/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: quizverse-seedquestions
+  namespace: aicart
+  labels:
+    app: intelliverse-nakama
+    component: seed-questions
+  annotations:
+    alb.ingress.kubernetes.io/group.name: seedquestions
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/healthcheck-path: /
+    alb.ingress.kubernetes.io/success-codes: "200,307,401,404"
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:970547373533:certificate/c2b20042-2ce2-44d0-a6e8-df8a7814a440,arn:aws:acm:us-east-1:970547373533:certificate/c5a0e339-3eb5-4ff7-b9d3-7eccfb055331
+spec:
+  ingressClassName: alb
+  rules:
+    # ── PRIMARY host: seedquestions.quizverse.world ─────────────────────────
+    - host: seedquestions.quizverse.world
+      http:
+        paths:
+          # Only the RPC surface is exposed on this host — console, healthcheck
+          # and the rest of the Nakama API stay on the primary hosts.
+          - path: /v2/rpc/quizverse_seedq_*
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: intelliverse-nakama
+                port:
+                  number: 7350
+          # Aahaa engine RPCs — the showcase page demos them same-origin.
+          - path: /v2/rpc/quizverse_aahaa_*
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: intelliverse-nakama
+                port:
+                  number: 7350
+          # No-repeat proof + history seeding used by the showcase page.
+          - path: /v2/rpc/quizverse_request_questions*
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: intelliverse-nakama
+                port:
+                  number: 7350
+          - path: /v2/rpc/quiz_submit_result*
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: intelliverse-nakama
+                port:
+                  number: 7350
+          # Session auth endpoints the mobile client needs on the same origin.
+          - path: /v2/account/authenticate*
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: intelliverse-nakama
+                port:
+                  number: 7350
+          # Static showcase page (see showcase.yaml) — ALB picks the most
+          # specific path match, so /v2/* above always wins over this.
+          - path: /*
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: seedq-showcase
+                port:
+                  number: 80
+    # ── SECONDARY host: seedquestions.intelli-verse-x.ai (same rules) ───────
+    - host: seedquestions.intelli-verse-x.ai
+      http:
+        paths:
+          - path: /v2/rpc/quizverse_seedq_*
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: intelliverse-nakama
+                port:
+                  number: 7350
+          - path: /v2/rpc/quizverse_aahaa_*
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: intelliverse-nakama
+                port:
+                  number: 7350
+          - path: /v2/rpc/quizverse_request_questions*
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: intelliverse-nakama
+                port:
+                  number: 7350
+          - path: /v2/rpc/quiz_submit_result*
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: intelliverse-nakama
+                port:
+                  number: 7350
+          - path: /v2/account/authenticate*
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: intelliverse-nakama
+                port:
+                  number: 7350
+          - path: /*
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: seedq-showcase
+                port:
+                  number: 80

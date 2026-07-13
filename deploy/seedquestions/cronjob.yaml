@@ -1,0 +1,71 @@
+# Seed Questions ingest cron — rotates through the 13-connector combo matrix
+# (see SeedQEngine.defaultCombos in data/modules/src/seed-questions/sq_engine.ts)
+# so every pool stays fresh without any manual seeding.
+#
+# Same external-caller pattern as kb_enrichment_tick / tournament_cron_tick:
+# a curl pod POSTs the RPC with http_key + service_token.
+#
+# Secrets expected in the aicart namespace:
+#   nakama-secret            key: http_key
+#   seedq-secrets (create):  key: service_token   (== SEEDQ_SERVICE_TOKEN env
+#                            forwarded to the Nakama JS runtime)
+#
+# Cadence: every 30 min × batch=3 combos × count=20 candidates ≈ the full
+# 13-combo matrix refreshed ~3×/day, well inside every source's rate limits.
+#
+# Apply:
+#   kubectl apply -f deploy/seedquestions/cronjob.yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: seedq-ingest-tick
+  namespace: aicart
+  labels:
+    component: seed-questions
+spec:
+  schedule: "*/30 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 300
+      template:
+        metadata:
+          labels:
+            component: seed-questions
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          containers:
+            - name: tick
+              image: curlimages/curl:8.7.1
+              env:
+                - name: NAKAMA_URL
+                  value: http://intelliverse-nakama.aicart.svc.cluster.local:7350
+                - name: HTTP_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: nakama-secret
+                      key: http_key
+                - name: SEEDQ_SERVICE_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: seedq-secrets
+                      key: service_token
+                      optional: true
+              command:
+                - /bin/sh
+                - -ec
+                - |
+                  curl -sS --fail-with-body -X POST \
+                    "$NAKAMA_URL/v2/rpc/quizverse_seedq_ingest_tick?http_key=$HTTP_KEY&unwrap" \
+                    -H 'Content-Type: application/json' \
+                    -d "{\"service_token\":\"$SEEDQ_SERVICE_TOKEN\",\"batch\":3,\"count\":20}"
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  cpu: 100m
+                  memory: 64Mi

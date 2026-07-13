@@ -1,0 +1,87 @@
+# Seed Questions × Aahaa deliverable verifier — runs the same 12-check suite as
+# scripts/verify_deliverables.mjs against the in-cluster Nakama every 30 minutes.
+#
+# Exit code 0 = all checks PASS; non-zero triggers failedJobsHistoryLimit retention
+# and cluster alerting on the CronJob.
+#
+# The script is shipped via ConfigMap (no npm deps — node >= 18 global fetch only):
+#
+#   kubectl -n aicart create configmap seedq-verify-script \
+#     --from-file=verify_deliverables.mjs=scripts/verify_deliverables.mjs \
+#     --dry-run=client -o yaml | kubectl apply -f -
+#
+# Re-run that command whenever scripts/verify_deliverables.mjs changes, then:
+#   kubectl -n aicart apply -f deploy/seedquestions/verify-cronjob.yaml
+#
+# Secrets expected in the aicart namespace:
+#   nakama-secret  key: http_key   (defaulthttpkey in dev; prod value in cluster)
+#
+# Evidence file: the CronJob writes to /tmp/verify-latest.json inside the pod
+# (ephemeral). For a durable scoreboard, copy from job logs or run the script
+# locally / via the showcase host which serves web/seedquestions/verify-latest.json.
+#
+# Apply:
+#   kubectl apply -f deploy/seedquestions/verify-cronjob.yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: seedq-verify-loop
+  namespace: aicart
+  labels:
+    component: seed-questions
+    app: seedq-verify
+spec:
+  schedule: "*/30 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 600
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            component: seed-questions
+            app: seedq-verify
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          containers:
+            - name: verify
+              image: node:20-alpine
+              env:
+                - name: NAKAMA_HOST
+                  value: http://intelliverse-nakama.aicart.svc.cluster.local:7350
+                - name: HTTP_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: nakama-secret
+                      key: http_key
+                - name: VERIFY_OUT
+                  value: /tmp/verify-latest.json
+              command:
+                - /bin/sh
+                - -ec
+                - |
+                  node /scripts/verify_deliverables.mjs \
+                    --host "$NAKAMA_HOST" \
+                    --http-key "$HTTP_KEY" \
+                    --out "$VERIFY_OUT" \
+                    --no-color
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+                  readOnly: true
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 500m
+                  memory: 128Mi
+          volumes:
+            - name: script
+              configMap:
+                name: seedq-verify-script
+                defaultMode: 0555

@@ -24,6 +24,96 @@ namespace LegacyQuiz {
     Storage.writeJson(nk, Constants.QUIZ_RESULTS_COLLECTION, "stats_" + userId, userId, stats);
   }
 
+  // Rolling per-question knowledge ledger — same document contract as
+  // quiz_results.js appendKnowledgeMapHistory ({entries:[{category, correct,
+  // time_ms}]} at <slug>_quiz_history/history), consumed by quizverse_depth,
+  // the seedq adaptive profile, and the Aahaa fact pack.
+  var KM_MAX_ENTRIES = 2000;
+  function appendKnowledgeHistory(
+    nk: nkruntime.Nakama,
+    logger: nkruntime.Logger,
+    userId: string,
+    data: any,
+    category: string,
+    totalQuestions: number,
+    correctAnswers: number
+  ): void {
+    var collection = "quiz-verse_quiz_history";
+    var existing: any = Storage.readJson(nk, collection, "history", userId);
+    var entries: any[] = (existing && existing.entries && existing.entries.length !== undefined) ? existing.entries : [];
+
+    var newEntries: any[] = [];
+    var qh: any[] = (data.questionHistory && data.questionHistory.length !== undefined) ? data.questionHistory : [];
+    for (var i = 0; i < qh.length; i++) {
+      var q = qh[i];
+      if (!q || typeof q !== "object") continue;
+      newEntries.push({
+        category: q.category || q.categoryName || q.categoryId || category || "general",
+        correct: (q.correct !== undefined) ? !!q.correct : !!q.was_correct,
+        time_ms: parseInt(q.time_ms || q.timeMs || 0, 10) || 0
+      });
+    }
+    if (newEntries.length === 0 && data.questionDetails && data.questionDetails.length) {
+      for (var d = 0; d < data.questionDetails.length; d++) {
+        var qd = data.questionDetails[d];
+        if (!qd || typeof qd !== "object") continue;
+        newEntries.push({
+          category: qd.category || qd.concept || category || "general",
+          correct: !!qd.isCorrect,
+          time_ms: Math.round((parseFloat(qd.timeTakenSeconds) || 0) * 1000)
+        });
+      }
+    }
+    if (newEntries.length === 0) {
+      // Synthesized aggregate entry — one row per quiz for older clients.
+      var acc = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
+      newEntries.push({ category: category || "general", correct: acc >= 60, time_ms: 0 });
+    }
+
+    var combined = entries.concat(newEntries);
+    if (combined.length > KM_MAX_ENTRIES) combined = combined.slice(combined.length - KM_MAX_ENTRIES);
+    Storage.writeJson(nk, collection, "history", userId, { entries: combined });
+    logger.info("[LegacyQuiz] knowledge history +" + newEntries.length + " entries (total=" + combined.length + ")");
+  }
+
+  // Submit-time qv_seen backstop. This handler SHADOWS quiz_results.js's
+  // rpcQuizSubmitResult (postbuild assigns __rpc_quiz_submit_result
+  // unconditionally here), which silently dropped its seen-ledger merge —
+  // clients that only mark seen at submit were repeating questions. Mirrors
+  // the exact quiz_results.js contract (seenQuestionIds/seenScope/seenTopic,
+  // top-level or under metadata) and additionally harvests answers[].question_id
+  // (the quiz_submit_result_v2 forward). Non-critical: never blocks the submit.
+  function mergeSeenQuestions(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, data: any, category: string): void {
+    var bridge: any = (globalThis as any).__qvsSeen;
+    if (!bridge) return;
+
+    var seenIds: any = null;
+    var seenScopeRaw: any = null;
+    var seenTopicRaw: any = null;
+    if (data.seenQuestionIds && data.seenQuestionIds.length > 0) {
+      seenIds = data.seenQuestionIds;
+      seenScopeRaw = data.seenScope;
+      seenTopicRaw = data.seenTopic;
+    } else if (data.metadata && data.metadata.seenQuestionIds && data.metadata.seenQuestionIds.length > 0) {
+      seenIds = data.metadata.seenQuestionIds;
+      seenScopeRaw = data.metadata.seenScope;
+      seenTopicRaw = data.metadata.seenTopic;
+    } else if (data.answers && data.answers.length > 0) {
+      seenIds = [];
+      for (var a = 0; a < data.answers.length; a++) {
+        var qid = data.answers[a] && (data.answers[a].question_id || data.answers[a].id);
+        if (qid) seenIds.push(String(qid));
+      }
+    }
+    if (!seenIds || seenIds.length === 0) return;
+
+    var scope = seenScopeRaw || "global";
+    var topic = seenTopicRaw || data.categoryName || category || "general";
+    bridge.merge(nk, userId, scope, topic, seenIds);
+    logger.info("[LegacyQuiz] merged " + seenIds.length + " seen IDs into qv_seen/" +
+      bridge.buildKey(scope, topic));
+  }
+
   function rpcSubmitResult(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     var userId = RpcHelpers.requireUserId(ctx);
     var data = RpcHelpers.parseRpcPayload(payload);
@@ -63,6 +153,31 @@ namespace LegacyQuiz {
     stats.lastPlayedAt = ts;
 
     saveStats(nk, userId, stats);
+
+    // Repetition-Fatigue "after hook" (Deliverable 1): append per-question
+    // entries to the knowledge-map ledger (quiz-verse_quiz_history). This
+    // ledger feeds the seedq adaptive profile AND the Aahaa fact pack
+    // (lock_it_in / weakness / frustration signals) — without it, backend
+    // personalisation is blind for clients that submit through this v1 RPC.
+    // Implemented inline (not via the globalThis.__kmAppendHistory bridge —
+    // that bridge lives in a postbuild-renamed InitModule that never runs).
+    // Non-critical: never blocks the main submit.
+    try {
+      appendKnowledgeHistory(nk, logger, userId, data, category, totalQuestions, correctAnswers);
+    } catch (kmErr: any) {
+      logger.warn("[LegacyQuiz] knowledge-history append failed (non-critical): " +
+        (kmErr && kmErr.message ? kmErr.message : String(kmErr)));
+    }
+
+    // No-Repeat backstop: merge played question IDs into the qv_seen ledger
+    // so quizverse_quiz_generate / quizverse_request_questions can never
+    // serve them to this userID again inside the repeat window.
+    try {
+      mergeSeenQuestions(nk, logger, userId, data, category);
+    } catch (seenErr: any) {
+      logger.warn("[LegacyQuiz] seen-ledger merge failed (non-critical): " +
+        (seenErr && seenErr.message ? seenErr.message : String(seenErr)));
+    }
 
     EventBus.emit(nk, logger, ctx, EventBus.Events.QUIZ_COMPLETED, {
       userId: userId,

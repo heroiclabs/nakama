@@ -1,0 +1,93 @@
+# Seed Questions showcase — static single-file site served at
+# https://seedquestions.quizverse.world/ (path `/`; secondary host
+# seedquestions.intelli-verse-x.ai), while `/v2/*` on the same host keeps
+# routing to Nakama (see ingress.yaml in this folder).
+#
+# Static pages live in web/seedquestions/ — fully self-contained demos (inline
+# CSS/JS, no build step):
+#   index.html  — interactive showcase (staging, Aahaa feed, catalog, top-5)
+#   verify.html — 12-check verifier loop UI (same suite as verify_deliverables.mjs)
+#
+# Generate the ConfigMap FROM the repo files (single directory mount at /):
+#
+#   kubectl -n aicart create configmap seedq-showcase-html \
+#     --from-file=index.html=web/seedquestions/index.html \
+#     --from-file=verify.html=web/seedquestions/verify.html \
+#     --dry-run=client -o yaml | kubectl apply -f -
+#
+# Optional — pre-baked evidence for verify.html "Server-side evidence" panel:
+#     --from-file=verify-latest.json=web/seedquestions/verify-latest.json
+#
+# Re-run whenever any of those files change, then:
+#   kubectl -n aicart rollout restart deploy/seedq-showcase
+#
+# URLs after ingress apply:
+#   https://seedquestions.quizverse.world/          → index.html
+#   https://seedquestions.quizverse.world/verify.html
+#
+# Apply order:
+#   1. the configmap command above
+#   2. kubectl apply -f deploy/seedquestions/showcase.yaml
+#   3. kubectl apply -f deploy/seedquestions/ingress.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: seedq-showcase
+  namespace: aicart
+  labels:
+    app: seedq-showcase
+    component: seed-questions
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: seedq-showcase
+  template:
+    metadata:
+      labels:
+        app: seedq-showcase
+        component: seed-questions
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: html
+              mountPath: /usr/share/nginx/html
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+      volumes:
+        - name: html
+          configMap:
+            name: seedq-showcase-html
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: seedq-showcase
+  namespace: aicart
+  labels:
+    app: seedq-showcase
+    component: seed-questions
+spec:
+  selector:
+    app: seedq-showcase
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
