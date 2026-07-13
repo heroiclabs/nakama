@@ -203,7 +203,7 @@ func (s *ConsoleServer) initRpcMethodCache() error {
 		request := method.Type.In(2)
 
 		if request != reflect.TypeOf(&emptypb.Empty{}) {
-			if request.Kind() == reflect.Ptr {
+			if request.Kind() == reflect.Pointer {
 				request = request.Elem()
 			}
 			bodyTemplate, err = reflectProtoMessageAsJsonTemplate(request)
@@ -242,7 +242,7 @@ func reflectProtoMessageAsJsonTemplate(s reflect.Type) (string, error) {
 	var populate func(m reflect.Value) reflect.Value
 	populate = func(m reflect.Value) reflect.Value {
 		switch m.Kind() {
-		case reflect.Ptr:
+		case reflect.Pointer:
 			if m.IsNil() {
 				m.Set(reflect.New(m.Type().Elem()))
 			}

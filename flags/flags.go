@@ -261,7 +261,7 @@ func (fm *FlagMaker) PrintDefaults() {
 // ParseArgs parses the arguments based on the FlagMaker's setting.
 func (fm *FlagMaker) ParseArgs(obj interface{}, args []string) ([]string, error) {
 	v := reflect.ValueOf(obj)
-	if v.Kind() != reflect.Ptr {
+	if v.Kind() != reflect.Pointer {
 		return args, fmt.Errorf("top level object must be a pointer. %v is passed", v.Type())
 	}
 	if v.IsNil() {
@@ -272,7 +272,7 @@ func (fm *FlagMaker) ParseArgs(obj interface{}, args []string) ([]string, error)
 	case reflect.Struct:
 		fm.enumerateAndCreate("", e, "")
 	case reflect.Interface:
-		if e.Elem().Kind() == reflect.Ptr {
+		if e.Elem().Kind() == reflect.Pointer {
 			fm.enumerateAndCreate("", e, "")
 		} else {
 			return args, fmt.Errorf("interface must have pointer underlying type. %v is passed", v.Type())
@@ -321,7 +321,7 @@ func (fm *FlagMaker) enumerateAndCreate(prefix string, value reflect.Value, usag
 			fm.enumerateAndCreate(prefix, value.Elem(), usage)
 		}
 		return
-	case reflect.Ptr:
+	case reflect.Pointer:
 		if value.IsNil() {
 			value.Set(reflect.New(value.Type().Elem()))
 		}
@@ -386,7 +386,7 @@ func (fm *FlagMaker) getUsage(name string, field reflect.StructField) string {
 func (fm *FlagMaker) getUnderlyingType(ttype reflect.Type) reflect.Type {
 	// this only deals with *T unnamed type, other unnamed types, e.g. []int, struct{}
 	// will return empty string.
-	if ttype.Kind() == reflect.Ptr {
+	if ttype.Kind() == reflect.Pointer {
 		return fm.getUnderlyingType(ttype.Elem())
 	}
 	return ttype

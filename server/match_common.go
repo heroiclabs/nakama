@@ -127,7 +127,7 @@ func BlugeWalkDocument(data interface{}, path []string, sortablePaths map[string
 				blugeProcessProperty(fieldVal, path, sortablePaths, doc)
 			}
 		}
-	case reflect.Ptr:
+	case reflect.Pointer:
 		ptrElem := val.Elem()
 		if ptrElem.IsValid() && ptrElem.CanInterface() {
 			blugeProcessProperty(ptrElem.Interface(), path, sortablePaths, doc)
@@ -226,7 +226,7 @@ func blugeProcessProperty(property interface{}, path []string, sortablePaths map
 		}
 	case reflect.Map, reflect.Slice:
 		BlugeWalkDocument(property, path, sortablePaths, doc)
-	case reflect.Ptr:
+	case reflect.Pointer:
 		if !propertyValue.IsNil() {
 			BlugeWalkDocument(property, path, sortablePaths, doc)
 		}
