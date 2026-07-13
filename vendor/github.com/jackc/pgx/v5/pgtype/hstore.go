@@ -40,8 +40,7 @@ func (h *Hstore) Scan(src any) error {
 		return nil
 	}
 
-	switch src := src.(type) {
-	case string:
+	if src, ok := src.(string); ok {
 		return scanPlanTextAnyToHstoreScanner{}.scanString(src, h)
 	}
 
@@ -166,13 +165,11 @@ func (encodePlanHstoreCodecText) Encode(value any, buf []byte) (newBuf []byte, e
 func (HstoreCodec) PlanScan(m *Map, oid uint32, format int16, target any) ScanPlan {
 	switch format {
 	case BinaryFormatCode:
-		switch target.(type) {
-		case HstoreScanner:
+		if _, ok := target.(HstoreScanner); ok {
 			return scanPlanBinaryHstoreToHstoreScanner{}
 		}
 	case TextFormatCode:
-		switch target.(type) {
-		case HstoreScanner:
+		if _, ok := target.(HstoreScanner); ok {
 			return scanPlanTextAnyToHstoreScanner{}
 		}
 	}
@@ -200,6 +197,12 @@ func (scanPlanBinaryHstoreToHstoreScanner) Scan(src []byte, dst any) error {
 
 	if pairCount < 0 {
 		return fmt.Errorf("hstore invalid pair count: %d", pairCount)
+	}
+	// Each pair carries at minimum two int32 length headers (key, value), so pairCount cannot
+	// exceed the remaining bytes / 8. This bounds the up-front make() against a malicious server
+	// claiming a huge pair count in a small message.
+	if maxPairs := len(src[rp:]) / (2 * uint32Len); pairCount > maxPairs {
+		return fmt.Errorf("hstore invalid pair count %d for %d remaining bytes", pairCount, len(src[rp:]))
 	}
 
 	hstore := make(Hstore, pairCount)
@@ -229,6 +232,9 @@ func (scanPlanBinaryHstoreToHstoreScanner) Scan(src []byte, dst any) error {
 		rp += 4
 
 		if valueLen >= 0 {
+			if len(src[rp:]) < valueLen {
+				return fmt.Errorf("hstore incomplete %v", src)
+			}
 			valueStrings[i] = string(src[rp : rp+valueLen])
 			rp += valueLen
 
@@ -378,13 +384,15 @@ func (p *hstoreParser) consumeDoubleQuotedWithEscapes(firstBackslash int) (strin
 	p.pos = firstBackslash
 
 	// copy bytes until the end, unescaping backslashes
+quotedString:
 	for {
 		nextB, end := p.consume()
-		if end {
+		switch {
+		case end:
 			return "", errEOSInQuoted
-		} else if nextB == '"' {
-			break
-		} else if nextB == '\\' {
+		case nextB == '"':
+			break quotedString
+		case nextB == '\\':
 			// escape: skip the backslash and copy the char
 			nextB, end = p.consume()
 			if end {
@@ -394,7 +402,7 @@ func (p *hstoreParser) consumeDoubleQuotedWithEscapes(firstBackslash int) (strin
 				return "", fmt.Errorf("unexpected escape in quoted string: found '%#v'", nextB)
 			}
 			builder.WriteByte(nextB)
-		} else {
+		default:
 			// normal byte: copy it
 			builder.WriteByte(nextB)
 		}

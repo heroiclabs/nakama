@@ -131,7 +131,8 @@ func (p *encodePlanArrayCodecText) Encode(value any, buf []byte) (newBuf []byte,
 
 		elem := array.Index(i)
 		var elemBuf []byte
-		if isNil, _ := isNilDriverValuer(elem); !isNil {
+		isNil, callNilDriverValuer := isNilDriverValuer(elem)
+		if !isNil {
 			elemType := reflect.TypeOf(elem)
 			if lastElemType != elemType {
 				lastElemType = elemType
@@ -141,6 +142,11 @@ func (p *encodePlanArrayCodecText) Encode(value any, buf []byte) (newBuf []byte,
 				}
 			}
 			elemBuf, err = encodePlan.Encode(elem, inElemBuf)
+			if err != nil {
+				return nil, err
+			}
+		} else if callNilDriverValuer {
+			elemBuf, err = (&encodePlanDriverValuer{m: p.m, oid: p.ac.ElementType.OID, formatCode: TextFormatCode}).Encode(elem, inElemBuf)
 			if err != nil {
 				return nil, err
 			}
@@ -195,7 +201,8 @@ func (p *encodePlanArrayCodecBinary) Encode(value any, buf []byte) (newBuf []byt
 
 		elem := array.Index(i)
 		var elemBuf []byte
-		if isNil, _ := isNilDriverValuer(elem); !isNil {
+		isNil, callNilDriverValuer := isNilDriverValuer(elem)
+		if !isNil {
 			elemType := reflect.TypeOf(elem)
 			if lastElemType != elemType {
 				lastElemType = elemType
@@ -205,6 +212,11 @@ func (p *encodePlanArrayCodecBinary) Encode(value any, buf []byte) (newBuf []byt
 				}
 			}
 			elemBuf, err = encodePlan.Encode(elem, buf)
+			if err != nil {
+				return nil, err
+			}
+		} else if callNilDriverValuer {
+			elemBuf, err = (&encodePlanDriverValuer{m: p.m, oid: p.ac.ElementType.OID, formatCode: BinaryFormatCode}).Encode(elem, buf)
 			if err != nil {
 				return nil, err
 			}
@@ -255,12 +267,19 @@ func (c *ArrayCodec) decodeBinary(m *Map, arrayOID uint32, src []byte, array Arr
 		return err
 	}
 
+	elementCount := cardinality(arrayHeader.Dimensions)
+	// Each element carries at minimum a 4-byte length header, so elementCount cannot exceed the
+	// remaining bytes / 4. This bounds the allocation in SetDimensions and the loop below against a
+	// malicious server claiming huge dimensions in a small message.
+	if maxElements := len(src[rp:]) / 4; elementCount > maxElements {
+		return fmt.Errorf("array claims %d elements but only %d bytes remain", elementCount, len(src[rp:]))
+	}
+
 	err = array.SetDimensions(arrayHeader.Dimensions)
 	if err != nil {
 		return err
 	}
 
-	elementCount := cardinality(arrayHeader.Dimensions)
 	if elementCount == 0 {
 		return nil
 	}
@@ -271,11 +290,17 @@ func (c *ArrayCodec) decodeBinary(m *Map, arrayOID uint32, src []byte, array Arr
 	}
 
 	for i := range elementCount {
+		if len(src[rp:]) < 4 {
+			return fmt.Errorf("array body truncated at element %d", i)
+		}
 		elem := array.ScanIndex(i)
 		elemLen := int(int32(binary.BigEndian.Uint32(src[rp:])))
 		rp += 4
 		var elemSrc []byte
 		if elemLen >= 0 {
+			if len(src[rp:]) < elemLen {
+				return fmt.Errorf("array element %d length %d exceeds remaining %d bytes", i, elemLen, len(src[rp:]))
+			}
 			elemSrc = src[rp : rp+elemLen]
 			rp += elemLen
 		}
@@ -391,10 +416,8 @@ func isRagged(slice reflect.Value) bool {
 	for i := range sliceLen {
 		if i == 0 {
 			innerLen = slice.Index(i).Len()
-		} else {
-			if slice.Index(i).Len() != innerLen {
-				return true
-			}
+		} else if slice.Index(i).Len() != innerLen {
+			return true
 		}
 		if isRagged(slice.Index(i)) {
 			return true

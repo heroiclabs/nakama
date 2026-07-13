@@ -65,7 +65,7 @@ func (c *compiler) compileLabeledStatement(v *ast.LabelledStatement, needResult 
 	}
 	for b := c.block; b != nil; b = b.outer {
 		if b.label == label {
-			c.throwSyntaxError(int(v.Label.Idx-1), "Label '%s' has already been declared", label)
+			c.throwSyntaxErrorf(int(v.Label.Idx-1), "Label '%s' has already been declared", label)
 		}
 	}
 	switch s := v.Statement.(type) {
@@ -369,7 +369,7 @@ func (c *compiler) compileForInto(into ast.ForInto, needResult bool) (enter *ent
 			c.emit(enumGet)
 			c.emitPattern(target, c.emitPatternVarAssign, false)
 		default:
-			c.throwSyntaxError(int(target.Idx0()-1), "unsupported for-in var target: %T", target)
+			c.throwSyntaxErrorf(int(target.Idx0()-1), "unsupported for-in var target: %T", target)
 		}
 	case *ast.ForDeclaration:
 
@@ -587,7 +587,7 @@ func (c *compiler) findBreakBlock(label *ast.Identifier, isBreak bool) (res *blo
 			}
 		}
 		if !isBreak && found != nil && found.typ != blockLoop && found.typ != blockLoopEnum {
-			c.throwSyntaxError(int(label.Idx)-1, "Illegal continue statement: '%s' does not denote an iteration statement", label.Name)
+			c.throwSyntaxErrorf(int(label.Idx)-1, "Illegal continue statement: '%s' does not denote an iteration statement", label.Name)
 		}
 		if res == nil {
 			res = found
@@ -755,7 +755,7 @@ func (c *compiler) compileReturnStatement(v *ast.ReturnStatement) {
 func (c *compiler) checkVarConflict(name unistring.String, offset int) {
 	for sc := c.scope; sc != nil; sc = sc.outer {
 		if b, exists := sc.boundNames[name]; exists && !b.isVar && !(b.isArg && sc != c.scope) {
-			c.throwSyntaxError(offset, "Identifier '%s' has already been declared", name)
+			c.throwSyntaxErrorf(offset, "Identifier '%s' has already been declared", name)
 		}
 		if sc.isFunction() {
 			break
@@ -788,7 +788,7 @@ func (c *compiler) compileVarBinding(expr *ast.Binding) {
 		c.compileExpression(expr.Initializer).emitGetter(true)
 		c.emitPattern(target, c.emitPatternVarAssign, false)
 	default:
-		c.throwSyntaxError(int(target.Idx0()-1), "unsupported variable binding target: %T", target)
+		c.throwSyntaxErrorf(int(target.Idx0()-1), "unsupported variable binding target: %T", target)
 	}
 }
 
@@ -845,7 +845,7 @@ func (c *compiler) compileLexicalBinding(expr *ast.Binding) {
 			c.emitPatternLexicalAssign(target, init)
 		}, false)
 	default:
-		c.throwSyntaxError(int(target.Idx0()-1), "unsupported lexical binding target: %T", target)
+		c.throwSyntaxErrorf(int(target.Idx0()-1), "unsupported lexical binding target: %T", target)
 	}
 }
 

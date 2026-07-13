@@ -54,8 +54,7 @@ func (t *TSVector) Scan(src any) error {
 		return nil
 	}
 
-	switch src := src.(type) {
-	case string:
+	if src, ok := src.(string); ok {
 		return scanPlanTextAnyToTSVectorScanner{}.scanString(src, t)
 	}
 
@@ -174,7 +173,7 @@ func (encodePlanTSVectorCodecBinary) Encode(value any, buf []byte) ([]byte, erro
 
 		// Each position is a uint16: weight (2 bits) | position (14 bits)
 		for _, pos := range entry.Positions {
-			packed := tsvectorWeightToBinary(pos.Weight)<<14 | uint16(pos.Position)&0x3FFF
+			packed := tsvectorWeightToBinary(pos.Weight)<<14 | pos.Position&0x3FFF
 			buf = pgio.AppendUint16(buf, packed)
 		}
 	}
@@ -203,6 +202,16 @@ func (scanPlanBinaryTSVectorToTSVectorScanner) Scan(src []byte, dst any) error {
 	}
 	entryCount := int(int32(binary.BigEndian.Uint32(src[rp:])))
 	rp += uint32Len
+
+	if entryCount < 0 {
+		return fmt.Errorf("tsvector invalid lexeme count: %d", entryCount)
+	}
+	// Each lexeme carries at minimum a 1-byte NUL terminator and a 2-byte position count, so
+	// entryCount cannot exceed remaining/3. This bounds the up-front make() against a malicious
+	// server claiming a huge lexeme count in a small message.
+	if maxEntries := len(src[rp:]) / 3; entryCount > maxEntries {
+		return fmt.Errorf("tsvector invalid lexeme count %d for %d remaining bytes", entryCount, len(src[rp:]))
+	}
 
 	var tsv TSVector
 	if entryCount > 0 {
@@ -294,13 +303,11 @@ func (encodePlanTSVectorCodecText) Encode(value any, buf []byte) ([]byte, error)
 func (TSVectorCodec) PlanScan(m *Map, oid uint32, format int16, target any) ScanPlan {
 	switch format {
 	case BinaryFormatCode:
-		switch target.(type) {
-		case TSVectorScanner:
+		if _, ok := target.(TSVectorScanner); ok {
 			return scanPlanBinaryTSVectorToTSVectorScanner{}
 		}
 	case TextFormatCode:
-		switch target.(type) {
-		case TSVectorScanner:
+		if _, ok := target.(TSVectorScanner); ok {
 			return scanPlanTextAnyToTSVectorScanner{}
 		}
 	}
