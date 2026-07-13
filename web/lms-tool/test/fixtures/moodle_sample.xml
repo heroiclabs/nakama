@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<quiz>
+  <question type="category">
+    <category>
+      <text>$course$/top/Photosynthesis Basics</text>
+    </category>
+  </question>
+  <question type="multichoice">
+    <name><text>Chlorophyll location</text></name>
+    <questiontext format="html">
+      <text><![CDATA[<p>Where in the plant cell does <b>photosynthesis</b> primarily occur?</p>]]></text>
+    </questiontext>
+    <generalfeedback format="html">
+      <text><![CDATA[<p>Chloroplasts contain chlorophyll, the pigment that captures light energy.</p>]]></text>
+    </generalfeedback>
+    <defaultgrade>1</defaultgrade>
+    <single>true</single>
+    <shuffleanswers>true</shuffleanswers>
+    <answer fraction="0" format="html"><text><![CDATA[<p>Mitochondria</p>]]></text></answer>
+    <answer fraction="100" format="html"><text><![CDATA[<p>Chloroplasts</p>]]></text></answer>
+    <answer fraction="0" format="html"><text><![CDATA[<p>Nucleus</p>]]></text></answer>
+    <answer fraction="0" format="html"><text><![CDATA[<p>Ribosomes</p>]]></text></answer>
+  </question>
+  <question type="multichoice">
+    <name><text>Gas produced</text></name>
+    <questiontext format="html">
+      <text><![CDATA[Which gas is <i>released</i> during photosynthesis?]]></text>
+    </questiontext>
+    <defaultgrade>1</defaultgrade>
+    <single>true</single>
+    <answer fraction="100"><text>Oxygen</text></answer>
+    <answer fraction="0"><text>Carbon dioxide</text></answer>
+    <answer fraction="0"><text>Nitrogen</text></answer>
+  </question>
+  <question type="multichoice">
+    <name><text>Multi-answer (should skip)</text></name>
+    <questiontext format="html"><text>Select all inputs of photosynthesis.</text></questiontext>
+    <single>false</single>
+    <answer fraction="50"><text>Water</text></answer>
+    <answer fraction="50"><text>Carbon dioxide</text></answer>
+    <answer fraction="-100"><text>Oxygen</text></answer>
+  </question>
+  <question type="truefalse">
+    <name><text>TF (should skip)</text></name>
+    <questiontext format="html"><text>Photosynthesis occurs at night.</text></questiontext>
+    <answer fraction="0"><text>true</text></answer>
+    <answer fraction="100"><text>false</text></answer>
+  </question>
+  <question type="multichoice">
+    <name><text>Image question (loss note)</text></name>
+    <questiontext format="html">
+      <text><![CDATA[<p>Identify the structure shown: <img src="@@PLUGINFILE@@/leaf.png" alt="leaf"/></p>]]></text>
+    </questiontext>
+    <single>true</single>
+    <file name="leaf.png" path="/" encoding="base64">aGVsbG8=</file>
+    <answer fraction="100"><text>Leaf</text></answer>
+    <answer fraction="0"><text>Root</text></answer>
+  </question>
+</quiz>

@@ -1,0 +1,28 @@
+{
+  "name": "quizverse-lms-tool",
+  "version": "0.1.0",
+  "private": true,
+  "description": "QuizVerse LTI 1.3 Tool: OIDC launch, deep linking, AGS grade-back, student quiz player, QTI/Moodle-XML converters",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "mock-nakama": "node mock-nakama/server.js",
+    "test": "node --test \"test/*.test.js\"",
+    "proof:fixtures": "node scripts/verify-p4p5-fixtures.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.16",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "fast-xml-parser": "^4.5.0",
+    "ltijs": "^5.9.7",
+    "ltijs-sequelize": "^2.4.4",
+    "multer": "^1.4.5-lts.1",
+    "sequelize": "^6.37.5",
+    "sqlite3": "^5.1.7"
+  }
+}
