@@ -7,7 +7,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io"
 	"maps"
 	"math"
 	"net"
@@ -100,7 +99,29 @@ type Config struct {
 	// Valid values: "disable", "prefer", "require". Defaults to "prefer".
 	ChannelBinding string
 
+	// RequireAuth restricts which authentication methods the client will accept from the server,
+	// matching libpq's require_auth parameter. It is a comma-separated list of method names
+	// (password, md5, gss, sspi, scram-sha-256, oauth, none). A leading "!" on every entry negates
+	// the list (forbid these methods, allow all others). Empty (the default) means all methods are
+	// accepted.
+	RequireAuth string
+
 	createdByParseConfig bool // Used to enforce created by ParseConfig rule.
+}
+
+// connStringKeyAliases maps libpq parameter keywords to the canonical key names this package
+// uses internally in the parsed-settings map. Most keywords are already canonical; this map
+// holds only those whose pgx-internal name differs from the libpq spelling.
+var connStringKeyAliases = map[string]string{
+	"dbname": "database",
+}
+
+// canonicalConnStringKey returns the canonical settings-map key for a libpq parameter keyword.
+func canonicalConnStringKey(k string) string {
+	if c, ok := connStringKeyAliases[k]; ok {
+		return c
+	}
+	return k
 }
 
 // ParseConfigOptions contains options that control how a config is built such as GetSSLPassword.
@@ -108,6 +129,25 @@ type ParseConfigOptions struct {
 	// GetSSLPassword gets the password to decrypt a SSL client certificate. This is analogous to the libpq function
 	// PQsetSSLKeyPassHook_OpenSSL.
 	GetSSLPassword GetSSLPasswordFunc
+
+	// ConnStringAllowedKeys, if non-nil, restricts which parameter keys may appear in connString
+	// itself. Any other key (whether connString is in keyword/value or URL form) causes
+	// ParseConfigWithOptions to return an error before any filesystem access or network
+	// resolution is attempted. Environment variables (PGHOST, PGSERVICEFILE, ...) and built-in
+	// defaults are not checked: only keys that originate from the connString argument.
+	//
+	// Keys may be given in either their libpq spelling ("dbname") or pgx-internal spelling
+	// ("database"); both are accepted.
+	//
+	// A nil slice (the default) applies no restriction and matches libpq behaviour. An empty
+	// non-nil slice rejects every key, i.e. connString must be empty.
+	//
+	// Use this when any part of connString is built from input the application does not fully
+	// control (tenant configuration, RPC parameters, admin UI fields). List only the keys that
+	// input is expected to supply. This fails closed: a future libpq parameter that pgconn learns
+	// to parse will be rejected unless the application has explicitly allowed it, rather than
+	// silently passing through.
+	ConnStringAllowedKeys []string
 }
 
 // Copy returns a deep copy of the config that is safe to use and modify.
@@ -253,6 +293,15 @@ func NetworkAddress(host string, port uint16) (network, address string) {
 // changed later but the unencrypted fallback is present. Ensure there are no stale fallbacks when manually setting
 // TLSConfig.
 //
+// Several connection parameters cause ParseConfig to read files from the local filesystem: servicefile, passfile,
+// sslkey, sslcert, and sslrootcert. Applications that build connection strings from untrusted input must not allow
+// these keys to be set by that input. In particular, servicefile (which pgconn accepts in the connection string;
+// libpq does not) is read as an INI file whose entries override other connection settings including host, port, and
+// sslmode, so an attacker who controls servicefile and service can redirect the connection. If any portion of the
+// connection string is externally supplied, use ParseConfigWithOptions and set ParseConfigOptions.ConnStringAllowedKeys
+// to an allow-list of the keys that input is expected to supply; any other key in the connection string is then
+// rejected before any filesystem access occurs.
+//
 // Other known differences with libpq:
 //
 // When multiple hosts are specified, libpq allows them to have different passwords set via the .pgpass file. pgconn
@@ -292,6 +341,18 @@ func ParseConfigWithOptions(connString string, options ParseConfigOptions) (*Con
 		}
 	}
 
+	if options.ConnStringAllowedKeys != nil {
+		allowed := make(map[string]struct{}, len(options.ConnStringAllowedKeys))
+		for _, k := range options.ConnStringAllowedKeys {
+			allowed[canonicalConnStringKey(k)] = struct{}{}
+		}
+		for k := range connStringSettings {
+			if _, ok := allowed[k]; !ok {
+				return nil, &ParseConfigError{ConnString: connString, msg: fmt.Sprintf("connection string key %q is not in ConnStringAllowedKeys", k)}
+			}
+		}
+	}
+
 	settings := mergeSettings(defaultSettings, envSettings, connStringSettings)
 	if service, present := settings["service"]; present {
 		serviceSettings, err := parseServiceSettings(settings["servicefile"], service)
@@ -308,9 +369,7 @@ func ParseConfigWithOptions(connString string, options ParseConfigOptions) (*Con
 		User:                 settings["user"],
 		Password:             settings["password"],
 		RuntimeParams:        make(map[string]string),
-		BuildFrontend: func(r io.Reader, w io.Writer) *pgproto3.Frontend {
-			return pgproto3.NewFrontend(r, w)
-		},
+		BuildFrontend:        pgproto3.NewFrontend,
 		BuildContextWatcherHandler: func(pgConn *PgConn) ctxwatch.Handler {
 			return &DeadlineContextWatcherHandler{Conn: pgConn.conn}
 		},
@@ -360,6 +419,7 @@ func ParseConfigWithOptions(connString string, options ParseConfigOptions) (*Con
 		"min_protocol_version": {},
 		"max_protocol_version": {},
 		"channel_binding":      {},
+		"require_auth":         {},
 	}
 
 	// Adding kerberos configuration
@@ -498,6 +558,11 @@ func ParseConfigWithOptions(connString string, options ParseConfigOptions) (*Con
 		return nil, &ParseConfigError{ConnString: connString, msg: fmt.Sprintf("unknown channel_binding value: %v", channelBinding)}
 	}
 
+	config.RequireAuth = settings["require_auth"]
+	if _, err := parseRequireAuth(config.RequireAuth); err != nil {
+		return nil, &ParseConfigError{ConnString: connString, msg: "invalid require_auth", err: err}
+	}
+
 	return config, nil
 }
 
@@ -537,6 +602,8 @@ func parseEnvSettings() map[string]string {
 		"PGOPTIONS":            "options",
 		"PGMINPROTOCOLVERSION": "min_protocol_version",
 		"PGMAXPROTOCOLVERSION": "max_protocol_version",
+		"PGCHANNELBINDING":     "channel_binding",
+		"PGREQUIREAUTH":        "require_auth",
 	}
 
 	for envname, realname := range nameMap {
@@ -603,16 +670,8 @@ func parseURLSettings(connString string) (map[string]string, error) {
 		settings["database"] = database
 	}
 
-	nameMap := map[string]string{
-		"dbname": "database",
-	}
-
 	for k, v := range parsedURL.Query() {
-		if k2, present := nameMap[k]; present {
-			k = k2
-		}
-
-		settings[k] = v[0]
+		settings[canonicalConnStringKey(k)] = v[0]
 	}
 
 	return settings, nil
@@ -627,10 +686,9 @@ var asciiSpace = [256]uint8{'\t': 1, '\n': 1, '\v': 1, '\f': 1, '\r': 1, ' ': 1}
 func parseKeywordValueSettings(s string) (map[string]string, error) {
 	settings := make(map[string]string)
 
-	nameMap := map[string]string{
-		"dbname": "database",
-	}
-
+	// Trim any leading whitespace so that the loop exits cleanly when only
+	// spaces remain (e.g. trailing spaces after the last value).
+	s = strings.TrimLeft(s, " \t\n\r\v\f")
 	for len(s) > 0 {
 		var key, val string
 		eqIdx := strings.IndexRune(s, '=')
@@ -640,8 +698,9 @@ func parseKeywordValueSettings(s string) (map[string]string, error) {
 
 		key = strings.Trim(s[:eqIdx], " \t\n\r\v\f")
 		s = strings.TrimLeft(s[eqIdx+1:], " \t\n\r\v\f")
-		if len(s) == 0 {
-		} else if s[0] != '\'' {
+		switch {
+		case len(s) == 0:
+		case s[0] != '\'':
 			end := 0
 			for ; end < len(s); end++ {
 				if asciiSpace[s[end]] == 1 {
@@ -654,13 +713,11 @@ func parseKeywordValueSettings(s string) (map[string]string, error) {
 					}
 				}
 			}
-			val = strings.Replace(strings.Replace(s[:end], "\\\\", "\\", -1), "\\'", "'", -1)
-			if end == len(s) {
-				s = ""
-			} else {
-				s = s[end+1:]
-			}
-		} else { // quoted string
+			val = strings.ReplaceAll(strings.ReplaceAll(s[:end], "\\\\", "\\"), "\\'", "'")
+			// Consume the value and trim any subsequent whitespace so that
+			// multiple trailing spaces don't cause a spurious parse failure.
+			s = strings.TrimLeft(s[end:], " \t\n\r\v\f")
+		default: // quoted string
 			s = s[1:]
 			end := 0
 			for ; end < len(s); end++ {
@@ -674,17 +731,12 @@ func parseKeywordValueSettings(s string) (map[string]string, error) {
 			if end == len(s) {
 				return nil, errors.New("unterminated quoted string in connection info string")
 			}
-			val = strings.Replace(strings.Replace(s[:end], "\\\\", "\\", -1), "\\'", "'", -1)
-			if end == len(s) {
-				s = ""
-			} else {
-				s = s[end+1:]
-			}
+			val = strings.ReplaceAll(strings.ReplaceAll(s[:end], "\\\\", "\\"), "\\'", "'")
+			// Consume the closing quote and any subsequent whitespace.
+			s = strings.TrimLeft(s[end+1:], " \t\n\r\v\f")
 		}
 
-		if k, ok := nameMap[key]; ok {
-			key = k
-		}
+		key = canonicalConnStringKey(key)
 
 		if key == "" {
 			return nil, errors.New("invalid keyword/value")
@@ -710,16 +762,9 @@ func parseServiceSettings(servicefilePath, serviceName string) (map[string]strin
 		return nil, fmt.Errorf("unable to find service: %v", serviceName)
 	}
 
-	nameMap := map[string]string{
-		"dbname": "database",
-	}
-
 	settings := make(map[string]string, len(service.Settings))
 	for k, v := range service.Settings {
-		if k2, present := nameMap[k]; present {
-			k = k2
-		}
-		settings[k] = v
+		settings[canonicalConnStringKey(k)] = v
 	}
 
 	return settings, nil

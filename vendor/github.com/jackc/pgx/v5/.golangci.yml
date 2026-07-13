@@ -6,6 +6,8 @@ linters:
   enable:
     - govet
     - ineffassign
+    - unconvert
+    - gocritic
 
 # See: https://golangci-lint.run/usage/formatters/
 formatters:

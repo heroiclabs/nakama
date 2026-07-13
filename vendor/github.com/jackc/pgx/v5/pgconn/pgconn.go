@@ -76,6 +76,7 @@ type NotificationHandler func(*PgConn, *Notification)
 // PgConn is a low-level PostgreSQL connection handle. It is not safe for concurrent usage.
 type PgConn struct {
 	conn              net.Conn
+	tlsConfig         *tls.Config       // tls.Config that conn was negotiated with; nil if conn is not TLS
 	pid               uint32            // backend pid
 	secretKey         []byte            // key to use to send a cancel query message to the server
 	parameterStatuses map[string]string // parameters that have been reported by the server
@@ -292,7 +293,13 @@ func connectPreferred(ctx context.Context, config *Config, connectOneConfigs []*
 	}
 
 	if fallbackConnectOneConfig != nil {
-		pgConn, err := connectOne(ctx, config, fallbackConnectOneConfig, true)
+		fallbackCtx := octx
+		if config.ConnectTimeout != 0 {
+			var cancel context.CancelFunc
+			fallbackCtx, cancel = context.WithTimeout(octx, config.ConnectTimeout)
+			defer cancel()
+		}
+		pgConn, err := connectOne(fallbackCtx, config, fallbackConnectOneConfig, true)
 		if err == nil {
 			return pgConn, nil
 		}
@@ -352,6 +359,7 @@ func connectOne(ctx context.Context, config *Config, connectConfig *connectOneCo
 		}
 
 		pgConn.conn = tlsConn
+		pgConn.tlsConfig = connectConfig.tlsConfig
 	}
 
 	if config.AfterNetConnect != nil {
@@ -362,7 +370,13 @@ func connectOne(ctx context.Context, config *Config, connectConfig *connectOneCo
 		}
 	}
 
-	pgConn.contextWatcher = ctxwatch.NewContextWatcher(config.BuildContextWatcherHandler(pgConn))
+	// Use a deadline-only watcher during connect. The application-supplied
+	// BuildContextWatcherHandler may read *PgConn fields (e.g.
+	// CancelRequestContextWatcherHandler reads pgConn.pid and
+	// pgConn.secretKey), which would race with this function's writes to
+	// those fields when handling BackendKeyData. The application handler is
+	// installed below, after the connection reaches connStatusIdle.
+	pgConn.contextWatcher = ctxwatch.NewContextWatcher(&DeadlineContextWatcherHandler{Conn: pgConn.conn})
 	pgConn.contextWatcher.Watch(ctx)
 	defer pgConn.contextWatcher.Unwatch()
 
@@ -398,6 +412,21 @@ func connectOne(ctx context.Context, config *Config, connectConfig *connectOneCo
 		return nil, newPerDialConnectError("failed to write startup message", err)
 	}
 
+	// Parse require_auth on each connect so that callers who mutate
+	// Config.RequireAuth after ParseConfig see their change take effect.
+	// The parser is pure and cheap; ParseConfigWithOptions validates the
+	// value up front so any parse error here indicates post-parse mutation.
+	requireAuthPolicy, err := parseRequireAuth(config.RequireAuth)
+	if err != nil {
+		pgConn.conn.Close()
+		return nil, newPerDialConnectError("invalid require_auth", err)
+	}
+	requireAuthFail := func(err error) (*PgConn, error) {
+		pgConn.conn.Close()
+		return nil, newPerDialConnectError("require_auth check failed", err)
+	}
+	clientFinishedAuth := false
+
 	for {
 		msg, err := pgConn.receiveMessage()
 		if err != nil {
@@ -414,19 +443,30 @@ func connectOne(ctx context.Context, config *Config, connectConfig *connectOneCo
 			pgConn.secretKey = msg.SecretKey
 
 		case *pgproto3.AuthenticationOk:
+			if requireAuthPolicy.authRequired && !clientFinishedAuth {
+				return requireAuthFail(requireAuthPolicy.check(authMethodNone))
+			}
 		case *pgproto3.AuthenticationCleartextPassword:
+			if err := requireAuthPolicy.check(authMethodPassword); err != nil {
+				return requireAuthFail(err)
+			}
 			err = pgConn.txPasswordMessage(pgConn.config.Password)
 			if err != nil {
 				pgConn.conn.Close()
 				return nil, newPerDialConnectError("failed to write password message", err)
 			}
+			clientFinishedAuth = true
 		case *pgproto3.AuthenticationMD5Password:
+			if err := requireAuthPolicy.check(authMethodMD5); err != nil {
+				return requireAuthFail(err)
+			}
 			digestedPassword := "md5" + hexMD5(hexMD5(pgConn.config.Password+pgConn.config.User)+string(msg.Salt[:]))
 			err = pgConn.txPasswordMessage(digestedPassword)
 			if err != nil {
 				pgConn.conn.Close()
 				return nil, newPerDialConnectError("failed to write password message", err)
 			}
+			clientFinishedAuth = true
 		case *pgproto3.AuthenticationSASL:
 			// Check if OAUTHBEARER is supported
 			serverSupportsOAuthBearer := false
@@ -438,30 +478,40 @@ func connectOne(ctx context.Context, config *Config, connectConfig *connectOneCo
 			}
 
 			if serverSupportsOAuthBearer && pgConn.config.OAuthTokenProvider != nil {
+				if err := requireAuthPolicy.check(authMethodOAuth); err != nil {
+					return requireAuthFail(err)
+				}
 				err = pgConn.oauthAuth(ctx)
 			} else {
+				if err := requireAuthPolicy.check(authMethodSCRAMSHA256); err != nil {
+					return requireAuthFail(err)
+				}
 				err = pgConn.scramAuth(msg.AuthMechanisms)
 			}
 			if err != nil {
 				pgConn.conn.Close()
 				return nil, newPerDialConnectError("failed SASL auth", err)
 			}
+			clientFinishedAuth = true
 		case *pgproto3.AuthenticationGSS:
+			if err := requireAuthPolicy.check(authMethodGSS); err != nil {
+				return requireAuthFail(err)
+			}
 			err = pgConn.gssAuth()
 			if err != nil {
 				pgConn.conn.Close()
 				return nil, newPerDialConnectError("failed GSS auth", err)
 			}
+			clientFinishedAuth = true
 		case *pgproto3.ReadyForQuery:
 			pgConn.status = connStatusIdle
-			if config.ValidateConnect != nil {
-				// ValidateConnect may execute commands that cause the context to be watched again. Unwatch first to avoid
-				// the watch already in progress panic. This is that last thing done by this method so there is no need to
-				// restart the watch after ValidateConnect returns.
-				//
-				// See https://github.com/jackc/pgconn/issues/40.
-				pgConn.contextWatcher.Unwatch()
+			// The connect-phase deadline-only watcher is no longer needed; replace
+			// it with the application-supplied watcher so subsequent operations
+			// (including any queries run by ValidateConnect) use it.
+			pgConn.contextWatcher.Unwatch()
+			pgConn.contextWatcher = ctxwatch.NewContextWatcher(config.BuildContextWatcherHandler(pgConn))
 
+			if config.ValidateConnect != nil {
 				err := config.ValidateConnect(ctx, pgConn)
 				if err != nil {
 					if _, ok := err.(*NotPreferredError); ignoreNotPreferredErr && ok {
@@ -475,7 +525,7 @@ func connectOne(ctx context.Context, config *Config, connectConfig *connectOneCo
 		case *pgproto3.ParameterStatus, *pgproto3.NoticeResponse:
 			// handled by ReceiveMessage
 		case *pgproto3.NegotiateProtocolVersion:
-			serverVersion := pgproto3.ProtocolVersion30&0xFFFF0000 | uint32(msg.NewestMinorProtocol)
+			serverVersion := pgproto3.ProtocolVersion30&0xFFFF0000 | msg.NewestMinorProtocol
 			if serverVersion < minProtocolVersion {
 				pgConn.conn.Close()
 				return nil, newPerDialConnectError("server protocol version too low", nil)
@@ -1008,22 +1058,22 @@ func ErrorResponseToPgError(msg *pgproto3.ErrorResponse) *PgError {
 	return &PgError{
 		Severity:            msg.Severity,
 		SeverityUnlocalized: msg.SeverityUnlocalized,
-		Code:                string(msg.Code),
-		Message:             string(msg.Message),
-		Detail:              string(msg.Detail),
+		Code:                msg.Code,
+		Message:             msg.Message,
+		Detail:              msg.Detail,
 		Hint:                msg.Hint,
 		Position:            msg.Position,
 		InternalPosition:    msg.InternalPosition,
-		InternalQuery:       string(msg.InternalQuery),
-		Where:               string(msg.Where),
-		SchemaName:          string(msg.SchemaName),
-		TableName:           string(msg.TableName),
-		ColumnName:          string(msg.ColumnName),
-		DataTypeName:        string(msg.DataTypeName),
+		InternalQuery:       msg.InternalQuery,
+		Where:               msg.Where,
+		SchemaName:          msg.SchemaName,
+		TableName:           msg.TableName,
+		ColumnName:          msg.ColumnName,
+		DataTypeName:        msg.DataTypeName,
 		ConstraintName:      msg.ConstraintName,
-		File:                string(msg.File),
+		File:                msg.File,
 		Line:                msg.Line,
-		Routine:             string(msg.Routine),
+		Routine:             msg.Routine,
 	}
 }
 
@@ -1072,6 +1122,25 @@ func (pgConn *PgConn) CancelRequest(ctx context.Context) error {
 		defer contextWatcher.Unwatch()
 	}
 
+	// If the primary connection is encrypted, encrypt the cancel connection the same way so the
+	// backend pid and secret key are not exposed to a passive network observer. This mirrors libpq's
+	// PQcancelCreate (PG17+), which reuses the original connection's sslmode/gssencmode for the
+	// cancel connection. The legacy unencrypted path is still used when the primary connection is
+	// plaintext (e.g. unix sockets or sslmode=disable).
+	if pgConn.tlsConfig != nil {
+		var tlsCancelConn net.Conn
+		if pgConn.config.SSLNegotiation == "direct" {
+			tlsCancelConn = tls.Client(cancelConn, pgConn.tlsConfig)
+		} else {
+			tlsCancelConn, err = startTLS(cancelConn, pgConn.tlsConfig)
+			if err != nil {
+				return fmt.Errorf("tls error on cancel connection: %w", err)
+			}
+		}
+		cancelConn = tlsCancelConn
+		defer cancelConn.Close()
+	}
+
 	buf := make([]byte, 12+len(pgConn.secretKey))
 	binary.BigEndian.PutUint32(buf[0:4], uint32(len(buf)))
 	binary.BigEndian.PutUint32(buf[4:8], 80877102)
@@ -1114,8 +1183,7 @@ func (pgConn *PgConn) WaitForNotification(ctx context.Context) error {
 			return normalizeTimeoutError(ctx, err)
 		}
 
-		switch msg.(type) {
-		case *pgproto3.NotificationResponse:
+		if _, ok := msg.(*pgproto3.NotificationResponse); ok {
 			return nil
 		}
 	}
@@ -1700,8 +1768,7 @@ func (rr *ResultReader) NextRow() bool {
 			return false
 		}
 
-		switch msg := msg.(type) {
-		case *pgproto3.DataRow:
+		if msg, ok := msg.(*pgproto3.DataRow); ok {
 			rr.rowValues = msg.Values
 			return true
 		}
@@ -1998,7 +2065,7 @@ func (pgConn *PgConn) EscapeString(s string) (string, error) {
 		return "", errors.New("EscapeString must be run with client_encoding=UTF8")
 	}
 
-	return strings.Replace(s, "'", "''", -1), nil
+	return strings.ReplaceAll(s, "'", "''"), nil
 }
 
 // CheckConn checks the underlying connection without writing any bytes. This is currently implemented by doing a read
@@ -2105,6 +2172,7 @@ func (pgConn *PgConn) CustomData() map[string]any {
 // compatibility.
 type HijackedConn struct {
 	Conn              net.Conn
+	TLSConfig         *tls.Config       // tls.Config that Conn was negotiated with; nil if Conn is not TLS
 	PID               uint32            // backend pid
 	SecretKey         []byte            // key to use to send a cancel query message to the server
 	ParameterStatuses map[string]string // parameters that have been reported by the server
@@ -2128,6 +2196,7 @@ func (pgConn *PgConn) Hijack() (*HijackedConn, error) {
 
 	return &HijackedConn{
 		Conn:              pgConn.conn,
+		TLSConfig:         pgConn.tlsConfig,
 		PID:               pgConn.pid,
 		SecretKey:         pgConn.secretKey,
 		ParameterStatuses: pgConn.parameterStatuses,
@@ -2148,6 +2217,7 @@ func (pgConn *PgConn) Hijack() (*HijackedConn, error) {
 func Construct(hc *HijackedConn) (*PgConn, error) {
 	pgConn := &PgConn{
 		conn:              hc.Conn,
+		tlsConfig:         hc.TLSConfig,
 		pid:               hc.PID,
 		secretKey:         hc.SecretKey,
 		parameterStatuses: hc.ParameterStatuses,

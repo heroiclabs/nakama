@@ -9,7 +9,7 @@
 //
 // Or from a keyword/value string.
 //
-//	db, err := sql.Open("pgx", "user=postgres password=secret host=localhost port=5432 database=pgx_test sslmode=disable")
+//	db, err := sql.Open("pgx", "user=postgres password=secret host=localhost port=5432 dbname=pgx_test sslmode=disable")
 //	if err != nil {
 //	  return err
 //	}
@@ -641,7 +641,7 @@ func (r *Rows) Columns() []string {
 		fields := r.rows.FieldDescriptions()
 		r.columnNames = make([]string, len(fields))
 		for i, fd := range fields {
-			r.columnNames[i] = string(fd.Name)
+			r.columnNames[i] = fd.Name
 		}
 	}
 
