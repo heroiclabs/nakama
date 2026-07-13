@@ -79,12 +79,6 @@ func TestLeaderboardScheduler(t *testing.T) {
 		}
 	}
 
-	// Truncate endActiveDuration to whole seconds, removing sub-second precision. Both timers
-	// target the same Unix second T, so this makes endActiveTimer fire up to ~999ms earlier than
-	// expiryTimer — always within the same second — giving queueEndActiveElapse's Update() a
-	// window to Stop() the expiry timer before it fires, reproducing the race.
-	// leaderboardScheduler.(*LocalLeaderboardScheduler).testTruncateEndActiveDuration = true
-
 	leaderboardScheduler.Start(rt)
 
 	now := time.Now()
