@@ -232,6 +232,10 @@ func (ls *LocalLeaderboardScheduler) scheduleLoop() {
 }
 
 func (ls *LocalLeaderboardScheduler) processHooks(ts time.Time, endActiveTs, expiryTs int64, endActiveIds, expiryIds []string) {
+	if ls.active.Load() != 1 {
+		return
+	}
+
 	fireUnix := ts.Unix()
 	if endActiveTs > 0 && endActiveTs <= fireUnix {
 		ls.processEndActive(time.Unix(endActiveTs, 0).UTC(), endActiveIds)
