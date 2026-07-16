@@ -1,0 +1,17 @@
+name: Trigger Docs Update
+on:
+  release:
+    types: [published]
+
+permissions: {}
+
+jobs:
+  trigger-docs-update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch nakama-release event to docs repo
+        env:
+          GH_TOKEN: ${{ secrets.DOCS_PAT }}
+        run: |
+          gh api -X POST /repos/heroiclabs/docs/dispatches \
+            -f event_type=nakama-release
