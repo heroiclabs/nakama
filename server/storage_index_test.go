@@ -26,6 +26,7 @@ import (
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 func TestLocalStorageIndex_Write(t *testing.T) {
@@ -408,6 +409,104 @@ func TestLocalStorageIndex_List(t *testing.T) {
 		}
 		assert.Len(t, entries.Objects, 1, "indexed results did not match query params")
 		assert.Empty(t, cursor, "cursor was not empty on last page")
+
+		delOps := make(StorageOpDeletes, 0, len(writeOps))
+		for _, op := range writeOps {
+			delOps = append(delOps, &StorageOpDelete{
+				OwnerID: op.OwnerID,
+				ObjectID: &api.DeleteStorageObjectId{
+					Collection: op.Object.Collection,
+					Key:        op.Object.Key,
+				},
+			})
+		}
+		if _, err = StorageDeleteObjects(ctx, logger, db, storageIdx, true, delOps); err != nil {
+			t.Fatalf("Failed to teardown: %s", err.Error())
+		}
+	})
+
+	t.Run("only returns values the user has permissions to see if not the nil user", func(t *testing.T) {
+		db := NewDB(t)
+		defer db.Close()
+
+		ctx := context.Background()
+
+		nilUid := uuid.Nil
+
+		u1 := uuid.Must(uuid.NewV4())
+		u2 := uuid.Must(uuid.NewV4())
+
+		InsertUser(t, db, u1)
+		InsertUser(t, db, u2)
+
+		indexName := "test_index_only"
+		collection := "test_collection"
+		key := "key"
+		maxEntries := 10
+
+		valueActiveBytes, _ := json.Marshal(map[string]any{
+			"active": true,
+		})
+		valueActiveTrue := string(valueActiveBytes)
+
+		storageIdx, err := NewLocalStorageIndex(logger, db, &StorageConfig{}, metrics)
+		if err != nil {
+			t.Fatal(err.Error())
+		}
+
+		if err := storageIdx.CreateIndex(ctx, indexName, collection, key, []string{"active"}, []string{}, maxEntries, false); err != nil {
+			t.Fatal(err.Error())
+		}
+
+		so1 := &StorageOpWrite{
+			OwnerID: u1.String(),
+			Object: &api.WriteStorageObject{
+				Collection:     collection,
+				Key:            key,
+				Value:          valueActiveTrue,
+				PermissionRead: wrapperspb.Int32(1), // Owner Read
+			},
+		}
+		so2 := &StorageOpWrite{
+			OwnerID: nilUid.String(),
+			Object: &api.WriteStorageObject{
+				Collection:     collection,
+				Key:            key,
+				Value:          valueActiveTrue,
+				PermissionRead: wrapperspb.Int32(0), // System user read only.
+			},
+		}
+		so3 := &StorageOpWrite{
+			OwnerID: u2.String(),
+			Object: &api.WriteStorageObject{
+				Collection:     collection,
+				Key:            key,
+				Value:          valueActiveTrue,
+				PermissionRead: wrapperspb.Int32(1), // Owner Read
+			},
+		}
+		so4 := &StorageOpWrite{
+			OwnerID: u2.String(),
+			Object: &api.WriteStorageObject{
+				Collection:     collection,
+				Key:            key,
+				Value:          valueActiveTrue,
+				PermissionRead: wrapperspb.Int32(2), // Public Read
+			},
+		}
+
+		writeOps := StorageOpWrites{so1, so2, so3, so4}
+
+		if _, _, err := StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, writeOps); err != nil {
+			t.Fatal(err.Error())
+		}
+
+		entries, cursor, err := storageIdx.List(ctx, u1, indexName, "value.active:T", 10, []string{}, "")
+		if err != nil {
+			t.Fatal(err.Error())
+		}
+		assert.Len(t, entries.Objects, 2, "indexed results did not match query params")
+		assert.Empty(t, cursor, "cursor was not empty")
 
 		delOps := make(StorageOpDeletes, 0, len(writeOps))
 		for _, op := range writeOps {

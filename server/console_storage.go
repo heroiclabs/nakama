@@ -21,6 +21,7 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"encoding/json"
+	"errors"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -332,6 +333,24 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 	}
 
 	return response, nil
+}
+
+func (s *ConsoleServer) QueryStorageIndex(ctx context.Context, in *console.QueryStorageIndexRequest) (*console.StorageIndexList, error) {
+	entries, cursor, err := s.storageIndex.List(ctx, uuid.Nil, in.Name, in.Query, int(in.Limit), in.Order, in.Cursor)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return nil, status.Error(codes.NotFound, err.Error())
+		} else if errors.Is(err, ErrBadInput) {
+			return nil, status.Error(codes.InvalidArgument, err.Error())
+		}
+		s.logger.Error("Error querying storage index", zap.Error(err))
+		return nil, status.Error(codes.Internal, "An error occurred while querying storage index.")
+	}
+
+	return &console.StorageIndexList{
+		Objects:    entries.Objects,
+		NextCursor: cursor,
+	}, nil
 }
 
 func (s *ConsoleServer) WriteStorageObject(ctx context.Context, in *console.WriteStorageObjectRequest) (*api.StorageObjectAck, error) {

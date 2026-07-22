@@ -36,6 +36,11 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
+var (
+	ErrNotFound = errors.New("not found")
+	ErrBadInput = errors.New("invalid")
+)
+
 type StorageIndex interface {
 	Write(ctx context.Context, objects []*api.StorageObject) (creates int, deletes int)
 	Delete(ctx context.Context, objects StorageOpDeletes) (deletes int)
@@ -43,6 +48,17 @@ type StorageIndex interface {
 	Load(ctx context.Context) error
 	CreateIndex(ctx context.Context, name, collection, key string, fields []string, sortFields []string, maxEntries int, indexOnly bool) error
 	RegisterFilters(runtime *Runtime)
+	GetIndexes() []StorageIndexConfig
+}
+
+type StorageIndexConfig struct {
+	Name           string
+	MaxEntries     int
+	Collection     string
+	Key            string
+	Fields         []string
+	SortableFields []string
+	IndexOnly      bool
 }
 
 type storageIndex struct {
@@ -237,7 +253,7 @@ type indexListCursor struct {
 func (si *LocalStorageIndex) List(ctx context.Context, callerID uuid.UUID, indexName, query string, limit int, order []string, cursor string) (*api.StorageObjects, string, error) {
 	idx, found := si.indexByName[indexName]
 	if !found {
-		return nil, "", fmt.Errorf("index %q not found", indexName)
+		return nil, "", fmt.Errorf("index %q: %w", indexName, ErrNotFound)
 	}
 
 	if limit > idx.MaxEntries {
@@ -262,19 +278,47 @@ func (si *LocalStorageIndex) List(ctx context.Context, callerID uuid.UUID, index
 		}
 
 		if query != idxCursor.Query {
-			return nil, "", fmt.Errorf("invalid cursor: query mismatch")
+			return nil, "", fmt.Errorf("%w cursor: query mismatch", ErrBadInput)
 		}
 		if limit != idxCursor.Limit {
-			return nil, "", fmt.Errorf("invalid cursor: limit mismatch")
+			return nil, "", fmt.Errorf("%w cursor: limit mismatch", ErrBadInput)
 		}
 		if !slices.Equal(order, idxCursor.Order) {
-			return nil, "", fmt.Errorf("invalid cursor: order mismatch")
+			return nil, "", fmt.Errorf("%w cursor: order mismatch", ErrBadInput)
 		}
 	}
 
 	parsedQuery, err := ParseQueryString(query)
 	if err != nil {
-		return nil, "", err
+		return nil, "", fmt.Errorf("failed to parse query string: %s: %w", err.Error(), ErrBadInput)
+	}
+
+	if callerID != uuid.Nil {
+		// QUERY AND (read:2 OR (read:1 AND owner:user_id))
+		// QUERY AND (NOT (NOT read:2 AND NOT (read:1 AND owner:user_id)))
+
+		read := bluge.NewNumericRangeInclusiveQuery(2, 2, true, true)
+		read.SetField("read")
+
+		ownerRead := bluge.NewNumericRangeInclusiveQuery(1, 1, true, true)
+		ownerRead.SetField("read")
+
+		owner := bluge.NewTermQuery(callerID.String())
+		owner.SetField("user_id")
+
+		noOtherOwnerRead := bluge.NewBooleanQuery()
+		noOtherOwnerRead.AddMust(ownerRead)
+		noOtherOwnerRead.AddMust(owner)
+
+		notVisible := bluge.NewBooleanQuery()
+		notVisible.AddMustNot(read)
+		notVisible.AddMustNot(noOtherOwnerRead)
+
+		callerAwareQuery := bluge.NewBooleanQuery()
+		callerAwareQuery.AddMust(parsedQuery)
+		callerAwareQuery.AddMustNot(notVisible)
+
+		parsedQuery = callerAwareQuery
 	}
 
 	searchReq := bluge.NewTopNSearch(limit+1, parsedQuery)
@@ -369,6 +413,10 @@ func (si *LocalStorageIndex) List(ctx context.Context, callerID uuid.UUID, index
 		return nil, "", err
 	}
 
+	if len(objects.Objects) == 0 {
+		return &api.StorageObjects{Objects: []*api.StorageObject{}}, "", nil
+	}
+
 	// Sort the objects read from the db according to the results from the index as StorageReadObjects does not guarantee ordering of the results
 	objectIdToIdx := make(map[string]int, len(objects.Objects))
 	for i, o := range objects.Objects {
@@ -400,7 +448,6 @@ func (si *LocalStorageIndex) List(ctx context.Context, callerID uuid.UUID, index
 }
 
 func (si *LocalStorageIndex) Load(ctx context.Context) error {
-	var rangeError error
 	for _, idx := range si.indexByName {
 		t := time.Now()
 		if err := si.load(ctx, idx); err != nil {
@@ -411,7 +458,7 @@ func (si *LocalStorageIndex) Load(ctx context.Context) error {
 		si.logger.Info("Storage index loaded.", zap.Any("config", idx), zap.Int64("elapsed_time_ms", elapsedTimeMs))
 	}
 
-	return rangeError
+	return nil
 }
 
 func (si *LocalStorageIndex) load(ctx context.Context, idx *storageIndex) error {
@@ -708,7 +755,6 @@ func (si *LocalStorageIndex) CreateIndex(ctx context.Context, name, collection, 
 		IndexOnly:      indexOnly,
 	}
 	si.indexByName[name] = storageIdx
-
 	if indices, ok := si.indicesByCollection[collection]; ok {
 		si.indicesByCollection[collection] = append(indices, storageIdx)
 	} else {
@@ -738,6 +784,23 @@ func (si *LocalStorageIndex) RegisterFilters(runtime *Runtime) {
 			si.customFilterFunctions[name] = fn
 		}
 	}
+}
+
+func (si *LocalStorageIndex) GetIndexes() []StorageIndexConfig {
+	storageIndices := make([]StorageIndexConfig, 0, len(si.indexByName))
+	for _, i := range si.indexByName {
+		storageIndices = append(storageIndices, StorageIndexConfig{
+			Name:           i.Name,
+			MaxEntries:     i.MaxEntries,
+			Collection:     i.Collection,
+			Key:            i.Key,
+			Fields:         slices.Clone(i.Fields),
+			SortableFields: slices.Clone(i.SortableFields),
+			IndexOnly:      i.IndexOnly,
+		})
+	}
+
+	return storageIndices
 }
 
 func (si *LocalStorageIndex) storageIndexDocumentId(collection, key, userID string) bluge.Identifier {

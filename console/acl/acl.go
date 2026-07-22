@@ -308,6 +308,8 @@ func CheckACL(path string, userPermissions Permission) bool {
 		requiredPermissions = NewPermission(console.AclResources_STORAGE_DATA, PermissionRead)
 	case "/nakama.console.Console/ListStorageCollections":
 		requiredPermissions = NewPermission(console.AclResources_STORAGE_DATA, PermissionRead)
+	case "/nakama.console.Console/ListStorageIndexes":
+		requiredPermissions = NewPermission(console.AclResources_STORAGE_DATA, PermissionRead)
 	case "/nakama.console.Console/ListSubscriptions":
 		requiredPermissions = NewPermission(console.AclResources_IN_APP_PURCHASE, PermissionRead)
 	case "/nakama.console.Console/ListUsers":
@@ -322,6 +324,8 @@ func CheckACL(path string, userPermissions Permission) bool {
 		requiredPermissions = NewPermission(console.AclResources_USER, PermissionWrite)
 	case "/nakama.console.Console/ResetUserPassword":
 		requiredPermissions = NewPermission(console.AclResources_USER, PermissionWrite)
+	case "/nakama.console.Console/QueryStorageIndex":
+		requiredPermissions = NewPermission(console.AclResources_STORAGE_DATA, PermissionWrite)
 	case "/nakama.console.Console/UnbanAccount":
 		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
 	case "/nakama.console.Console/UnlinkApple":
