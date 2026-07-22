@@ -335,6 +335,25 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 	return response, nil
 }
 
+func (s *ConsoleServer) ListStorageIndexes(ctx context.Context, in *emptypb.Empty) (*console.StorageIndexesList, error) {
+	storageIndices := s.storageIndex.GetIndexes()
+
+	indices := make([]*console.StorageIndex, 0, len(storageIndices))
+	for _, i := range storageIndices {
+		indices = append(indices, &console.StorageIndex{
+			Collection:     i.Collection,
+			Index:          i.Name,
+			Key:            i.Key,
+			Fields:         i.Fields,
+			MaxEntries:     int64(i.MaxEntries),
+			IndexOnly:      i.IndexOnly,
+			SortableFields: i.SortableFields,
+		})
+	}
+
+	return &console.StorageIndexesList{Indexes: indices}, nil
+}
+
 func (s *ConsoleServer) QueryStorageIndex(ctx context.Context, in *console.QueryStorageIndexRequest) (*console.StorageIndexList, error) {
 	entries, cursor, err := s.storageIndex.List(ctx, uuid.Nil, in.Name, in.Query, int(in.Limit), in.Order, in.Cursor)
 	if err != nil {

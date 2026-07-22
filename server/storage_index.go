@@ -761,14 +761,10 @@ func (si *LocalStorageIndex) CreateIndex(ctx context.Context, name, collection, 
 		si.indicesByCollection[collection] = []*storageIndex{storageIdx}
 	}
 
-	cfgKey := key
-	if key == "" {
-		cfgKey = "*"
-	}
 	si.logger.Info("Initialized storage engine index", zap.Any("configuration", map[string]any{
 		"name":        name,
 		"collection":  collection,
-		"key":         cfgKey,
+		"key":         key,
 		"fields":      fields,
 		"max_entries": maxEntries,
 		"index_only":  indexOnly,
