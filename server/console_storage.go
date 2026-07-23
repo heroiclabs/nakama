@@ -355,6 +355,10 @@ func (s *ConsoleServer) ListStorageIndexes(ctx context.Context, in *emptypb.Empt
 }
 
 func (s *ConsoleServer) QueryStorageIndex(ctx context.Context, in *console.QueryStorageIndexRequest) (*console.StorageIndexList, error) {
+	if in.Name == "" {
+		return nil, status.Error(codes.InvalidArgument, "index name is required")
+	}
+
 	limit := int(in.Limit)
 	if limit <= 0 {
 		limit = 100
