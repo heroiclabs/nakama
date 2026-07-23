@@ -805,7 +805,7 @@ func (si *LocalStorageIndex) GetIndexes() []StorageIndexConfig {
 }
 
 func (si *LocalStorageIndex) storageIndexDocumentId(collection, key, userID string) bluge.Identifier {
-	id := fmt.Sprintf("%s.%s.%s", collection, key, userID)
+	id := collection + "." + key + "." + userID
 
 	return bluge.Identifier(id)
 }
