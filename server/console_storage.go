@@ -355,7 +355,11 @@ func (s *ConsoleServer) ListStorageIndexes(ctx context.Context, in *emptypb.Empt
 }
 
 func (s *ConsoleServer) QueryStorageIndex(ctx context.Context, in *console.QueryStorageIndexRequest) (*console.StorageIndexList, error) {
-	entries, cursor, err := s.storageIndex.List(ctx, uuid.Nil, in.Name, in.Query, int(in.Limit), in.Order, in.Cursor)
+	limit := int(in.Limit)
+	if limit <= 0 {
+		limit = 100
+	}
+	entries, cursor, err := s.storageIndex.List(ctx, uuid.Nil, in.Name, in.Query, limit, in.Order, in.Cursor)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return nil, status.Error(codes.NotFound, err.Error())

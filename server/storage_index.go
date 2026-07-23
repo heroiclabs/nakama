@@ -16,6 +16,7 @@ package server
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/base64"
@@ -269,12 +270,12 @@ func (si *LocalStorageIndex) List(ctx context.Context, callerID uuid.UUID, index
 		idxCursor = &indexListCursor{}
 		cb, err := base64.RawURLEncoding.DecodeString(cursor)
 		if err != nil {
-			si.logger.Error("Could not base64 decode notification cursor.", zap.String("cursor", cursor))
-			return nil, "", errors.New("invalid cursor")
+			si.logger.Error("Could not base64 decode cursor.", zap.String("cursor", cursor))
+			return nil, "", fmt.Errorf("%w cursor: %w", ErrBadInput, err)
 		}
 		if err := gob.NewDecoder(bytes.NewReader(cb)).Decode(idxCursor); err != nil {
-			si.logger.Error("Could not decode notification cursor.", zap.String("cursor", cursor))
-			return nil, "", errors.New("invalid cursor")
+			si.logger.Error("Could not decode cursor.", zap.String("cursor", cursor))
+			return nil, "", fmt.Errorf("%w cursor: %w", ErrBadInput, err)
 		}
 
 		if query != idxCursor.Query {
@@ -795,6 +796,10 @@ func (si *LocalStorageIndex) GetIndexes() []StorageIndexConfig {
 			IndexOnly:      i.IndexOnly,
 		})
 	}
+
+	slices.SortFunc(storageIndices, func(a, b StorageIndexConfig) int {
+		return cmp.Compare(a.Name, b.Name)
+	})
 
 	return storageIndices
 }
