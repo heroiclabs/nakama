@@ -35,17 +35,17 @@ type ConsoleResource = console.AclResources
 
 var (
 	byteCount = int(math.Ceil(float64(len(console.AclResources_value)*3) / 8.0))
-	None      = func() Permission { return Permission{Bitmap: make([]byte, byteCount)} }
-	Admin     = func() Permission { return Permission{Bitmap: bytes.Repeat([]byte{0xFF}, byteCount)} }
+	None      = func() Permission { return Permission{bitmap: make([]byte, byteCount)} }
+	Admin     = func() Permission { return Permission{bitmap: bytes.Repeat([]byte{0xFF}, byteCount)} }
 )
 
 type Permission struct {
-	Bitmap []byte
+	bitmap []byte
 }
 
 func (p Permission) Compose(permission Permission) Permission {
-	for i := range p.Bitmap {
-		p.Bitmap[i] = p.Bitmap[i] | permission.Bitmap[i]
+	for i := range p.bitmap {
+		p.bitmap[i] = p.bitmap[i] | permission.bitmap[i]
 	}
 	return p
 }
@@ -53,9 +53,10 @@ func (p Permission) Compose(permission Permission) Permission {
 func (p Permission) String() string {
 	resourceBitCount := len(console.AclResources_value) * 3
 	bitCount := 0
-	for _, b := range p.Bitmap {
-		for j := 0; j < 8; j++ {
-			if (b & (1 << (7 - j))) == 1 {
+	for i := range p.bitmap {
+		for j := range 8 {
+			b := byte(1 << (7 - j))
+			if (p.bitmap[i] & b) != 0 {
 				bitCount++
 			}
 		}
@@ -63,14 +64,14 @@ func (p Permission) String() string {
 
 	if bitCount == resourceBitCount {
 		// Admin equivalent. Return all bits set to 1 including padding.
-		p.Bitmap = Admin().Bitmap
+		p.bitmap = Admin().bitmap
 	}
 
-	return base64.RawURLEncoding.EncodeToString(p.Bitmap)
+	return base64.RawURLEncoding.EncodeToString(p.bitmap)
 }
 
 func (p Permission) IsNone() bool {
-	for _, b := range p.Bitmap {
+	for _, b := range p.bitmap {
 		if b != 0x00 {
 			return false
 		}
@@ -79,7 +80,7 @@ func (p Permission) IsNone() bool {
 }
 
 func (p Permission) IsAdmin() bool {
-	for _, b := range p.Bitmap {
+	for _, b := range p.bitmap {
 		if b != 0xFF {
 			return false
 		}
@@ -93,8 +94,8 @@ func (p Permission) HasAccess(permission Permission) bool {
 		return true
 	}
 
-	for i := range p.Bitmap {
-		if (p.Bitmap[i] & permission.Bitmap[i]) != permission.Bitmap[i] {
+	for i := range p.bitmap {
+		if (p.bitmap[i] & permission.bitmap[i]) != permission.bitmap[i] {
 			return false
 		}
 	}
@@ -106,8 +107,8 @@ func (p Permission) HasAccess(permission Permission) bool {
 func (p Permission) bitmapString() string {
 	sb := &strings.Builder{}
 
-	for i, b := range p.Bitmap {
-		if i == len(p.Bitmap)-1 {
+	for i, b := range p.bitmap {
+		if i == len(p.bitmap)-1 {
 			_, _ = fmt.Fprintf(sb, "%08b", b)
 		} else {
 			_, _ = fmt.Fprintf(sb, "%08b ", b)
@@ -122,7 +123,7 @@ func NewPermission(resource ConsoleResource, level PermissionLevel) Permission {
 	targetBitIdx := int(resource*3) + int(level)
 	bitIdx := 0
 	for i, b := range bytes {
-		for j := 0; j < 8; j++ {
+		for j := range 8 {
 			if bitIdx == targetBitIdx {
 				bytes[i] = b | (1 << (7 - j))
 			}
@@ -130,7 +131,7 @@ func NewPermission(resource ConsoleResource, level PermissionLevel) Permission {
 		}
 	}
 
-	return Permission{Bitmap: bytes}
+	return Permission{bitmap: bytes}
 }
 
 func NewPermissionFromString(resource string, level PermissionLevel) Permission {
@@ -418,7 +419,7 @@ func NewFromBytes(b []byte) Permission {
 	if len(b) != byteCount {
 		return None()
 	}
-	return Permission{Bitmap: b}
+	return Permission{bitmap: b}
 }
 
 func (p Permission) ACL() map[string]*console.Permissions {
