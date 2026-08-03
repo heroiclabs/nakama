@@ -21,6 +21,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
@@ -71,6 +72,7 @@ func (s *UserInvitationClaims) GetSubject() (string, error) {
 
 func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest) (*console.AddUserResponse, error) {
 	logger, _ := LoggerWithTraceId(ctx, s.logger)
+	creatorRole := ctx.Value(ctxConsoleUserAclKey{}).(acl.Permission)
 	uname := ctx.Value(ctxConsoleUsernameKey{}).(string)
 	if uname == in.Username {
 		return nil, status.Error(codes.FailedPrecondition, "Cannot change own configuration")
@@ -93,6 +95,9 @@ func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest)
 		return nil, status.Error(codes.InvalidArgument, "Not a valid email address")
 	}
 	in.Email = strings.ToLower(in.Email)
+	if err := validateConsoleUserACLGrant(creatorRole, acl.New(in.Acl)); err != nil {
+		return nil, err
+	}
 
 	inviterUsername := ctx.Value(ctxConsoleUsernameKey{}).(string)
 	inviterEmail := ctx.Value(ctxConsoleEmailKey{}).(string)
@@ -146,6 +151,16 @@ func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest)
 	}
 
 	return &console.AddUserResponse{User: user, Token: token}, nil
+}
+
+func validateConsoleUserACLGrant(creatorRole, requestedRole acl.Permission) error {
+	if requestedRole.IsNone() {
+		return status.Error(codes.InvalidArgument, "User must have at least some permissions.")
+	}
+	if !creatorRole.HasAccess(requestedRole) {
+		return status.Error(codes.InvalidArgument, "Cannot create users with more permissions than the current session.")
+	}
+	return nil
 }
 
 func (s *ConsoleServer) dbInsertConsoleUser(ctx context.Context, logger *zap.Logger, in *console.AddUserRequest) (*console.User, error) {
@@ -305,10 +320,30 @@ func updateUser(ctx context.Context, logger *zap.Logger, tx *sql.Tx, in *console
 
 func (s *ConsoleServer) ResetUserPassword(ctx context.Context, in *console.Username) (*console.ResetUserResponse, error) {
 	logger, _ := LoggerWithTraceId(ctx, s.logger)
+	callerRole := ctx.Value(ctxConsoleUserAclKey{}).(acl.Permission)
 
 	var token, email string
 
 	transaction := func(tx *sql.Tx) error {
+		// Keep the target row locked until its password is changed so a concurrent
+		// ACL update cannot invalidate the caller-to-target authorization decision.
+		var targetACLJSON []byte
+		if err := tx.QueryRowContext(ctx, `SELECT acl FROM console_user WHERE username = $1 FOR UPDATE`, in.Username).Scan(&targetACLJSON); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return status.Error(codes.NotFound, "User not found.")
+			}
+			return fmt.Errorf("load console user ACL: %w", err)
+		}
+
+		targetRole, err := acl.NewFromJson(string(targetACLJSON))
+		if err != nil {
+			logger.Error("Failed to parse console user ACL.", zap.Error(err))
+			return status.Error(codes.Internal, "An error occurred while trying to reset the user password.")
+		}
+		if err := validateConsoleUserTargetACL(callerRole, targetRole); err != nil {
+			return err
+		}
+
 		password := make([]byte, 32)
 		if _, err := rand.Read(password); err != nil {
 			logger.Error("Failed to generate a temporary password for the user.", zap.Error(err))
@@ -325,7 +360,10 @@ func (s *ConsoleServer) ResetUserPassword(ctx context.Context, in *console.Usern
 		var username string
 		var updateTime pgtype.Timestamptz
 		if err := tx.QueryRowContext(ctx, `UPDATE console_user SET password = $1, update_time = NOW() WHERE username = $2 RETURNING id, username, email, update_time`, hashedPassword, in.Username).Scan(&uid, &username, &email, &updateTime); err != nil {
-			return status.Error(codes.NotFound, "User not found.")
+			if errors.Is(err, sql.ErrNoRows) {
+				return status.Error(codes.NotFound, "User not found.")
+			}
+			return fmt.Errorf("update console user password: %w", err)
 		}
 
 		config := s.config.GetConsole()
@@ -349,10 +387,21 @@ func (s *ConsoleServer) ResetUserPassword(ctx context.Context, in *console.Usern
 		return nil
 	}
 	if err := ExecuteInTx(ctx, s.db, transaction); err != nil {
-		return nil, err
+		if _, ok := status.FromError(err); ok {
+			return nil, err
+		}
+		logger.Error("Failed to reset console user password.", zap.Error(err))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to reset the user password.")
 	}
 
 	return &console.ResetUserResponse{Code: token}, nil
+}
+
+func validateConsoleUserTargetACL(callerRole, targetRole acl.Permission) error {
+	if !callerRole.HasAccess(targetRole) {
+		return status.Error(codes.PermissionDenied, "Cannot reset the password of a user with permissions outside the current session.")
+	}
+	return nil
 }
 
 func (s *ConsoleServer) DeleteUser(ctx context.Context, in *console.Username) (*emptypb.Empty, error) {
