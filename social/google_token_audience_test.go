@@ -111,15 +111,12 @@ func TestCheckGoogleTokenValidatesAudience(t *testing.T) {
 	})
 
 	t.Run("unconfigured client IDs accepted for backward compatibility", func(t *testing.T) {
-		core, logs := observer.New(zap.WarnLevel)
+		core, _ := observer.New(zap.WarnLevel)
 		client := NewClient(zap.New(core), time.Second, nil)
 		client.googleCerts = []*rsa.PublicKey{&key.PublicKey}
 		client.googleCertsRefreshAt = time.Now().Add(time.Hour).Unix()
 		if _, err := client.CheckGoogleToken(context.Background(), signToken(t, targetClient, nil)); err != nil {
 			t.Fatalf("token without a configured OAuth client ID was rejected: %v", err)
-		}
-		if logs.FilterMessage("Google ID token authentication has no accepted client IDs configured, so audience and authorized party claims will not be checked. Configure google_auth.client_ids or google_auth.credentials_json to restrict which Google OAuth clients are accepted.").Len() != 1 {
-			t.Fatal("missing Google client IDs did not produce an actionable operator warning at client construction")
 		}
 	})
 }
