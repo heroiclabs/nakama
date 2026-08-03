@@ -175,7 +175,7 @@ func main() {
 	conn.Close()
 
 	// Access to social provider integrations.
-	socialClient := social.NewClient(logger, 5*time.Second, config.GetGoogleAuth().OAuthConfig)
+	socialClient := social.NewClient(logger, 5*time.Second, config.GetGoogleAuth().OAuthConfig, config.GetGoogleAuth().ClientIDs...)
 
 	// Start up server components.
 	metrics := server.NewLocalMetrics(logger, startupLogger, db, config)
