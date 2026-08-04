@@ -442,7 +442,7 @@ func (c *Client) CheckGoogleToken(ctx context.Context, idToken string) (GooglePr
 				if _, ok := c.googleClientIDs[audience]; !ok {
 					return nil, fmt.Errorf("unexpected audience: %v", claims["aud"])
 				}
-				if authorizedParty, exists := claims["azp"]; exists {
+				if authorizedParty, found := claims["azp"]; found {
 					azp, ok := authorizedParty.(string)
 					if !ok || azp == "" {
 						return nil, fmt.Errorf("invalid authorized party claim: %v", authorizedParty)
