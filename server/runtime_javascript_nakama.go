@@ -6346,10 +6346,6 @@ func (n *RuntimeJavascriptNakamaModule) purchaseValidateApple(r *goja.Runtime) f
 			password = getJsString(r, f.Argument(3))
 		}
 
-		if password == "" {
-			panic(r.NewGoError(errors.New("apple IAP is not configured")))
-		}
-
 		userID := getJsString(r, f.Argument(0))
 		if userID == "" {
 			panic(r.NewTypeError("expects a user ID string"))
@@ -6679,9 +6675,6 @@ func (n *RuntimeJavascriptNakamaModule) subscriptionValidateApple(r *goja.Runtim
 		password := n.config.GetIAP().Apple.SharedPassword
 		if f.Argument(3) != goja.Undefined() {
 			password = getJsString(r, f.Argument(3))
-		}
-		if password == "" {
-			panic(r.NewGoError(errors.New("apple IAP is not configured")))
 		}
 
 		validation, err := ValidateSubscriptionApple(n.ctx, n.logger, n.db, uid, password, receipt, persist)
