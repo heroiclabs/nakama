@@ -131,8 +131,8 @@ func (m *LocalMatchmaker) processDefault(activeIndexCount int, activeIndexesCopy
 		for hitCounter, hit := range blugeMatches.Hits {
 			hitIndex, ok := indexesCopy[hit.ID]
 			if !ok {
-				// Ticket did not exist, should not happen.
-				m.logger.Warn("matchmaker process missing index", zap.String("ticket", hit.ID))
+				// Ticket did not exist, can happen if tickets were added to bluge but are not part of the
+				// current working snapshot of indexCopy tickets. Skip it.
 				continue
 			}
 
@@ -431,8 +431,8 @@ func (m *LocalMatchmaker) processOverride(activeIndexesCopy map[string]*Matchmak
 
 			hitIndex, ok := indexesCopy[hit.ID]
 			if !ok {
-				// Ticket did not exist, should not happen.
-				m.logger.Warn("matchmaker process missing index", zap.String("ticket", hit.ID))
+				// Ticket did not exist, can happen if tickets were added to bluge but are not part of the
+				// current working snapshot of indexCopy tickets. Skip it.
 				continue
 			}
 
