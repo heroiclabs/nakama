@@ -22,6 +22,7 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -230,9 +231,7 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 			prevCursor.IsNext = !prevCursor.IsNext
 		}
 
-		for i, j := 0, len(messages)-1; i < j; i, j = i+1, j-1 {
-			messages[i], messages[j] = messages[j], messages[i]
-		}
+		slices.Reverse(messages)
 	}
 
 	var cacheableCursor *channelMessageListCursor

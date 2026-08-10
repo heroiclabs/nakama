@@ -21,6 +21,7 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"errors"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -266,9 +267,7 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 				nextCursor.IsNext = !nextCursor.IsNext
 			}
 
-			for i, j := 0, len(records)-1; i < j; i, j = i+1, j-1 {
-				records[i], records[j] = records[j], records[i]
-			}
+			slices.Reverse(records)
 		}
 
 		if nextCursor != nil {
@@ -801,9 +800,7 @@ func getLeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *
 		}
 
 		// We went 'up' on the leaderboard, so reverse the first half of records.
-		for left, right := 0, len(firstRecords)-1; left < right; left, right = left+1, right-1 {
-			firstRecords[left], firstRecords[right] = firstRecords[right], firstRecords[left]
-		}
+		slices.Reverse(firstRecords)
 
 		secondQuery := query
 		if sortOrder == LeaderboardSortOrderAscending {
