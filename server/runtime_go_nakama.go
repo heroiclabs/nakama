@@ -3260,7 +3260,7 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateApple(ctx context.Context, userI
 // @param userID(type=string) The user ID of the owner of the receipt.
 // @param receipt(type=string) JSON encoded Google receipt.
 // @param persist(type=bool) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
-// @param overrides(type=struct, optional=true) Override the iap.google.client_email and iap.google.private_key provided in your configuration.
+// @param overrides(type=struct, optional=true) Override the iap.google.client_email and iap.google.private_key provided in your configuration, as struct{ClientEmail string; PrivateKey string}. Empty fields fall back to configuration.
 // @return validation(*api.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) PurchaseValidateGoogle(ctx context.Context, userID, receipt string, persist bool, overrides ...struct {
@@ -3479,7 +3479,7 @@ func (n *RuntimeGoNakamaModule) SubscriptionValidateApple(ctx context.Context, u
 // @param userID(type=string) The user ID of the owner of the receipt.
 // @param receipt(type=string) JSON encoded Google receipt.
 // @param persist(type=bool) Persist the subscription.
-// @param overrides(type=struct, optional=true) Override the iap.google.client_email and iap.google.private_key provided in your configuration.
+// @param overrides(type=struct, optional=true) Override the iap.google.client_email and iap.google.private_key provided in your configuration, as struct{ClientEmail string; PrivateKey string}. Empty fields fall back to configuration.
 // @return validation(*api.ValidateSubscriptionResponse) The resulting successfully validated subscription.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) SubscriptionValidateGoogle(ctx context.Context, userID, receipt string, persist bool, overrides ...struct {
