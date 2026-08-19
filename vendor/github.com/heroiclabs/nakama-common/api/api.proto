@@ -46,6 +46,8 @@ message Account {
   google.protobuf.Timestamp verify_time = 6;
   // The UNIX time (for gRPC clients) or ISO string (for REST clients) when the user's account was disabled/banned.
   google.protobuf.Timestamp disable_time = 7;
+  // The authentication provider identities linked to the user's account.
+  repeated AccountProviderIdentity providers = 8;
 }
 
 // Obtain a new authentication token using a refresh token.
@@ -132,6 +134,24 @@ message AccountGoogle {
   string token = 1;
   // Extra information that will be bundled in the session token.
   map<string, string> vars = 2;
+}
+
+// A provider identity linked to a user's account.
+message AccountProviderIdentity {
+  // The name the provider was registered under during runtime initialization.
+  string provider = 1;
+  // The user's ID with that provider.
+  string provider_user_id = 2;
+}
+
+// Send credentials for a runtime-registered authentication provider. Used with authenticate/link/unlink.
+message AccountProvider {
+  // The name the provider was registered under during runtime initialization.
+  string provider = 1;
+  // Opaque JSON passed through to the registered provider function.
+  string payload = 2;
+  // Extra information that will be bundled in the session token.
+  map<string, string> vars = 3;
 }
 
 // Send a Steam token to the server. Used with authenticate/link/unlink.
@@ -252,6 +272,16 @@ message AuthenticateGameCenterRequest {
 message AuthenticateGoogleRequest {
   // The Google account details.
   AccountGoogle account = 1;
+  // Register the account if the user does not already exist.
+  google.protobuf.BoolValue create = 2;
+  // Set the username on the account at register. Must be unique.
+  string username = 3;
+}
+
+// Authenticate against the server with a runtime-registered provider.
+message AuthenticateProviderRequest {
+  // The provider account details.
+  AccountProvider account = 1;
   // Register the account if the user does not already exist.
   google.protobuf.BoolValue create = 2;
   // Set the username on the account at register. Must be unique.

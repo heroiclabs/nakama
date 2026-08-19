@@ -3762,6 +3762,20 @@
       },
       "description": "A user note."
     },
+    "AccountProviderIdentity": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "description": "The name the provider was registered under during runtime initialization."
+        },
+        "provider_user_id": {
+          "type": "string",
+          "description": "The user's ID with that provider."
+        }
+      },
+      "description": "A provider identity linked to a user's account."
+    },
     "AclResources": {
       "type": "string",
       "enum": [
@@ -6069,6 +6083,14 @@
           "type": "string",
           "format": "date-time",
           "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the user's account was disabled/banned."
+        },
+        "providers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/AccountProviderIdentity"
+          },
+          "description": "The authentication provider identities linked to the user's account."
         }
       },
       "description": "A user with additional account details. Always the current user."

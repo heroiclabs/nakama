@@ -694,6 +694,89 @@ func (s *ApiServer) AuthenticateGoogle(ctx context.Context, in *api.Authenticate
 	return session, nil
 }
 
+func (s *ApiServer) AuthenticateProvider(ctx context.Context, in *api.AuthenticateProviderRequest) (*api.Session, error) {
+	logger, traceID := LoggerWithTraceId(ctx, s.logger)
+	// Before hook.
+	if fn := s.runtime.BeforeAuthenticateProvider(); fn != nil {
+		beforeFn := func(clientIP, clientPort string) error {
+			result, err, code := fn(ctx, logger, traceID, "", "", nil, 0, clientIP, clientPort, in)
+			if err != nil {
+				return status.Error(code, err.Error())
+			}
+			if result == nil {
+				// If result is nil, requested resource is disabled.
+				logger.Warn("Intercepted a disabled resource.", zap.Any("resource", ctx.Value(ctxFullMethodKey{}).(string)))
+				return status.Error(codes.NotFound, "Requested resource was not found.")
+			}
+			in = result
+			return nil
+		}
+
+		// Execute the before function lambda wrapped in a trace for stats measurement.
+		err := traceApiBefore(ctx, logger, s.config, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if in.Account == nil || in.Account.Provider == "" {
+		return nil, status.Error(codes.InvalidArgument, "Provider name is required.")
+	}
+
+	username := in.Username
+	if username == "" {
+		username = generateUsername()
+	} else if invalidUsernameRegex.MatchString(username) {
+		return nil, status.Error(codes.InvalidArgument, "Username invalid, no spaces or control characters allowed.")
+	} else if len(username) > 128 {
+		return nil, status.Error(codes.InvalidArgument, "Username invalid, must be 1-128 bytes.")
+	}
+
+	create := in.Create == nil || in.Create.Value
+
+	dbUserID, dbUsername, created, providerVars, err := AuthenticateProvider(ctx, logger, s.db, s.runtime.AuthenticateProviderRegistry(), in.Account.Provider, in.Account.Payload, "", username, create, traceID)
+	if err != nil {
+		return nil, err
+	}
+
+	vars := in.Account.Vars
+	if len(providerVars) > 0 {
+		// The provider resolved these server-side, so they win over anything the client sent.
+		vars = make(map[string]string, len(in.Account.Vars)+len(providerVars))
+		for k, v := range in.Account.Vars {
+			vars[k] = v
+		}
+		for k, v := range providerVars {
+			vars[k] = v
+		}
+	}
+
+	uid := uuid.Must(uuid.FromString(dbUserID))
+	if s.config.GetSession().SingleSession {
+		s.sessionCache.RemoveAll(uid)
+	}
+
+	tokenID := uuid.Must(uuid.NewV4()).String()
+	tokenIssuedAt := time.Now().Unix()
+	token, exp := generateToken(s.config, tokenID, tokenIssuedAt, dbUserID, dbUsername, vars)
+	refreshToken, refreshExp := generateRefreshToken(s.config, tokenID, tokenIssuedAt, dbUserID, dbUsername, vars)
+	s.sessionCache.Add(uid, exp, tokenID, refreshExp, tokenID)
+	session := &api.Session{Created: created, Token: token, RefreshToken: refreshToken}
+
+	// After hook.
+	if fn := s.runtime.AfterAuthenticateProvider(); fn != nil {
+		afterFn := func(clientIP, clientPort string) error {
+			ctx = populateCtx(ctx, uid, dbUsername, tokenID, vars, exp, tokenIssuedAt)
+			return fn(ctx, logger, traceID, dbUserID, dbUsername, vars, exp, clientIP, clientPort, session, in)
+		}
+
+		// Execute the after function lambda wrapped in a trace for stats measurement.
+		traceApiAfter(ctx, logger, s.config, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
+	}
+
+	return session, nil
+}
+
 func (s *ApiServer) AuthenticateSteam(ctx context.Context, in *api.AuthenticateSteamRequest) (*api.Session, error) {
 	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 	// Before hook.

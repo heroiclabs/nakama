@@ -558,6 +558,59 @@
         ]
       }
     },
+    "/v2/account/authenticate/provider": {
+      "post": {
+        "summary": "Authenticate a user with a runtime-registered provider against the server.",
+        "operationId": "Nakama_AuthenticateProvider",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiSession"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "account",
+            "description": "The provider account details.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountProvider"
+            }
+          },
+          {
+            "name": "create",
+            "description": "Register the account if the user does not already exist.",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "username",
+            "description": "Set the username on the account at register. Must be unique.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ],
+        "security": [
+          {
+            "BasicAuth": []
+          }
+        ]
+      }
+    },
     "/v2/account/authenticate/steam": {
       "post": {
         "summary": "Authenticate a user with Steam against the server.",
@@ -1374,7 +1427,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/apiEvent"
+              "$ref": "#/definitions/nakamaApiEvent"
             }
           }
         ],
@@ -1404,7 +1457,7 @@
         "parameters": [
           {
             "name": "limit",
-            "description": "Max number of records to return. Between 1 and 100.",
+            "description": "Max number of records to return. Between 1 and 1000.",
             "in": "query",
             "required": false,
             "type": "integer",
@@ -1866,30 +1919,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "type": "object",
-              "properties": {
-                "name": {
-                  "type": "string",
-                  "description": "Name."
-                },
-                "description": {
-                  "type": "string",
-                  "description": "Description string."
-                },
-                "langTag": {
-                  "type": "string",
-                  "description": "Lang tag."
-                },
-                "avatarUrl": {
-                  "type": "string",
-                  "description": "Avatar URL."
-                },
-                "open": {
-                  "type": "boolean",
-                  "description": "Open is true if anyone should be allowed to join, or false if joins must be approved by a group admin."
-                }
-              },
-              "description": "Update fields in a given group."
+              "$ref": "#/definitions/NakamaUpdateGroupBody"
             }
           }
         ],
@@ -2363,6 +2393,40 @@
             "required": true,
             "schema": {
               "$ref": "#/definitions/apiValidatePurchaseHuaweiRequest"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/iap/purchase/samsung": {
+      "post": {
+        "summary": "Validate Samsung Galaxy Store IAP Receipt",
+        "operationId": "Nakama_ValidatePurchaseSamsung",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiValidatePurchaseResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "Samsung IAP Purchase validation request.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiValidatePurchaseSamsungRequest"
             }
           }
         ],
@@ -3757,6 +3821,32 @@
       },
       "description": "A single user-role pair."
     },
+    "NakamaUpdateGroupBody": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description string."
+        },
+        "langTag": {
+          "type": "string",
+          "description": "Lang tag."
+        },
+        "avatarUrl": {
+          "type": "string",
+          "description": "Avatar URL."
+        },
+        "open": {
+          "type": "boolean",
+          "description": "Open is true if anyone should be allowed to join, or false if joins must be approved by a group admin."
+        }
+      },
+      "description": "Update fields in a given group."
+    },
     "UserGroupListUserGroup": {
       "type": "object",
       "properties": {
@@ -4021,6 +4111,27 @@
       },
       "description": "Send a Google token to the server. Used with authenticate/link/unlink."
     },
+    "apiAccountProvider": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "description": "The name the provider was registered under during runtime initialization."
+        },
+        "payload": {
+          "type": "string",
+          "description": "Opaque JSON passed through to the registered provider function."
+        },
+        "vars": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Extra information that will be bundled in the session token."
+        }
+      },
+      "description": "Send credentials for a runtime-registered authentication provider. Used with authenticate."
+    },
     "apiAccountSteam": {
       "type": "object",
       "properties": {
@@ -4187,32 +4298,6 @@
         }
       },
       "description": "Batch delete storage objects."
-    },
-    "apiEvent": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "An event name, type, category, or identifier."
-        },
-        "properties": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          },
-          "description": "Arbitrary event property values."
-        },
-        "timestamp": {
-          "type": "string",
-          "format": "date-time",
-          "description": "The time when the event was triggered."
-        },
-        "external": {
-          "type": "boolean",
-          "description": "True if the event came directly from a client call, false otherwise."
-        }
-      },
-      "description": "Represents an event to be passed through the server to registered event handlers."
     },
     "apiFriend": {
       "type": "object",
@@ -4926,10 +5011,11 @@
         "APPLE_APP_STORE",
         "GOOGLE_PLAY_STORE",
         "HUAWEI_APP_GALLERY",
-        "FACEBOOK_INSTANT_STORE"
+        "FACEBOOK_INSTANT_STORE",
+        "SAMSUNG_GALAXY_STORE"
       ],
       "default": "APPLE_APP_STORE",
-      "description": "- APPLE_APP_STORE: Apple App Store\n - GOOGLE_PLAY_STORE: Google Play Store\n - HUAWEI_APP_GALLERY: Huawei App Gallery\n - FACEBOOK_INSTANT_STORE: Facebook Instant Store",
+      "description": "- APPLE_APP_STORE: Apple App Store\n - GOOGLE_PLAY_STORE: Google Play Store\n - HUAWEI_APP_GALLERY: Huawei App Gallery\n - FACEBOOK_INSTANT_STORE: Facebook Instant Store\n - SAMSUNG_GALAXY_STORE: Samsung Galaxy Store",
       "title": "Validation Provider,"
     },
     "apiSubscriptionList": {
@@ -5327,6 +5413,20 @@
       },
       "description": "Validate IAP response."
     },
+    "apiValidatePurchaseSamsungRequest": {
+      "type": "object",
+      "properties": {
+        "purchaseId": {
+          "type": "string",
+          "description": "The purchase ID returned by the Samsung IAP SDK PurchaseVo."
+        },
+        "persist": {
+          "type": "boolean",
+          "description": "Persist the purchase so that seenBefore can be computed to protect against replay attacks."
+        }
+      },
+      "description": "Samsung IAP Purchase validation request."
+    },
     "apiValidateSubscriptionAppleRequest": {
       "type": "object",
       "properties": {
@@ -5525,6 +5625,32 @@
         }
       },
       "description": "Write objects to the storage engine."
+    },
+    "nakamaApiEvent": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "An event name, type, category, or identifier."
+        },
+        "properties": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Arbitrary event property values."
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The time when the event was triggered."
+        },
+        "external": {
+          "type": "boolean",
+          "description": "True if the event came directly from a client call, false otherwise."
+        }
+      },
+      "description": "Represents an event to be passed through the server to registered event handlers."
     },
     "protobufAny": {
       "type": "object",
