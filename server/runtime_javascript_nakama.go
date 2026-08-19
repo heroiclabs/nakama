@@ -82,14 +82,15 @@ type RuntimeJavascriptNakamaModule struct {
 	router               MessageRouter
 	storageIndex         StorageIndex
 
-	node          string
-	matchCreateFn RuntimeMatchCreateFunction
-	eventFn       RuntimeEventCustomFunction
+	node                 string
+	matchCreateFn        RuntimeMatchCreateFunction
+	eventFn              RuntimeEventCustomFunction
+	authProviderRegistry *RuntimeAuthenticateProviderRegistry
 
 	satori runtime.Satori
 }
 
-func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, storageIndex StorageIndex, localCache *RuntimeJavascriptLocalCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, satoriClient runtime.Satori, eventFn RuntimeEventCustomFunction, matchCreateFn RuntimeMatchCreateFunction) *RuntimeJavascriptNakamaModule {
+func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, storageIndex StorageIndex, localCache *RuntimeJavascriptLocalCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, satoriClient runtime.Satori, eventFn RuntimeEventCustomFunction, matchCreateFn RuntimeMatchCreateFunction, authProviderRegistry *RuntimeAuthenticateProviderRegistry) *RuntimeJavascriptNakamaModule {
 	return &RuntimeJavascriptNakamaModule{
 		ctx:                  context.Background(),
 		logger:               logger,
@@ -115,9 +116,10 @@ func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonM
 		httpClientInsecure:   &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}},
 		storageIndex:         storageIndex,
 
-		node:          config.GetName(),
-		eventFn:       eventFn,
-		matchCreateFn: matchCreateFn,
+		node:                 config.GetName(),
+		eventFn:              eventFn,
+		authProviderRegistry: authProviderRegistry,
+		matchCreateFn:        matchCreateFn,
 
 		satori: satoriClient,
 	}
@@ -180,6 +182,7 @@ func (n *RuntimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"authenticateFacebookInstantGame":      n.authenticateFacebookInstantGame(r),
 		"authenticateGameCenter":               n.authenticateGameCenter(r),
 		"authenticateGoogle":                   n.authenticateGoogle(r),
+		"authenticateProvider":                 n.authenticateProvider(r),
 		"authenticateSteam":                    n.authenticateSteam(r),
 		"authenticateTokenGenerate":            n.authenticateTokenGenerate(r),
 		"accountGetId":                         n.accountGetId(r),
@@ -1863,6 +1866,71 @@ func (n *RuntimeJavascriptNakamaModule) authenticateGoogle(r *goja.Runtime) func
 		}
 
 		dbUserID, dbUsername, created, err := AuthenticateGoogle(n.ctx, n.logger, n.db, n.socialClient, token, username, create)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("error authenticating: %v", err.Error())))
+		}
+
+		return r.ToValue(map[string]interface{}{
+			"userId":   dbUserID,
+			"username": dbUsername,
+			"created":  created,
+		})
+	}
+}
+
+// @group authenticate
+// @summary Authenticate user and create a session token using an external provider identity.
+// @param provider(type=string) Name of the provider the identity belongs to. Case insensitive.
+// @param payload(type=string, optional=true) Payload handed to the provider.
+// @param userID(type=string, optional=true) The user ID to assign if an account is created. If left empty, one is generated.
+// @param username(type=string, optional=true) The user's username. If left empty, one is generated.
+// @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
+// @return userID(string) The user ID of the authenticated user.
+// @return username(string) The username of the authenticated user.
+// @return create(bool) Value indicating if this account was just created or already existed.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeJavascriptNakamaModule) authenticateProvider(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		provider := getJsString(r, f.Argument(0))
+		if provider == "" {
+			panic(r.NewTypeError("expects provider string"))
+		} else if len(provider) > 128 {
+			panic(r.NewTypeError("expects provider to be valid, must be 1-128 bytes"))
+		}
+
+		payload := ""
+		if in := f.Argument(1); in != goja.Undefined() && !goja.IsNull(in) {
+			payload = getJsString(r, in)
+		}
+
+		userID := ""
+		if in := f.Argument(2); in != goja.Undefined() && !goja.IsNull(in) {
+			userID = getJsString(r, in)
+		}
+		if userID != "" {
+			if uid, err := uuid.FromString(userID); err != nil || uid.IsNil() {
+				panic(r.NewTypeError("expects user ID to be a valid identifier"))
+			}
+		}
+
+		username := ""
+		if f.Argument(3) != goja.Undefined() {
+			username = getJsString(r, f.Argument(3))
+		}
+		if username == "" {
+			username = generateUsername()
+		} else if invalidUsernameRegex.MatchString(username) {
+			panic(r.NewTypeError("expects username to be valid, no spaces or control characters allowed"))
+		} else if len(username) > 128 {
+			panic(r.NewTypeError("expects username to be valid, must be 1-128 bytes"))
+		}
+
+		create := true
+		if f.Argument(4) != goja.Undefined() {
+			create = getJsBool(r, f.Argument(4))
+		}
+
+		dbUserID, dbUsername, created, _, err := AuthenticateProvider(n.ctx, n.logger, n.db, n.authProviderRegistry, provider, payload, userID, username, create, "")
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error authenticating: %v", err.Error())))
 		}

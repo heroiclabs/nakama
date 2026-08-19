@@ -61,6 +61,7 @@ type RuntimeGoNakamaModule struct {
 	streamManager        StreamManager
 	router               MessageRouter
 	eventFn              RuntimeEventCustomFunction
+	authProviderRegistry *RuntimeAuthenticateProviderRegistry
 	node                 string
 	matchCreateFn        RuntimeMatchCreateFunction
 	satori               runtime.Satori
@@ -68,10 +69,11 @@ type RuntimeGoNakamaModule struct {
 	storageIndex         StorageIndex
 }
 
-func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, storageIndex StorageIndex, satoriClient runtime.Satori) *RuntimeGoNakamaModule {
+func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, storageIndex StorageIndex, satoriClient runtime.Satori, authProviderRegistry *RuntimeAuthenticateProviderRegistry) *RuntimeGoNakamaModule {
 	return &RuntimeGoNakamaModule{
 		logger:               logger,
 		db:                   db,
+		authProviderRegistry: authProviderRegistry,
 		protojsonMarshaler:   protojsonMarshaler,
 		config:               config,
 		socialClient:         socialClient,
@@ -365,6 +367,43 @@ func (n *RuntimeGoNakamaModule) AuthenticateGoogle(ctx context.Context, token, u
 	}
 
 	return AuthenticateGoogle(ctx, n.logger, n.db, n.socialClient, token, username, create)
+}
+
+// @group authenticate
+// @summary Authenticate user and create a session token using an external provider identity.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param provider(type=string) Name of the provider the identity belongs to. Case insensitive.
+// @param payload(type=string) Payload handed to the provider.
+// @param userID(type=string, optional=true) The user ID to assign if an account is created. If left empty, one is generated.
+// @param username(type=string, optional=true) The user's username. If left empty, one is generated.
+// @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
+// @return userID(string) The user ID of the authenticated user.
+// @return username(string) The username of the authenticated user.
+// @return create(bool) Value indicating if this account was just created or already existed.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) AuthenticateProvider(ctx context.Context, provider, payload, userID, username string, create bool) (string, string, bool, error) {
+	if provider == "" {
+		return "", "", false, errors.New("expects provider string")
+	} else if len(provider) > 128 {
+		return "", "", false, errors.New("expects provider to be valid, must be 1-128 bytes")
+	}
+
+	if userID != "" {
+		if uid, err := uuid.FromString(userID); err != nil || uid.IsNil() {
+			return "", "", false, errors.New("expects user ID to be a valid identifier")
+		}
+	}
+
+	if username == "" {
+		username = generateUsername()
+	} else if invalidUsernameRegex.MatchString(username) {
+		return "", "", false, errors.New("expects username to be valid, no spaces or control characters allowed")
+	} else if len(username) > 128 {
+		return "", "", false, errors.New("expects username to be valid, must be 1-128 bytes")
+	}
+
+	dbUserID, dbUsername, created, _, err := AuthenticateProvider(ctx, n.logger, n.db, n.authProviderRegistry, provider, payload, userID, username, create, "")
+	return dbUserID, dbUsername, created, err
 }
 
 // @group authenticate
@@ -780,6 +819,17 @@ func (n *RuntimeGoNakamaModule) LinkCustom(ctx context.Context, userID, customID
 }
 
 // @group authenticate
+// @summary Link a provider identity to a user ID.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param userID(type=string) The user ID to be linked.
+// @param provider(type=string) Name of the provider the identity belongs to. Case insensitive.
+// @param payload(type=string) Payload handed to the provider.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) LinkProvider(ctx context.Context, userID, provider, payload string) error {
+	return errors.New("link provider is not implemented")
+}
+
+// @group authenticate
 // @summary Link device authentication to a user ID.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param userID(type=string) The user ID to be linked.
@@ -969,6 +1019,16 @@ func (n *RuntimeGoNakamaModule) UnlinkCustom(ctx context.Context, userID, custom
 	}
 
 	return UnlinkCustom(ctx, n.logger, n.db, id, customID)
+}
+
+// @group authenticate
+// @summary Unlink a provider identity from a user ID.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param userID(type=string) The user ID to be unlinked.
+// @param provider(type=string) Name of the provider the identity belongs to. Case insensitive.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) UnlinkProvider(ctx context.Context, userID, provider string) error {
+	return errors.New("unlink provider is not implemented")
 }
 
 // @group authenticate

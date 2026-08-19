@@ -50,6 +50,7 @@ const (
 	Nakama_AuthenticateFacebookInstantGame_FullMethodName   = "/nakama.api.Nakama/AuthenticateFacebookInstantGame"
 	Nakama_AuthenticateGameCenter_FullMethodName            = "/nakama.api.Nakama/AuthenticateGameCenter"
 	Nakama_AuthenticateGoogle_FullMethodName                = "/nakama.api.Nakama/AuthenticateGoogle"
+	Nakama_AuthenticateProvider_FullMethodName              = "/nakama.api.Nakama/AuthenticateProvider"
 	Nakama_AuthenticateSteam_FullMethodName                 = "/nakama.api.Nakama/AuthenticateSteam"
 	Nakama_BanGroupUsers_FullMethodName                     = "/nakama.api.Nakama/BanGroupUsers"
 	Nakama_BlockFriends_FullMethodName                      = "/nakama.api.Nakama/BlockFriends"
@@ -156,6 +157,8 @@ type NakamaClient interface {
 	AuthenticateGameCenter(ctx context.Context, in *api.AuthenticateGameCenterRequest, opts ...grpc.CallOption) (*api.Session, error)
 	// Authenticate a user with Google against the server.
 	AuthenticateGoogle(ctx context.Context, in *api.AuthenticateGoogleRequest, opts ...grpc.CallOption) (*api.Session, error)
+	// Authenticate a user with a runtime-registered provider against the server.
+	AuthenticateProvider(ctx context.Context, in *api.AuthenticateProviderRequest, opts ...grpc.CallOption) (*api.Session, error)
 	// Authenticate a user with Steam against the server.
 	AuthenticateSteam(ctx context.Context, in *api.AuthenticateSteamRequest, opts ...grpc.CallOption) (*api.Session, error)
 	// Ban a set of users from a group.
@@ -426,6 +429,16 @@ func (c *nakamaClient) AuthenticateGoogle(ctx context.Context, in *api.Authentic
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(api.Session)
 	err := c.cc.Invoke(ctx, Nakama_AuthenticateGoogle_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nakamaClient) AuthenticateProvider(ctx context.Context, in *api.AuthenticateProviderRequest, opts ...grpc.CallOption) (*api.Session, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(api.Session)
+	err := c.cc.Invoke(ctx, Nakama_AuthenticateProvider_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1193,6 +1206,8 @@ type NakamaServer interface {
 	AuthenticateGameCenter(context.Context, *api.AuthenticateGameCenterRequest) (*api.Session, error)
 	// Authenticate a user with Google against the server.
 	AuthenticateGoogle(context.Context, *api.AuthenticateGoogleRequest) (*api.Session, error)
+	// Authenticate a user with a runtime-registered provider against the server.
+	AuthenticateProvider(context.Context, *api.AuthenticateProviderRequest) (*api.Session, error)
 	// Authenticate a user with Steam against the server.
 	AuthenticateSteam(context.Context, *api.AuthenticateSteamRequest) (*api.Session, error)
 	// Ban a set of users from a group.
@@ -1384,6 +1399,9 @@ func (UnimplementedNakamaServer) AuthenticateGameCenter(context.Context, *api.Au
 }
 func (UnimplementedNakamaServer) AuthenticateGoogle(context.Context, *api.AuthenticateGoogleRequest) (*api.Session, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AuthenticateGoogle not implemented")
+}
+func (UnimplementedNakamaServer) AuthenticateProvider(context.Context, *api.AuthenticateProviderRequest) (*api.Session, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AuthenticateProvider not implemented")
 }
 func (UnimplementedNakamaServer) AuthenticateSteam(context.Context, *api.AuthenticateSteamRequest) (*api.Session, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AuthenticateSteam not implemented")
@@ -1837,6 +1855,24 @@ func _Nakama_AuthenticateGoogle_Handler(srv interface{}, ctx context.Context, de
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NakamaServer).AuthenticateGoogle(ctx, req.(*api.AuthenticateGoogleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Nakama_AuthenticateProvider_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(api.AuthenticateProviderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NakamaServer).AuthenticateProvider(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Nakama_AuthenticateProvider_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NakamaServer).AuthenticateProvider(ctx, req.(*api.AuthenticateProviderRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -3209,6 +3245,10 @@ var Nakama_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AuthenticateGoogle",
 			Handler:    _Nakama_AuthenticateGoogle_Handler,
+		},
+		{
+			MethodName: "AuthenticateProvider",
+			Handler:    _Nakama_AuthenticateProvider_Handler,
 		},
 		{
 			MethodName: "AuthenticateSteam",

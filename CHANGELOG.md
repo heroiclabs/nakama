@@ -3,6 +3,12 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
+## [Unreleased]
+### Added
+- Add provider-agnostic authentication: register named authentication providers from the Go runtime and select one through the new `AuthenticateProvider` API.
+- Add `AuthenticateProvider` module function to authenticate through a registered provider from Go, Lua and JavaScript runtime code. Provider identities are stored as a `(provider, provider_user_id)` link in the new `user_provider` table.
+- Add `RegisterBeforeAuthenticateProvider` and `RegisterAfterAuthenticateProvider` hooks.
+
 ## [3.40.0] - 2026-07-13
 ### Added
 - Add Samsung Galaxy Store purchase validation request type and `SAMSUNG_GALAXY_STORE` store provider enum.

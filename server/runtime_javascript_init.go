@@ -138,6 +138,8 @@ func (im *RuntimeJavascriptInitModule) mappings(r *goja.Runtime) map[string]func
 		"registerAfterAuthenticateGameCenter":             im.registerAfterAuthenticateGameCenter(r),
 		"registerBeforeAuthenticateGoogle":                im.registerBeforeAuthenticateGoogle(r),
 		"registerAfterAuthenticateGoogle":                 im.registerAfterAuthenticateGoogle(r),
+		"registerBeforeAuthenticateProvider":              im.registerBeforeAuthenticateProvider(r),
+		"registerAfterAuthenticateProvider":               im.registerAfterAuthenticateProvider(r),
 		"registerBeforeAuthenticateSteam":                 im.registerBeforeAuthenticateSteam(r),
 		"registerAfterAuthenticateSteam":                  im.registerAfterAuthenticateSteam(r),
 		"registerBeforeSessionRefresh":                    im.registerBeforeSessionRefresh(r),
@@ -600,6 +602,14 @@ func (im *RuntimeJavascriptInitModule) registerBeforeAuthenticateGoogle(r *goja.
 
 func (im *RuntimeJavascriptInitModule) registerAfterAuthenticateGoogle(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterAuthenticateGoogle", "authenticategoogle")
+}
+
+func (im *RuntimeJavascriptInitModule) registerBeforeAuthenticateProvider(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeAuthenticateProvider", "authenticateprovider")
+}
+
+func (im *RuntimeJavascriptInitModule) registerAfterAuthenticateProvider(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterAuthenticateProvider", "authenticateprovider")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeAuthenticateSteam(r *goja.Runtime) func(goja.FunctionCall) goja.Value {

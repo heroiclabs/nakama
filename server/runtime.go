@@ -80,6 +80,8 @@ type (
 	RuntimeAfterAuthenticateGameCenterFunction             func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateGameCenterRequest) error
 	RuntimeBeforeAuthenticateGoogleFunction                func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AuthenticateGoogleRequest) (*api.AuthenticateGoogleRequest, error, codes.Code)
 	RuntimeAfterAuthenticateGoogleFunction                 func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateGoogleRequest) error
+	RuntimeBeforeAuthenticateProviderFunction              func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AuthenticateProviderRequest) (*api.AuthenticateProviderRequest, error, codes.Code)
+	RuntimeAfterAuthenticateProviderFunction               func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateProviderRequest) error
 	RuntimeBeforeAuthenticateSteamFunction                 func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AuthenticateSteamRequest) (*api.AuthenticateSteamRequest, error, codes.Code)
 	RuntimeAfterAuthenticateSteamFunction                  func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateSteamRequest) error
 	RuntimeBeforeListChannelMessagesFunction               func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ListChannelMessagesRequest) (*api.ListChannelMessagesRequest, error, codes.Code)
@@ -276,6 +278,7 @@ const (
 	RuntimeExecutionModeSubscriptionNotificationGoogle
 	RuntimeExecutionModeStorageIndexFilter
 	RuntimeExecutionModeShutdown
+	RuntimeExecutionModeAuthenticateProvider
 )
 
 func (e RuntimeExecutionMode) String() string {
@@ -318,6 +321,8 @@ func (e RuntimeExecutionMode) String() string {
 		return "storage_index_filter"
 	case RuntimeExecutionModeShutdown:
 		return "shutdown"
+	case RuntimeExecutionModeAuthenticateProvider:
+		return "authenticate_provider"
 	}
 
 	return ""
@@ -374,6 +379,7 @@ type RuntimeBeforeReqFunctions struct {
 	beforeAuthenticateFacebookInstantGameFunction   RuntimeBeforeAuthenticateFacebookInstantGameFunction
 	beforeAuthenticateGameCenterFunction            RuntimeBeforeAuthenticateGameCenterFunction
 	beforeAuthenticateGoogleFunction                RuntimeBeforeAuthenticateGoogleFunction
+	beforeAuthenticateProviderFunction              RuntimeBeforeAuthenticateProviderFunction
 	beforeAuthenticateSteamFunction                 RuntimeBeforeAuthenticateSteamFunction
 	beforeListChannelMessagesFunction               RuntimeBeforeListChannelMessagesFunction
 	beforeListFriendsFunction                       RuntimeBeforeListFriendsFunction
@@ -460,6 +466,7 @@ type RuntimeAfterReqFunctions struct {
 	afterAuthenticateFacebookInstantGameFunction   RuntimeAfterAuthenticateFacebookInstantGameFunction
 	afterAuthenticateGameCenterFunction            RuntimeAfterAuthenticateGameCenterFunction
 	afterAuthenticateGoogleFunction                RuntimeAfterAuthenticateGoogleFunction
+	afterAuthenticateProviderFunction              RuntimeAfterAuthenticateProviderFunction
 	afterAuthenticateSteamFunction                 RuntimeAfterAuthenticateSteamFunction
 	afterListChannelMessagesFunction               RuntimeAfterListChannelMessagesFunction
 	afterListFriendsFunction                       RuntimeAfterListFriendsFunction
@@ -536,6 +543,8 @@ type Runtime struct {
 	matchCreateFunction RuntimeMatchCreateFunction
 
 	rpcFunctions map[string]RuntimeRpcFunction
+
+	authProviderRegistry *RuntimeAuthenticateProviderRegistry
 
 	beforeRtFunctions map[string]RuntimeBeforeRtFunction
 	afterRtFunctions  map[string]RuntimeAfterRtFunction
@@ -681,6 +690,8 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 
 	matchProvider := NewMatchProvider()
 
+	authProviderRegistry := &RuntimeAuthenticateProviderRegistry{providers: MapOf[string, RuntimeAuthenticateProviderFunction]{}}
+
 	satoriClient := satori.NewSatoriClient(
 		ctx,
 		logger,
@@ -745,19 +756,20 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		paths,
 		eventQueue,
 		matchProvider,
-		fmCallbackHandler)
+		fmCallbackHandler,
+		authProviderRegistry)
 	if err != nil {
 		startupLogger.Error("Error initialising Go runtime provider", zap.Error(err))
 		return nil, nil, err
 	}
 
-	luaModules, luaRPCFns, luaBeforeRtFns, luaAfterRtFns, luaBeforeReqFns, luaAfterReqFns, luaMatchmakerMatchedFn, luaTournamentEndFn, luaTournamentResetFn, luaLeaderboardResetFn, luaShutdownFn, luaPurchaseNotificationAppleFn, luaSubscriptionNotificationAppleFn, luaPurchaseNotificationGoogleFn, luaSubscriptionNotificationGoogleFn, luaIndexFilterFns, err := NewRuntimeProviderLua(ctx, logger, startupLogger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, satoriClient, allEventFns.eventFunction, runtimeConfig.Path, paths, matchProvider, storageIndex)
+	luaModules, luaRPCFns, luaBeforeRtFns, luaAfterRtFns, luaBeforeReqFns, luaAfterReqFns, luaMatchmakerMatchedFn, luaTournamentEndFn, luaTournamentResetFn, luaLeaderboardResetFn, luaShutdownFn, luaPurchaseNotificationAppleFn, luaSubscriptionNotificationAppleFn, luaPurchaseNotificationGoogleFn, luaSubscriptionNotificationGoogleFn, luaIndexFilterFns, err := NewRuntimeProviderLua(ctx, logger, startupLogger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, satoriClient, allEventFns.eventFunction, runtimeConfig.Path, paths, matchProvider, storageIndex, authProviderRegistry)
 	if err != nil {
 		startupLogger.Error("Error initialising Lua runtime provider", zap.Error(err))
 		return nil, nil, err
 	}
 
-	jsModules, jsRPCFns, jsBeforeRtFns, jsAfterRtFns, jsBeforeReqFns, jsAfterReqFns, jsMatchmakerMatchedFn, jsTournamentEndFn, jsTournamentResetFn, jsLeaderboardResetFn, jsShutdownFn, jsPurchaseNotificationAppleFn, jsSubscriptionNotificationAppleFn, jsPurchaseNotificationGoogleFn, jsSubscriptionNotificationGoogleFn, jsIndexFilterFns, err := NewRuntimeProviderJS(ctx, logger, startupLogger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, satoriClient, allEventFns.eventFunction, runtimeConfig.Path, runtimeConfig.JsEntrypoint, matchProvider, storageIndex)
+	jsModules, jsRPCFns, jsBeforeRtFns, jsAfterRtFns, jsBeforeReqFns, jsAfterReqFns, jsMatchmakerMatchedFn, jsTournamentEndFn, jsTournamentResetFn, jsLeaderboardResetFn, jsShutdownFn, jsPurchaseNotificationAppleFn, jsSubscriptionNotificationAppleFn, jsPurchaseNotificationGoogleFn, jsSubscriptionNotificationGoogleFn, jsIndexFilterFns, err := NewRuntimeProviderJS(ctx, logger, startupLogger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, satoriClient, allEventFns.eventFunction, runtimeConfig.Path, runtimeConfig.JsEntrypoint, matchProvider, storageIndex, authProviderRegistry)
 	if err != nil {
 		startupLogger.Error("Error initialising JavaScript runtime provider", zap.Error(err))
 		return nil, nil, err
@@ -873,6 +885,9 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	}
 	if allBeforeReqFunctions.beforeAuthenticateGoogleFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "authenticategoogle"))
+	}
+	if allBeforeReqFunctions.beforeAuthenticateProviderFunction != nil {
+		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "authenticateprovider"))
 	}
 	if allBeforeReqFunctions.beforeAuthenticateSteamFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "authenticatesteam"))
@@ -1138,6 +1153,10 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if luaBeforeReqFns.beforeAuthenticateGoogleFunction != nil {
 		allBeforeReqFunctions.beforeAuthenticateGoogleFunction = luaBeforeReqFns.beforeAuthenticateGoogleFunction
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "authenticategoogle"))
+	}
+	if luaBeforeReqFns.beforeAuthenticateProviderFunction != nil {
+		allBeforeReqFunctions.beforeAuthenticateProviderFunction = luaBeforeReqFns.beforeAuthenticateProviderFunction
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "authenticateprovider"))
 	}
 	if luaBeforeReqFns.beforeAuthenticateSteamFunction != nil {
 		allBeforeReqFunctions.beforeAuthenticateSteamFunction = luaBeforeReqFns.beforeAuthenticateSteamFunction
@@ -1469,6 +1488,10 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		allBeforeReqFunctions.beforeAuthenticateGoogleFunction = goBeforeReqFns.beforeAuthenticateGoogleFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "authenticategoogle"))
 	}
+	if goBeforeReqFns.beforeAuthenticateProviderFunction != nil {
+		allBeforeReqFunctions.beforeAuthenticateProviderFunction = goBeforeReqFns.beforeAuthenticateProviderFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "authenticateprovider"))
+	}
 	if goBeforeReqFns.beforeAuthenticateSteamFunction != nil {
 		allBeforeReqFunctions.beforeAuthenticateSteamFunction = goBeforeReqFns.beforeAuthenticateSteamFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "authenticatesteam"))
@@ -1786,6 +1809,9 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if allAfterReqFunctions.afterAuthenticateGoogleFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "authenticategoogle"))
 	}
+	if allAfterReqFunctions.afterAuthenticateProviderFunction != nil {
+		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "authenticateprovider"))
+	}
 	if allAfterReqFunctions.afterAuthenticateSteamFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "authenticatesteam"))
 	}
@@ -2047,6 +2073,10 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if luaAfterReqFns.afterAuthenticateGoogleFunction != nil {
 		allAfterReqFunctions.afterAuthenticateGoogleFunction = luaAfterReqFns.afterAuthenticateGoogleFunction
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "authenticategoogle"))
+	}
+	if luaAfterReqFns.afterAuthenticateProviderFunction != nil {
+		allAfterReqFunctions.afterAuthenticateProviderFunction = luaAfterReqFns.afterAuthenticateProviderFunction
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "authenticateprovider"))
 	}
 	if luaAfterReqFns.afterAuthenticateSteamFunction != nil {
 		allAfterReqFunctions.afterAuthenticateSteamFunction = luaAfterReqFns.afterAuthenticateSteamFunction
@@ -2369,6 +2399,10 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if goAfterReqFns.afterAuthenticateGoogleFunction != nil {
 		allAfterReqFunctions.afterAuthenticateGoogleFunction = goAfterReqFns.afterAuthenticateGoogleFunction
 		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "authenticategoogle"))
+	}
+	if goAfterReqFns.afterAuthenticateProviderFunction != nil {
+		allAfterReqFunctions.afterAuthenticateProviderFunction = goAfterReqFns.afterAuthenticateProviderFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "authenticateprovider"))
 	}
 	if goAfterReqFns.afterAuthenticateSteamFunction != nil {
 		allAfterReqFunctions.afterAuthenticateSteamFunction = goAfterReqFns.afterAuthenticateSteamFunction
@@ -2815,6 +2849,7 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	return &Runtime{
 		matchCreateFunction:                    matchProvider.CreateMatch,
 		rpcFunctions:                           allRPCFunctions,
+		authProviderRegistry:                   authProviderRegistry,
 		beforeRtFunctions:                      allBeforeRtFunctions,
 		afterRtFunctions:                       allAfterRtFunctions,
 		beforeReqFunctions:                     allBeforeReqFunctions,
@@ -2914,6 +2949,10 @@ func (r *Runtime) MatchCreateFunction() RuntimeMatchCreateFunction {
 
 func (r *Runtime) Rpc(id string) RuntimeRpcFunction {
 	return r.rpcFunctions[id]
+}
+
+func (r *Runtime) AuthenticateProviderRegistry() *RuntimeAuthenticateProviderRegistry {
+	return r.authProviderRegistry
 }
 
 func (r *Runtime) BeforeRt(id string) RuntimeBeforeRtFunction {
@@ -3034,6 +3073,14 @@ func (r *Runtime) BeforeAuthenticateGoogle() RuntimeBeforeAuthenticateGoogleFunc
 
 func (r *Runtime) AfterAuthenticateGoogle() RuntimeAfterAuthenticateGoogleFunction {
 	return r.afterReqFunctions.afterAuthenticateGoogleFunction
+}
+
+func (r *Runtime) BeforeAuthenticateProvider() RuntimeBeforeAuthenticateProviderFunction {
+	return r.beforeReqFunctions.beforeAuthenticateProviderFunction
+}
+
+func (r *Runtime) AfterAuthenticateProvider() RuntimeAfterAuthenticateProviderFunction {
+	return r.afterReqFunctions.afterAuthenticateProviderFunction
 }
 
 func (r *Runtime) BeforeAuthenticateSteam() RuntimeBeforeAuthenticateSteamFunction {

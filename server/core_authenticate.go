@@ -120,6 +120,123 @@ func AuthenticateApple(ctx context.Context, logger *zap.Logger, db *sql.DB, clie
 	return userID, username, true, nil
 }
 
+func AuthenticateProvider(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimeAuthenticateProviderRegistry, providerID, payload, userID, username string, create bool, traceID string) (string, string, bool, map[string]string, error) {
+	// Normalised here rather than by callers, because this is what gets stored against the identity.
+	providerID = strings.ToLower(providerID)
+
+	if registry == nil {
+		return "", "", false, nil, status.Error(codes.NotFound, "Authentication provider not found: "+providerID)
+	}
+	authProviderFn := registry.Get(providerID)
+	if authProviderFn == nil {
+		return "", "", false, nil, status.Error(codes.NotFound, "Authentication provider not found: "+providerID)
+	}
+
+	result, fnErr, code := authProviderFn(ctx, traceID, payload)
+	if fnErr != nil {
+		return "", "", false, nil, status.Error(code, fnErr.Error())
+	}
+	if result == nil {
+		logger.Error("Authentication provider returned no result.", zap.String("provider", providerID))
+		return "", "", false, nil, status.Error(codes.Internal, "Error authenticating.")
+	}
+
+	providerUserID := result.ProviderUserID
+	if providerUserID == "" {
+		logger.Error("Authentication provider returned no provider user ID.", zap.String("provider", providerID))
+		return "", "", false, nil, status.Error(codes.Internal, "Error authenticating.")
+	}
+	if invalidCharsRegex.MatchString(providerUserID) || len(providerUserID) > 128 {
+		logger.Error("Authentication provider returned an invalid provider user ID.", zap.String("provider", providerID), zap.String("providerUserID", providerUserID))
+		return "", "", false, nil, status.Error(codes.Internal, "Error authenticating.")
+	}
+	if result.Username != "" {
+		if invalidUsernameRegex.MatchString(result.Username) || len(result.Username) > 128 {
+			logger.Error("Authentication provider returned an invalid username.", zap.String("provider", providerID), zap.String("providerUserID", providerUserID), zap.String("username", result.Username))
+			return "", "", false, nil, status.Error(codes.Internal, "Error authenticating.")
+		}
+		username = result.Username
+	}
+
+	found := true
+
+	// Look for an existing account.
+	query := `
+SELECT u.id, u.username, u.disable_time
+FROM users u, user_provider up
+WHERE up.provider = $1 AND up.provider_user_id = $2 AND up.user_id = u.id`
+	var dbUserID string
+	var dbUsername string
+	var dbDisableTime pgtype.Timestamptz
+	err := db.QueryRowContext(ctx, query, providerID, providerUserID).Scan(&dbUserID, &dbUsername, &dbDisableTime)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			found = false
+		} else {
+			logger.Error("Error looking up user by provider ID.", zap.Error(err), zap.String("provider", providerID), zap.String("providerUserID", providerUserID), zap.String("username", username), zap.Bool("create", create))
+			return "", "", false, nil, status.Error(codes.Internal, "Error finding user account.")
+		}
+	}
+
+	// Existing account found.
+	if found {
+		// Check if it's disabled.
+		if dbDisableTime.Valid && dbDisableTime.Time.Unix() != 0 {
+			logger.Info("User account is disabled.", zap.String("provider", providerID), zap.String("providerUserID", providerUserID), zap.String("username", username), zap.Bool("create", create))
+			return "", "", false, nil, status.Error(codes.PermissionDenied, "User account banned.")
+		}
+
+		return dbUserID, dbUsername, false, result.Vars, nil
+	}
+
+	if !create {
+		// No user account found, and creation is not allowed.
+		return "", "", false, nil, status.Error(codes.NotFound, "User account not found.")
+	}
+
+	// Create a new account and its provider link together, so a failure to link cannot leave an orphaned user.
+	if userID == "" {
+		userID = uuid.Must(uuid.NewV4()).String()
+	}
+	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx, "INSERT INTO users (id, username, create_time, update_time) VALUES ($1, $2, now(), now())", userID, username)
+		if err != nil {
+			return err
+		}
+		if rowsAffectedCount, _ := res.RowsAffected(); rowsAffectedCount != 1 {
+			return errors.New("did not insert new user")
+		}
+
+		res, err = tx.ExecContext(ctx, "INSERT INTO user_provider (provider, provider_user_id, user_id) VALUES ($1, $2, $3)", providerID, providerUserID, userID)
+		if err != nil {
+			return err
+		}
+		if rowsAffectedCount, _ := res.RowsAffected(); rowsAffectedCount != 1 {
+			return errors.New("did not insert new user provider link")
+		}
+
+		return nil
+	}); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
+			if strings.Contains(pgErr.Message, "users_username_key") {
+				// Username is already in use by a different account.
+				return "", "", false, nil, status.Error(codes.AlreadyExists, "Username is already in use.")
+			} else if strings.Contains(pgErr.Message, "users_pkey") {
+				// The caller supplied a user ID that belongs to an account not linked to this provider identity.
+				return "", "", false, nil, status.Error(codes.AlreadyExists, "User ID is already in use.")
+			}
+			// A concurrent write has inserted this provider identity.
+			logger.Info("Did not insert new user as provider ID already exists.", zap.Error(err), zap.String("provider", providerID), zap.String("providerUserID", providerUserID), zap.String("username", username), zap.Bool("create", create))
+			return "", "", false, nil, status.Error(codes.Internal, "Error finding or creating user account.")
+		}
+		logger.Error("Cannot find or create user with provider ID.", zap.Error(err), zap.String("provider", providerID), zap.String("providerUserID", providerUserID), zap.String("username", username), zap.Bool("create", create))
+		return "", "", false, nil, status.Error(codes.Internal, "Error finding or creating user account.")
+	}
+
+	return userID, username, true, result.Vars, nil
+}
+
 func AuthenticateCustom(ctx context.Context, logger *zap.Logger, db *sql.DB, customID, username string, create bool) (string, string, bool, error) {
 	found := true
 

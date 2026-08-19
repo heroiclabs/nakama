@@ -49,6 +49,7 @@ type RuntimeGoInitializer struct {
 	config  Config
 
 	rpc                            map[string]RuntimeRpcFunction
+	authProviderRegistry           *RuntimeAuthenticateProviderRegistry
 	beforeRt                       map[string]RuntimeBeforeRtFunction
 	afterRt                        map[string]RuntimeAfterRtFunction
 	beforeReq                      *RuntimeBeforeReqFunctions
@@ -146,6 +147,35 @@ func (ri *RuntimeGoInitializer) RegisterRpc(id string, fn func(ctx context.Conte
 		return result, nil, codes.OK
 	}
 	return nil
+}
+
+// @group authenticate
+// @summary Register an authentication provider by name. The name can be used from client code to authenticate through the provider, and from server code via the AuthenticateProvider function. The provider validates the payload it is given and returns the identity that payload proves.
+// @param name(type=string) The unique name of the authentication provider. Converted to lowercase.
+// @param provider(type=runtime.AuthenticateProvider) The provider implementation to execute when it is selected.
+// @return error(error) An optional error value if an error occurred.
+func (ri *RuntimeGoInitializer) RegisterAuthenticateProvider(name string, provider runtime.AuthenticateProvider) error {
+	if provider == nil {
+		return errors.New("expects a non-nil authentication provider")
+	}
+	name = strings.ToLower(name)
+	return ri.authProviderRegistry.Register(name, func(ctx context.Context, traceID, payload string) (*runtime.AuthenticateProviderResult, error, codes.Code) {
+		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeAuthenticateProvider, nil, nil, traceID, 0, "", "", nil, "", "", "", "")
+		result, fnErr := provider.Authenticate(ctx, RuntimeLoggerWithTraceId(ctx, ri.logger.WithField("provider", name)), ri.db, ri.nk, payload)
+		if fnErr != nil {
+			var runtimeErr *runtime.Error
+			if errors.As(fnErr, &runtimeErr) {
+				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
+					// If error is present but code is invalid then default to 13 (Internal) as the error code.
+					return result, runtimeErr, codes.Internal
+				}
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
+			}
+			// Not a runtime error that contains a code.
+			return result, fnErr, codes.Internal
+		}
+		return result, nil, codes.OK
+	})
 }
 
 // @group hooks
@@ -682,6 +712,45 @@ func (ri *RuntimeGoInitializer) RegisterAfterAuthenticateGoogle(fn func(ctx cont
 	ri.afterReq.afterAuthenticateGoogleFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateGoogleRequest) error {
 		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeAfter, nil, nil, traceID, expiry, userID, username, vars, "", clientIP, clientPort, "")
 		loggerFields := map[string]interface{}{"api_id": "authenticategoogle", "mode": RuntimeExecutionModeAfter.String()}
+		return fn(ctx, RuntimeLoggerWithTraceId(ctx, ri.logger.WithFields(loggerFields)), ri.db, ri.nk, out, in)
+	}
+	return nil
+}
+
+// @group authenticate
+// @summary Register a function to perform pre-authentication checks. You can use this to process the input before it reaches the registered provider.
+// @param fn(type=function) The function to execute before the request is processed. It can modify the input or reject the request.
+// @return error(error) An optional error value if an error occurred.
+func (ri *RuntimeGoInitializer) RegisterBeforeAuthenticateProvider(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AuthenticateProviderRequest) (*api.AuthenticateProviderRequest, error)) error {
+	ri.beforeReq.beforeAuthenticateProviderFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AuthenticateProviderRequest) (*api.AuthenticateProviderRequest, error, codes.Code) {
+		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeBefore, nil, nil, traceID, expiry, userID, username, vars, "", clientIP, clientPort, "")
+		loggerFields := map[string]interface{}{"api_id": "authenticateprovider", "mode": RuntimeExecutionModeBefore.String()}
+		result, fnErr := fn(ctx, RuntimeLoggerWithTraceId(ctx, ri.logger.WithFields(loggerFields)), ri.db, ri.nk, in)
+		if fnErr != nil {
+			var runtimeErr *runtime.Error
+			if errors.As(fnErr, &runtimeErr) {
+				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
+					// If error is present but code is invalid then default to 13 (Internal) as the error code.
+					return result, runtimeErr, codes.Internal
+				}
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
+			}
+			// Not a runtime error that contains a code.
+			return result, fnErr, codes.Internal
+		}
+		return result, nil, codes.OK
+	}
+	return nil
+}
+
+// @group authenticate
+// @summary Register a function to perform after successful authentication checks.
+// @param fn(type=function) The function to execute after the request is processed.
+// @return error(error) An optional error value if an error occurred.
+func (ri *RuntimeGoInitializer) RegisterAfterAuthenticateProvider(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.Session, in *api.AuthenticateProviderRequest) error) error {
+	ri.afterReq.afterAuthenticateProviderFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateProviderRequest) error {
+		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeAfter, nil, nil, traceID, expiry, userID, username, vars, "", clientIP, clientPort, "")
+		loggerFields := map[string]interface{}{"api_id": "authenticateprovider", "mode": RuntimeExecutionModeAfter.String()}
 		return fn(ctx, RuntimeLoggerWithTraceId(ctx, ri.logger.WithFields(loggerFields)), ri.db, ri.nk, out, in)
 	}
 	return nil
@@ -1819,6 +1888,22 @@ func (ri *RuntimeGoInitializer) RegisterAfterLinkCustom(fn func(ctx context.Cont
 }
 
 // @group authenticate
+// @summary Register a function to perform additional logic before linking a provider identity to an account.
+// @param fn(type=function) The function to execute before the request is processed. It can modify the input or reject the request.
+// @return error(error) An optional error value if an error occurred.
+func (ri *RuntimeGoInitializer) RegisterBeforeLinkProvider(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountProvider) (*api.AccountProvider, error)) error {
+	return errors.New("before link provider hook is not implemented")
+}
+
+// @group authenticate
+// @summary Register a function to perform additional logic after linking a provider identity to an account.
+// @param fn(type=function) The function to execute after the request is processed.
+// @return error(error) An optional error value if an error occurred.
+func (ri *RuntimeGoInitializer) RegisterAfterLinkProvider(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountProvider) error) error {
+	return errors.New("after link provider hook is not implemented")
+}
+
+// @group authenticate
 // @summary Register a function to perform additional logic before linking device ID to an account.
 // @param fn(type=function) The function to execute before the request is processed. It can modify the input or reject the request.
 // @return error(error) An optional error value if an error occurred.
@@ -2635,6 +2720,22 @@ func (ri *RuntimeGoInitializer) RegisterAfterUnlinkCustom(fn func(ctx context.Co
 		return fn(ctx, RuntimeLoggerWithTraceId(ctx, ri.logger.WithFields(loggerFields)), ri.db, ri.nk, in)
 	}
 	return nil
+}
+
+// @group authenticate
+// @summary Register a function to perform additional logic before a provider identity is unlinked from an account.
+// @param fn(type=function) The function to execute before the request is processed. It can modify the input or reject the request.
+// @return error(error) An optional error value if an error occurred.
+func (ri *RuntimeGoInitializer) RegisterBeforeUnlinkProvider(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountProvider) (*api.AccountProvider, error)) error {
+	return errors.New("before unlink provider hook is not implemented")
+}
+
+// @group authenticate
+// @summary Register a function to perform additional logic after a provider identity is unlinked from an account.
+// @param fn(type=function) The function to execute after the request is processed.
+// @return error(error) An optional error value if an error occurred.
+func (ri *RuntimeGoInitializer) RegisterAfterUnlinkProvider(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountProvider) error) error {
+	return errors.New("after unlink provider hook is not implemented")
 }
 
 // @group authenticate
@@ -3684,12 +3785,12 @@ func (ri *RuntimeGoInitializer) RegisterMatch(name string, fn func(ctx context.C
 	return nil
 }
 
-func NewRuntimeProviderGo(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, storageIndex StorageIndex, satoriClient runtime.Satori, rootPath string, paths []string, eventQueue *RuntimeEventQueue, matchProvider *MatchProvider, fmCallbackHandler runtime.FmCallbackHandler) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeMatchmakerOverrideFunction, RuntimeMatchmakerProcessorFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, RuntimeShutdownFunction, RuntimePurchaseNotificationAppleFunction, RuntimeSubscriptionNotificationAppleFunction, RuntimePurchaseNotificationGoogleFunction, RuntimeSubscriptionNotificationGoogleFunction, map[string]RuntimeStorageIndexFilterFunction, runtime.FleetManager, []*RuntimeHttpHandler, []*RuntimeHttpHandler, *RuntimeEventFunctions, func() []string, error) {
+func NewRuntimeProviderGo(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, storageIndex StorageIndex, satoriClient runtime.Satori, rootPath string, paths []string, eventQueue *RuntimeEventQueue, matchProvider *MatchProvider, fmCallbackHandler runtime.FmCallbackHandler, authProviderRegistry *RuntimeAuthenticateProviderRegistry) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeMatchmakerOverrideFunction, RuntimeMatchmakerProcessorFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, RuntimeShutdownFunction, RuntimePurchaseNotificationAppleFunction, RuntimeSubscriptionNotificationAppleFunction, RuntimePurchaseNotificationGoogleFunction, RuntimeSubscriptionNotificationGoogleFunction, map[string]RuntimeStorageIndexFilterFunction, runtime.FleetManager, []*RuntimeHttpHandler, []*RuntimeHttpHandler, *RuntimeEventFunctions, func() []string, error) {
 	runtimeLogger := NewRuntimeGoLogger(logger)
 	node := config.GetName()
 	env := config.GetRuntime().Environment
 
-	nk := NewRuntimeGoNakamaModule(logger, db, protojsonMarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, storageIndex, satoriClient)
+	nk := NewRuntimeGoNakamaModule(logger, db, protojsonMarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, storageIndex, satoriClient, authProviderRegistry)
 
 	match := make(map[string]func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule) (runtime.Match, error))
 
@@ -3733,6 +3834,8 @@ func NewRuntimeProviderGo(ctx context.Context, logger, startupLogger *zap.Logger
 		env:     env,
 		nk:      nk,
 		config:  config,
+
+		authProviderRegistry: authProviderRegistry,
 
 		rpc: make(map[string]RuntimeRpcFunction),
 
