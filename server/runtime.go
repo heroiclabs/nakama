@@ -565,7 +565,7 @@ type Runtime struct {
 
 	shutdownFunction RuntimeShutdownFunction
 
-	fleetManager runtime.FleetManager
+	fleetManagers map[string]runtime.FleetManager
 }
 
 type MatchNamesListFunction func() []string
@@ -715,7 +715,7 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		goPurchaseNotificationGoogleFn,
 		goSubscriptionNotificationGoogleFn,
 		goIndexFilterFns,
-		fleetManager,
+		fleetManagers,
 		httpHandlers,
 		consoleHttpHandlers,
 		allEventFns,
@@ -2836,7 +2836,7 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 
 		shutdownFunction: allShutdownFunction,
 
-		fleetManager: fleetManager,
+		fleetManagers: fleetManagers,
 
 		eventFunctions: allEventFns,
 	}, rInfo, nil

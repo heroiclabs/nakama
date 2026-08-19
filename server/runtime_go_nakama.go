@@ -64,7 +64,7 @@ type RuntimeGoNakamaModule struct {
 	node                 string
 	matchCreateFn        RuntimeMatchCreateFunction
 	satori               runtime.Satori
-	fleetManager         runtime.FleetManager
+	fleetManagers        map[string]runtime.FleetManager
 	storageIndex         StorageIndex
 }
 
@@ -92,6 +92,8 @@ func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler
 		node: config.GetName(),
 
 		satori: satoriClient,
+
+		fleetManagers: make(map[string]runtime.FleetManager),
 	}
 }
 
@@ -4591,8 +4593,16 @@ func (n *RuntimeGoNakamaModule) GetSatori() runtime.Satori {
 }
 
 // @group fleetmanager
-// @symmary Get the Fleet Manager client.
+// @summary Get the Fleet Manager client.
 // @return fleetManager(runtime.FleetManager) The Fleet Manager client.
 func (n *RuntimeGoNakamaModule) GetFleetManager() runtime.FleetManager {
-	return n.fleetManager
+	return n.GetFleetManagerByName("")
+}
+
+// @group fleetmanager
+// @summary Get the Fleet Manager client registered under the given name.
+// @param name(type=string) The name the Fleet Manager was registered under. The empty name is the default.
+// @return fleetManager(runtime.FleetManager) The Fleet Manager client, or nil if none is registered under that name.
+func (n *RuntimeGoNakamaModule) GetFleetManagerByName(name string) runtime.FleetManager {
+	return n.fleetManagers[name]
 }

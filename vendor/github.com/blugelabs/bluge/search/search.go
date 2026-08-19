@@ -140,17 +140,12 @@ func (dm *DocumentMatch) Reset() *DocumentMatch {
 	sortValue := dm.SortValue
 	// remember the FieldTermLocations backing array
 	ftls := dm.FieldTermLocations
-	docValues := dm.docValues
 	// idiom to copy over from empty DocumentMatch (0 allocations)
 	*dm = DocumentMatch{}
 	// reuse the [][]byte already allocated (and reset len to 0)
 	dm.SortValue = sortValue[:0]
 	// reuse the FieldTermLocations already allocated (and reset len to 0)
 	dm.FieldTermLocations = ftls[:0]
-	for key, slice := range docValues {
-		docValues[key] = slice[:0]
-	}
-	dm.docValues = docValues
 	return dm
 }
 
