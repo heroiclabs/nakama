@@ -200,6 +200,8 @@ func (im *RuntimeJavascriptInitModule) mappings(r *goja.Runtime) map[string]func
 		"registerAfterLinkApple":                          im.registerAfterLinkApple(r),
 		"registerBeforeLinkCustom":                        im.registerBeforeLinkCustom(r),
 		"registerAfterLinkCustom":                         im.registerAfterLinkCustom(r),
+		"registerBeforeLinkProvider":                      im.registerBeforeLinkProvider(r),
+		"registerAfterLinkProvider":                       im.registerAfterLinkProvider(r),
 		"registerBeforeLinkDevice":                        im.registerBeforeLinkDevice(r),
 		"registerAfterLinkDevice":                         im.registerAfterLinkDevice(r),
 		"registerBeforeLinkEmail":                         im.registerBeforeLinkEmail(r),
@@ -242,6 +244,8 @@ func (im *RuntimeJavascriptInitModule) mappings(r *goja.Runtime) map[string]func
 		"registerAfterUnlinkApple":                        im.registerAfterUnlinkApple(r),
 		"registerBeforeUnlinkCustom":                      im.registerBeforeUnlinkCustom(r),
 		"registerAfterUnlinkCustom":                       im.registerAfterUnlinkCustom(r),
+		"registerBeforeUnlinkProvider":                    im.registerBeforeUnlinkProvider(r),
+		"registerAfterUnlinkProvider":                     im.registerAfterUnlinkProvider(r),
 		"registerBeforeUnlinkDevice":                      im.registerBeforeUnlinkDevice(r),
 		"registerAfterUnlinkDevice":                       im.registerAfterUnlinkDevice(r),
 		"registerBeforeUnlinkEmail":                       im.registerBeforeUnlinkEmail(r),
@@ -848,8 +852,16 @@ func (im *RuntimeJavascriptInitModule) registerBeforeLinkCustom(r *goja.Runtime)
 	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeLinkCustom", "linkcustom")
 }
 
+func (im *RuntimeJavascriptInitModule) registerBeforeLinkProvider(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeLinkProvider", "linkprovider")
+}
+
 func (im *RuntimeJavascriptInitModule) registerAfterLinkCustom(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterLinkCustom", "linkcustom")
+}
+
+func (im *RuntimeJavascriptInitModule) registerAfterLinkProvider(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterLinkProvider", "linkprovider")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeLinkDevice(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -1016,8 +1028,16 @@ func (im *RuntimeJavascriptInitModule) registerBeforeUnlinkCustom(r *goja.Runtim
 	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeUnlinkCustom", "unlinkcustom")
 }
 
+func (im *RuntimeJavascriptInitModule) registerBeforeUnlinkProvider(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeUnlinkProvider", "unlinkprovider")
+}
+
 func (im *RuntimeJavascriptInitModule) registerAfterUnlinkCustom(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterUnlinkCustom", "unlinkcustom")
+}
+
+func (im *RuntimeJavascriptInitModule) registerAfterUnlinkProvider(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterUnlinkProvider", "unlinkprovider")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeUnlinkDevice(r *goja.Runtime) func(goja.FunctionCall) goja.Value {

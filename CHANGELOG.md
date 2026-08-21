@@ -12,6 +12,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add provider-agnostic authentication: register named authentication providers from the Go runtime and select one through the new `AuthenticateProvider` API.
 - Add `AuthenticateProvider` module function to authenticate through a registered provider from Go, Lua and JavaScript runtime code. Provider identities are stored as a `(provider, provider_user_id)` link in the new `user_provider` table.
 - Add `RegisterBeforeAuthenticateProvider` and `RegisterAfterAuthenticateProvider` hooks.
+- Add console support for provider identities: search accounts by one, and unlink one from an account.
 
 ## [3.40.0] - 2026-07-13
 ### Added
