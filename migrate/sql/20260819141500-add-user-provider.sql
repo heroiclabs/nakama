@@ -27,5 +27,8 @@ CREATE TABLE IF NOT EXISTS user_provider (
     UNIQUE (user_id, provider)
 );
 
+CREATE INDEX IF NOT EXISTS user_provider_provider_user_id_idx ON user_provider (provider_user_id);
+
 -- +migrate Down
+DROP INDEX IF EXISTS user_provider_provider_user_id_idx;
 DROP TABLE IF EXISTS user_provider;

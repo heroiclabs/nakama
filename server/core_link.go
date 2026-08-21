@@ -146,8 +146,8 @@ WHERE user_provider.user_id = EXCLUDED.user_id`,
 		if err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
-				// The account already holds a different identity from this provider.
-				return StatusError(codes.AlreadyExists, "Provider identity is already in use.", err)
+				// this account is linked to the provider under a different identity.
+				return StatusError(codes.AlreadyExists, "Account is already linked to this provider.", err)
 			}
 			logger.Debug("Cannot link provider identity.", zap.Error(err), zap.Any("input", providerID))
 			return err
