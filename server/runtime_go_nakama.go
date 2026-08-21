@@ -804,6 +804,22 @@ func (n *RuntimeGoNakamaModule) LinkApple(ctx context.Context, userID, token str
 }
 
 // @group authenticate
+// @summary Link a provider identity to a user ID.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param userID(type=string) The user ID to be linked.
+// @param provider(type=string) Name of the provider the identity belongs to. Case insensitive.
+// @param payload(type=string) Payload handed to the provider.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) LinkProvider(ctx context.Context, userID, provider, payload string) error {
+	id, err := uuid.FromString(userID)
+	if err != nil {
+		return errors.New("user ID must be a valid identifier")
+	}
+
+	return LinkProvider(ctx, n.logger, n.db, n.authProviderRegistry, id, provider, payload, "")
+}
+
+// @group authenticate
 // @summary Link custom authentication to a user ID.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param userID(type=string) The user ID to be linked.
@@ -816,17 +832,6 @@ func (n *RuntimeGoNakamaModule) LinkCustom(ctx context.Context, userID, customID
 	}
 
 	return LinkCustom(ctx, n.logger, n.db, id, customID)
-}
-
-// @group authenticate
-// @summary Link a provider identity to a user ID.
-// @param ctx(type=context.Context) The context object represents information about the server and requester.
-// @param userID(type=string) The user ID to be linked.
-// @param provider(type=string) Name of the provider the identity belongs to. Case insensitive.
-// @param payload(type=string) Payload handed to the provider.
-// @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) LinkProvider(ctx context.Context, userID, provider, payload string) error {
-	return errors.New("link provider is not implemented")
 }
 
 // @group authenticate
@@ -1007,6 +1012,21 @@ func (n *RuntimeGoNakamaModule) UnlinkApple(ctx context.Context, userID, token s
 }
 
 // @group authenticate
+// @summary Unlink a provider identity from a user ID.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param userID(type=string) The user ID to be unlinked.
+// @param provider(type=string) Name of the provider the identity belongs to. Case insensitive.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) UnlinkProvider(ctx context.Context, userID, provider string) error {
+	id, err := uuid.FromString(userID)
+	if err != nil {
+		return errors.New("user ID must be a valid identifier")
+	}
+
+	return UnlinkProvider(ctx, n.logger, n.db, id, provider)
+}
+
+// @group authenticate
 // @summary Unlink custom authentication from a user ID.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param userID(type=string) The user ID to be unlinked.
@@ -1019,16 +1039,6 @@ func (n *RuntimeGoNakamaModule) UnlinkCustom(ctx context.Context, userID, custom
 	}
 
 	return UnlinkCustom(ctx, n.logger, n.db, id, customID)
-}
-
-// @group authenticate
-// @summary Unlink a provider identity from a user ID.
-// @param ctx(type=context.Context) The context object represents information about the server and requester.
-// @param userID(type=string) The user ID to be unlinked.
-// @param provider(type=string) Name of the provider the identity belongs to. Case insensitive.
-// @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) UnlinkProvider(ctx context.Context, userID, provider string) error {
-	return errors.New("unlink provider is not implemented")
 }
 
 // @group authenticate

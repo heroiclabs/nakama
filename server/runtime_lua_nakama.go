@@ -215,6 +215,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"users_unban_id":                     n.usersUnbanId,
 		"link_apple":                         n.linkApple,
 		"link_custom":                        n.linkCustom,
+		"link_provider":                      n.linkProvider,
 		"link_device":                        n.linkDevice,
 		"link_email":                         n.linkEmail,
 		"link_facebook":                      n.linkFacebook,
@@ -224,6 +225,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"link_steam":                         n.linkSteam,
 		"unlink_apple":                       n.unlinkApple,
 		"unlink_custom":                      n.unlinkCustom,
+		"unlink_provider":                    n.unlinkProvider,
 		"unlink_device":                      n.unlinkDevice,
 		"unlink_email":                       n.unlinkEmail,
 		"unlink_facebook":                    n.unlinkFacebook,
@@ -3278,6 +3280,58 @@ func (n *RuntimeLuaNakamaModule) linkApple(l *lua.LState) int {
 
 	if err := LinkApple(l.Context(), n.logger, n.db, n.config, n.socialClient, id, token); err != nil {
 		l.RaiseError("error linking: %v", err.Error())
+	}
+	return 0
+}
+
+// @group authenticate
+// @summary Link a provider identity to a user ID.
+// @param userID(type=string) The user ID to be linked.
+// @param provider(type=string) Name of the provider the identity belongs to. Case insensitive.
+// @param payload(type=string, optional=true) Payload handed to the provider.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) linkProvider(l *lua.LState) int {
+	userID := l.CheckString(1)
+	id, err := uuid.FromString(userID)
+	if err != nil {
+		l.ArgError(1, "user ID must be a valid identifier")
+		return 0
+	}
+
+	provider := l.CheckString(2)
+	if provider == "" {
+		l.ArgError(2, "expects provider string")
+		return 0
+	}
+	payload := l.OptString(3, "")
+
+	if err := LinkProvider(l.Context(), n.logger, n.db, n.authProviderRegistry, id, provider, payload, ""); err != nil {
+		l.RaiseError("error linking: %v", err.Error())
+	}
+	return 0
+}
+
+// @group authenticate
+// @summary Unlink a provider identity from a user ID.
+// @param userID(type=string) The user ID to be unlinked.
+// @param provider(type=string) Name of the provider the identity belongs to. Case insensitive.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) unlinkProvider(l *lua.LState) int {
+	userID := l.CheckString(1)
+	id, err := uuid.FromString(userID)
+	if err != nil {
+		l.ArgError(1, "user ID must be a valid identifier")
+		return 0
+	}
+
+	provider := l.CheckString(2)
+	if provider == "" {
+		l.ArgError(2, "expects provider string")
+		return 0
+	}
+
+	if err := UnlinkProvider(l.Context(), n.logger, n.db, id, provider); err != nil {
+		l.RaiseError("error unlinking: %v", err.Error())
 	}
 	return 0
 }

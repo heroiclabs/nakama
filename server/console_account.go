@@ -457,6 +457,10 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 			SELECT u.id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time
       	FROM users u JOIN user_device ud on u.id = ud.user_id
       	WHERE ud.id = $1
+			UNION
+			SELECT u.id, u.username, u.display_name, u.avatar_url, u.lang_tag, u.location, u.timezone, u.metadata, u.apple_id, u.facebook_id, u.facebook_instant_game_id, u.google_id, u.gamecenter_id, u.steam_id, u.edge_count, u.create_time, u.update_time
+      	FROM users u JOIN user_provider up on u.id = up.user_id
+      	WHERE up.provider_user_id = $1
 		`
 		if len(in.Filter) >= 3 && !s.config.GetConsole().DisableDisplayNameSearch {
 			query += `
@@ -802,7 +806,8 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
      OR steam_id IS NOT NULL
      OR email IS NOT NULL
      OR custom_id IS NOT NULL))
-   OR EXISTS (SELECT id FROM user_device WHERE user_id = $1 AND id <> $2 LIMIT 1))`
+   OR EXISTS (SELECT id FROM user_device WHERE user_id = $1 AND id <> $2 LIMIT 1)
+   OR EXISTS (SELECT user_id FROM user_provider WHERE user_id = $1 LIMIT 1))`
 
 				res, err := tx.ExecContext(ctx, query, userID, oldDeviceID)
 				if err != nil {
@@ -842,7 +847,8 @@ AND ((facebook_id IS NOT NULL
       OR gamecenter_id IS NOT NULL
       OR steam_id IS NOT NULL)
      OR
-     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
+     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1)
+     OR EXISTS (SELECT user_id FROM user_provider WHERE user_id = $1 LIMIT 1))`
 
 			res, err := tx.ExecContext(ctx, query, userID)
 			if err != nil {
@@ -860,7 +866,8 @@ AND ((facebook_id IS NOT NULL
       OR steam_id IS NOT NULL
       OR email IS NOT NULL)
      OR
-     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
+     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1)
+     OR EXISTS (SELECT user_id FROM user_provider WHERE user_id = $1 LIMIT 1))`
 
 			res, err := tx.ExecContext(ctx, query, userID)
 			if err != nil {
@@ -878,7 +885,8 @@ AND ((facebook_id IS NOT NULL
       OR steam_id IS NOT NULL
       OR custom_id IS NOT NULL)
      OR
-     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
+     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1)
+     OR EXISTS (SELECT user_id FROM user_provider WHERE user_id = $1 LIMIT 1))`
 
 			res, err := tx.ExecContext(ctx, query, userID)
 			if err != nil {

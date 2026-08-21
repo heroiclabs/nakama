@@ -140,6 +140,8 @@ type (
 	RuntimeAfterLinkAppleFunction                          func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountApple) error
 	RuntimeBeforeLinkCustomFunction                        func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) (*api.AccountCustom, error, codes.Code)
 	RuntimeAfterLinkCustomFunction                         func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) error
+	RuntimeBeforeLinkProviderFunction                      func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountProvider) (*api.AccountProvider, error, codes.Code)
+	RuntimeAfterLinkProviderFunction                       func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountProvider) error
 	RuntimeBeforeLinkDeviceFunction                        func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountDevice) (*api.AccountDevice, error, codes.Code)
 	RuntimeAfterLinkDeviceFunction                         func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountDevice) error
 	RuntimeBeforeLinkEmailFunction                         func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountEmail) (*api.AccountEmail, error, codes.Code)
@@ -182,6 +184,8 @@ type (
 	RuntimeAfterUnlinkAppleFunction                        func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountApple) error
 	RuntimeBeforeUnlinkCustomFunction                      func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) (*api.AccountCustom, error, codes.Code)
 	RuntimeAfterUnlinkCustomFunction                       func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) error
+	RuntimeBeforeUnlinkProviderFunction                    func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountProvider) (*api.AccountProvider, error, codes.Code)
+	RuntimeAfterUnlinkProviderFunction                     func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountProvider) error
 	RuntimeBeforeUnlinkDeviceFunction                      func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountDevice) (*api.AccountDevice, error, codes.Code)
 	RuntimeAfterUnlinkDeviceFunction                       func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountDevice) error
 	RuntimeBeforeUnlinkEmailFunction                       func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountEmail) (*api.AccountEmail, error, codes.Code)
@@ -409,6 +413,7 @@ type RuntimeBeforeReqFunctions struct {
 	beforeListLeaderboardRecordsAroundOwnerFunction RuntimeBeforeListLeaderboardRecordsAroundOwnerFunction
 	beforeLinkAppleFunction                         RuntimeBeforeLinkAppleFunction
 	beforeLinkCustomFunction                        RuntimeBeforeLinkCustomFunction
+	beforeLinkProviderFunction                      RuntimeBeforeLinkProviderFunction
 	beforeLinkDeviceFunction                        RuntimeBeforeLinkDeviceFunction
 	beforeLinkEmailFunction                         RuntimeBeforeLinkEmailFunction
 	beforeLinkFacebookFunction                      RuntimeBeforeLinkFacebookFunction
@@ -430,6 +435,7 @@ type RuntimeBeforeReqFunctions struct {
 	beforeListTournamentRecordsAroundOwnerFunction  RuntimeBeforeListTournamentRecordsAroundOwnerFunction
 	beforeUnlinkAppleFunction                       RuntimeBeforeUnlinkAppleFunction
 	beforeUnlinkCustomFunction                      RuntimeBeforeUnlinkCustomFunction
+	beforeUnlinkProviderFunction                    RuntimeBeforeUnlinkProviderFunction
 	beforeUnlinkDeviceFunction                      RuntimeBeforeUnlinkDeviceFunction
 	beforeUnlinkEmailFunction                       RuntimeBeforeUnlinkEmailFunction
 	beforeUnlinkFacebookFunction                    RuntimeBeforeUnlinkFacebookFunction
@@ -496,6 +502,7 @@ type RuntimeAfterReqFunctions struct {
 	afterListLeaderboardRecordsAroundOwnerFunction RuntimeAfterListLeaderboardRecordsAroundOwnerFunction
 	afterLinkAppleFunction                         RuntimeAfterLinkAppleFunction
 	afterLinkCustomFunction                        RuntimeAfterLinkCustomFunction
+	afterLinkProviderFunction                      RuntimeAfterLinkProviderFunction
 	afterLinkDeviceFunction                        RuntimeAfterLinkDeviceFunction
 	afterLinkEmailFunction                         RuntimeAfterLinkEmailFunction
 	afterLinkFacebookFunction                      RuntimeAfterLinkFacebookFunction
@@ -517,6 +524,7 @@ type RuntimeAfterReqFunctions struct {
 	afterListTournamentRecordsAroundOwnerFunction  RuntimeAfterListTournamentRecordsAroundOwnerFunction
 	afterUnlinkAppleFunction                       RuntimeAfterUnlinkAppleFunction
 	afterUnlinkCustomFunction                      RuntimeAfterUnlinkCustomFunction
+	afterUnlinkProviderFunction                    RuntimeAfterUnlinkProviderFunction
 	afterUnlinkDeviceFunction                      RuntimeAfterUnlinkDeviceFunction
 	afterUnlinkEmailFunction                       RuntimeAfterUnlinkEmailFunction
 	afterUnlinkFacebookFunction                    RuntimeAfterUnlinkFacebookFunction
@@ -976,6 +984,9 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if allBeforeReqFunctions.beforeLinkCustomFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "linkcustom"))
 	}
+	if allBeforeReqFunctions.beforeLinkProviderFunction != nil {
+		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "linkprovider"))
+	}
 	if allBeforeReqFunctions.beforeLinkDeviceFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "linkdevice"))
 	}
@@ -1038,6 +1049,9 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	}
 	if allBeforeReqFunctions.beforeUnlinkCustomFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "unlinkcustom"))
+	}
+	if allBeforeReqFunctions.beforeUnlinkProviderFunction != nil {
+		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "unlinkprovider"))
 	}
 	if allBeforeReqFunctions.beforeUnlinkDeviceFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "unlinkdevice"))
@@ -1270,6 +1284,10 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		allBeforeReqFunctions.beforeLinkCustomFunction = luaBeforeReqFns.beforeLinkCustomFunction
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "linkcustom"))
 	}
+	if luaBeforeReqFns.beforeLinkProviderFunction != nil {
+		allBeforeReqFunctions.beforeLinkProviderFunction = luaBeforeReqFns.beforeLinkProviderFunction
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "linkprovider"))
+	}
 	if luaBeforeReqFns.beforeLinkDeviceFunction != nil {
 		allBeforeReqFunctions.beforeLinkDeviceFunction = luaBeforeReqFns.beforeLinkDeviceFunction
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "linkdevice"))
@@ -1353,6 +1371,10 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if luaBeforeReqFns.beforeUnlinkCustomFunction != nil {
 		allBeforeReqFunctions.beforeUnlinkCustomFunction = luaBeforeReqFns.beforeUnlinkCustomFunction
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "unlinkcustom"))
+	}
+	if luaBeforeReqFns.beforeUnlinkProviderFunction != nil {
+		allBeforeReqFunctions.beforeUnlinkProviderFunction = luaBeforeReqFns.beforeUnlinkProviderFunction
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "unlinkprovider"))
 	}
 	if luaBeforeReqFns.beforeUnlinkDeviceFunction != nil {
 		allBeforeReqFunctions.beforeUnlinkDeviceFunction = luaBeforeReqFns.beforeUnlinkDeviceFunction
@@ -1604,6 +1626,10 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		allBeforeReqFunctions.beforeLinkCustomFunction = goBeforeReqFns.beforeLinkCustomFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "linkcustom"))
 	}
+	if goBeforeReqFns.beforeLinkProviderFunction != nil {
+		allBeforeReqFunctions.beforeLinkProviderFunction = goBeforeReqFns.beforeLinkProviderFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "linkprovider"))
+	}
 	if goBeforeReqFns.beforeLinkDeviceFunction != nil {
 		allBeforeReqFunctions.beforeLinkDeviceFunction = goBeforeReqFns.beforeLinkDeviceFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "linkdevice"))
@@ -1687,6 +1713,10 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if goBeforeReqFns.beforeUnlinkCustomFunction != nil {
 		allBeforeReqFunctions.beforeUnlinkCustomFunction = goBeforeReqFns.beforeUnlinkCustomFunction
 		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "unlinkcustom"))
+	}
+	if goBeforeReqFns.beforeUnlinkProviderFunction != nil {
+		allBeforeReqFunctions.beforeUnlinkProviderFunction = goBeforeReqFns.beforeUnlinkProviderFunction
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "unlinkprovider"))
 	}
 	if goBeforeReqFns.beforeUnlinkDeviceFunction != nil {
 		allBeforeReqFunctions.beforeUnlinkDeviceFunction = goBeforeReqFns.beforeUnlinkDeviceFunction
@@ -1896,6 +1926,9 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if allAfterReqFunctions.afterLinkCustomFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "linkcustom"))
 	}
+	if allAfterReqFunctions.afterLinkProviderFunction != nil {
+		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "linkprovider"))
+	}
 	if allAfterReqFunctions.afterLinkDeviceFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "linkdevice"))
 	}
@@ -1958,6 +1991,9 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	}
 	if allAfterReqFunctions.afterUnlinkCustomFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "unlinkcustom"))
+	}
+	if allAfterReqFunctions.afterUnlinkProviderFunction != nil {
+		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "unlinkprovider"))
 	}
 	if allAfterReqFunctions.afterUnlinkDeviceFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "unlinkdevice"))
@@ -2186,6 +2222,10 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		allAfterReqFunctions.afterLinkCustomFunction = luaAfterReqFns.afterLinkCustomFunction
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "linkcustom"))
 	}
+	if luaAfterReqFns.afterLinkProviderFunction != nil {
+		allAfterReqFunctions.afterLinkProviderFunction = luaAfterReqFns.afterLinkProviderFunction
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "linkprovider"))
+	}
 	if luaAfterReqFns.afterLinkDeviceFunction != nil {
 		allAfterReqFunctions.afterLinkDeviceFunction = luaAfterReqFns.afterLinkDeviceFunction
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "linkdevice"))
@@ -2269,6 +2309,10 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if luaAfterReqFns.afterUnlinkCustomFunction != nil {
 		allAfterReqFunctions.afterUnlinkCustomFunction = luaAfterReqFns.afterUnlinkCustomFunction
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "unlinkcustom"))
+	}
+	if luaAfterReqFns.afterUnlinkProviderFunction != nil {
+		allAfterReqFunctions.afterUnlinkProviderFunction = luaAfterReqFns.afterUnlinkProviderFunction
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "unlinkprovider"))
 	}
 	if luaAfterReqFns.afterUnlinkDeviceFunction != nil {
 		allAfterReqFunctions.afterUnlinkDeviceFunction = luaAfterReqFns.afterUnlinkDeviceFunction
@@ -2520,6 +2564,10 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		allAfterReqFunctions.afterLinkCustomFunction = goAfterReqFns.afterLinkCustomFunction
 		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "linkcustom"))
 	}
+	if goAfterReqFns.afterLinkProviderFunction != nil {
+		allAfterReqFunctions.afterLinkProviderFunction = goAfterReqFns.afterLinkProviderFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "linkprovider"))
+	}
 	if goAfterReqFns.afterLinkDeviceFunction != nil {
 		allAfterReqFunctions.afterLinkDeviceFunction = goAfterReqFns.afterLinkDeviceFunction
 		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "linkdevice"))
@@ -2603,6 +2651,10 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if goAfterReqFns.afterUnlinkCustomFunction != nil {
 		allAfterReqFunctions.afterUnlinkCustomFunction = goAfterReqFns.afterUnlinkCustomFunction
 		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "unlinkcustom"))
+	}
+	if goAfterReqFns.afterUnlinkProviderFunction != nil {
+		allAfterReqFunctions.afterUnlinkProviderFunction = goAfterReqFns.afterUnlinkProviderFunction
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "unlinkprovider"))
 	}
 	if goAfterReqFns.afterUnlinkDeviceFunction != nil {
 		allAfterReqFunctions.afterUnlinkDeviceFunction = goAfterReqFns.afterUnlinkDeviceFunction
@@ -3311,8 +3363,16 @@ func (r *Runtime) BeforeLinkCustom() RuntimeBeforeLinkCustomFunction {
 	return r.beforeReqFunctions.beforeLinkCustomFunction
 }
 
+func (r *Runtime) BeforeLinkProvider() RuntimeBeforeLinkProviderFunction {
+	return r.beforeReqFunctions.beforeLinkProviderFunction
+}
+
 func (r *Runtime) AfterLinkCustom() RuntimeAfterLinkCustomFunction {
 	return r.afterReqFunctions.afterLinkCustomFunction
+}
+
+func (r *Runtime) AfterLinkProvider() RuntimeAfterLinkProviderFunction {
+	return r.afterReqFunctions.afterLinkProviderFunction
 }
 
 func (r *Runtime) BeforeLinkDevice() RuntimeBeforeLinkDeviceFunction {
@@ -3479,8 +3539,16 @@ func (r *Runtime) BeforeUnlinkCustom() RuntimeBeforeUnlinkCustomFunction {
 	return r.beforeReqFunctions.beforeUnlinkCustomFunction
 }
 
+func (r *Runtime) BeforeUnlinkProvider() RuntimeBeforeUnlinkProviderFunction {
+	return r.beforeReqFunctions.beforeUnlinkProviderFunction
+}
+
 func (r *Runtime) AfterUnlinkCustom() RuntimeAfterUnlinkCustomFunction {
 	return r.afterReqFunctions.afterUnlinkCustomFunction
+}
+
+func (r *Runtime) AfterUnlinkProvider() RuntimeAfterUnlinkProviderFunction {
+	return r.afterReqFunctions.afterUnlinkProviderFunction
 }
 
 func (r *Runtime) BeforeUnlinkDevice() RuntimeBeforeUnlinkDeviceFunction {

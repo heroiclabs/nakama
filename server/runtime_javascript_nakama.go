@@ -199,6 +199,7 @@ func (n *RuntimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"usersUnbanId":                         n.usersUnbanId(r),
 		"linkApple":                            n.linkApple(r),
 		"linkCustom":                           n.linkCustom(r),
+		"linkProvider":                         n.linkProvider(r),
 		"linkDevice":                           n.linkDevice(r),
 		"linkEmail":                            n.linkEmail(r),
 		"linkFacebook":                         n.linkFacebook(r),
@@ -208,6 +209,7 @@ func (n *RuntimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"linkSteam":                            n.linkSteam(r),
 		"unlinkApple":                          n.unlinkApple(r),
 		"unlinkCustom":                         n.unlinkCustom(r),
+		"unlinkProvider":                       n.unlinkProvider(r),
 		"unlinkDevice":                         n.unlinkDevice(r),
 		"unlinkEmail":                          n.unlinkEmail(r),
 		"unlinkFacebook":                       n.unlinkFacebook(r),
@@ -1914,8 +1916,8 @@ func (n *RuntimeJavascriptNakamaModule) authenticateProvider(r *goja.Runtime) fu
 		}
 
 		username := ""
-		if f.Argument(3) != goja.Undefined() {
-			username = getJsString(r, f.Argument(3))
+		if in := f.Argument(3); in != goja.Undefined() && !goja.IsNull(in) {
+			username = getJsString(r, in)
 		}
 		if username == "" {
 			username = generateUsername()
@@ -1926,8 +1928,8 @@ func (n *RuntimeJavascriptNakamaModule) authenticateProvider(r *goja.Runtime) fu
 		}
 
 		create := true
-		if f.Argument(4) != goja.Undefined() {
-			create = getJsBool(r, f.Argument(4))
+		if in := f.Argument(4); in != goja.Undefined() && !goja.IsNull(in) {
+			create = getJsBool(r, in)
 		}
 
 		dbUserID, dbUsername, created, _, err := AuthenticateProvider(n.ctx, n.logger, n.db, n.authProviderRegistry, provider, payload, userID, username, create, "")
@@ -2587,6 +2589,64 @@ func (n *RuntimeJavascriptNakamaModule) linkApple(r *goja.Runtime) func(goja.Fun
 
 		if err := LinkApple(n.ctx, n.logger, n.db, n.config, n.socialClient, id, token); err != nil {
 			panic(r.NewGoError(fmt.Errorf("error linking: %v", err.Error())))
+		}
+
+		return goja.Undefined()
+	}
+}
+
+// @group authenticate
+// @summary Link a provider identity to a user ID.
+// @param userID(type=string) The user ID to be linked.
+// @param provider(type=string) Name of the provider the identity belongs to. Case insensitive.
+// @param payload(type=string, optional=true) Payload handed to the provider.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeJavascriptNakamaModule) linkProvider(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		userID := getJsString(r, f.Argument(0))
+		id, err := uuid.FromString(userID)
+		if err != nil {
+			panic(r.NewTypeError("invalid user id"))
+		}
+
+		provider := getJsString(r, f.Argument(1))
+		if provider == "" {
+			panic(r.NewTypeError("expects provider string"))
+		}
+
+		payload := ""
+		if in := f.Argument(2); in != goja.Undefined() && !goja.IsNull(in) {
+			payload = getJsString(r, in)
+		}
+
+		if err := LinkProvider(n.ctx, n.logger, n.db, n.authProviderRegistry, id, provider, payload, ""); err != nil {
+			panic(r.NewGoError(fmt.Errorf("error linking: %v", err.Error())))
+		}
+
+		return goja.Undefined()
+	}
+}
+
+// @group authenticate
+// @summary Unlink a provider identity from a user ID.
+// @param userID(type=string) The user ID to be unlinked.
+// @param provider(type=string) Name of the provider the identity belongs to. Case insensitive.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeJavascriptNakamaModule) unlinkProvider(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		userID := getJsString(r, f.Argument(0))
+		id, err := uuid.FromString(userID)
+		if err != nil {
+			panic(r.NewTypeError("invalid user id"))
+		}
+
+		provider := getJsString(r, f.Argument(1))
+		if provider == "" {
+			panic(r.NewTypeError("expects provider string"))
+		}
+
+		if err := UnlinkProvider(n.ctx, n.logger, n.db, id, provider); err != nil {
+			panic(r.NewGoError(fmt.Errorf("error unlinking: %v", err.Error())))
 		}
 
 		return goja.Undefined()

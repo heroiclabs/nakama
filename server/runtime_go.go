@@ -158,6 +158,9 @@ func (ri *RuntimeGoInitializer) RegisterAuthenticateProvider(name string, provid
 	if provider == nil {
 		return errors.New("expects a non-nil authentication provider")
 	}
+	if name == "" || len(name) > 128 {
+		return errors.New("expects provider name to be valid, must be 1-128 bytes")
+	}
 	name = strings.ToLower(name)
 	return ri.authProviderRegistry.Register(name, func(ctx context.Context, traceID, payload string) (*runtime.AuthenticateProviderResult, error, codes.Code) {
 		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeAuthenticateProvider, nil, nil, traceID, 0, "", "", nil, "", "", "", "")
@@ -1875,6 +1878,32 @@ func (ri *RuntimeGoInitializer) RegisterBeforeLinkCustom(fn func(ctx context.Con
 }
 
 // @group authenticate
+// @summary Register a function to perform additional logic before linking a provider identity to an account.
+// @param fn(type=function) The function to execute before the request is processed. It can modify the input or reject the request.
+// @return error(error) An optional error value if an error occurred.
+func (ri *RuntimeGoInitializer) RegisterBeforeLinkProvider(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountProvider) (*api.AccountProvider, error)) error {
+	ri.beforeReq.beforeLinkProviderFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountProvider) (*api.AccountProvider, error, codes.Code) {
+		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeBefore, nil, nil, traceID, expiry, userID, username, vars, "", clientIP, clientPort, "")
+		loggerFields := map[string]interface{}{"api_id": "linkprovider", "mode": RuntimeExecutionModeBefore.String()}
+		result, fnErr := fn(ctx, RuntimeLoggerWithTraceId(ctx, ri.logger.WithFields(loggerFields)), ri.db, ri.nk, in)
+		if fnErr != nil {
+			var runtimeErr *runtime.Error
+			if errors.As(fnErr, &runtimeErr) {
+				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
+					// If error is present but code is invalid then default to 13 (Internal) as the error code.
+					return result, runtimeErr, codes.Internal
+				}
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
+			}
+			// Not a runtime error that contains a code.
+			return result, fnErr, codes.Internal
+		}
+		return result, nil, codes.OK
+	}
+	return nil
+}
+
+// @group authenticate
 // @summary Register a function to perform additional logic after linking custom ID to an account.
 // @param fn(type=function) The function to execute after the request is processed.
 // @return error(error) An optional error value if an error occurred.
@@ -1888,19 +1917,16 @@ func (ri *RuntimeGoInitializer) RegisterAfterLinkCustom(fn func(ctx context.Cont
 }
 
 // @group authenticate
-// @summary Register a function to perform additional logic before linking a provider identity to an account.
-// @param fn(type=function) The function to execute before the request is processed. It can modify the input or reject the request.
-// @return error(error) An optional error value if an error occurred.
-func (ri *RuntimeGoInitializer) RegisterBeforeLinkProvider(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountProvider) (*api.AccountProvider, error)) error {
-	return errors.New("before link provider hook is not implemented")
-}
-
-// @group authenticate
 // @summary Register a function to perform additional logic after linking a provider identity to an account.
 // @param fn(type=function) The function to execute after the request is processed.
 // @return error(error) An optional error value if an error occurred.
 func (ri *RuntimeGoInitializer) RegisterAfterLinkProvider(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountProvider) error) error {
-	return errors.New("after link provider hook is not implemented")
+	ri.afterReq.afterLinkProviderFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountProvider) error {
+		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeAfter, nil, nil, traceID, expiry, userID, username, vars, "", clientIP, clientPort, "")
+		loggerFields := map[string]interface{}{"api_id": "linkprovider", "mode": RuntimeExecutionModeAfter.String()}
+		return fn(ctx, RuntimeLoggerWithTraceId(ctx, ri.logger.WithFields(loggerFields)), ri.db, ri.nk, in)
+	}
+	return nil
 }
 
 // @group authenticate
@@ -2710,6 +2736,32 @@ func (ri *RuntimeGoInitializer) RegisterBeforeUnlinkCustom(fn func(ctx context.C
 }
 
 // @group authenticate
+// @summary Register a function to perform additional logic before a provider identity is unlinked from an account.
+// @param fn(type=function) The function to execute before the request is processed. It can modify the input or reject the request.
+// @return error(error) An optional error value if an error occurred.
+func (ri *RuntimeGoInitializer) RegisterBeforeUnlinkProvider(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountProvider) (*api.AccountProvider, error)) error {
+	ri.beforeReq.beforeUnlinkProviderFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountProvider) (*api.AccountProvider, error, codes.Code) {
+		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeBefore, nil, nil, traceID, expiry, userID, username, vars, "", clientIP, clientPort, "")
+		loggerFields := map[string]interface{}{"api_id": "unlinkprovider", "mode": RuntimeExecutionModeBefore.String()}
+		result, fnErr := fn(ctx, RuntimeLoggerWithTraceId(ctx, ri.logger.WithFields(loggerFields)), ri.db, ri.nk, in)
+		if fnErr != nil {
+			var runtimeErr *runtime.Error
+			if errors.As(fnErr, &runtimeErr) {
+				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
+					// If error is present but code is invalid then default to 13 (Internal) as the error code.
+					return result, runtimeErr, codes.Internal
+				}
+				return result, runtimeErr, codes.Code(runtimeErr.Code)
+			}
+			// Not a runtime error that contains a code.
+			return result, fnErr, codes.Internal
+		}
+		return result, nil, codes.OK
+	}
+	return nil
+}
+
+// @group authenticate
 // @summary Register a function to perform additional logic after custom ID is unlinked from an account.
 // @param fn(type=function) The function to execute after the request is processed.
 // @return error(error) An optional error value if an error occurred.
@@ -2723,19 +2775,16 @@ func (ri *RuntimeGoInitializer) RegisterAfterUnlinkCustom(fn func(ctx context.Co
 }
 
 // @group authenticate
-// @summary Register a function to perform additional logic before a provider identity is unlinked from an account.
-// @param fn(type=function) The function to execute before the request is processed. It can modify the input or reject the request.
-// @return error(error) An optional error value if an error occurred.
-func (ri *RuntimeGoInitializer) RegisterBeforeUnlinkProvider(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountProvider) (*api.AccountProvider, error)) error {
-	return errors.New("before unlink provider hook is not implemented")
-}
-
-// @group authenticate
 // @summary Register a function to perform additional logic after a provider identity is unlinked from an account.
 // @param fn(type=function) The function to execute after the request is processed.
 // @return error(error) An optional error value if an error occurred.
 func (ri *RuntimeGoInitializer) RegisterAfterUnlinkProvider(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountProvider) error) error {
-	return errors.New("after unlink provider hook is not implemented")
+	ri.afterReq.afterUnlinkProviderFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountProvider) error {
+		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeAfter, nil, nil, traceID, expiry, userID, username, vars, "", clientIP, clientPort, "")
+		loggerFields := map[string]interface{}{"api_id": "unlinkprovider", "mode": RuntimeExecutionModeAfter.String()}
+		return fn(ctx, RuntimeLoggerWithTraceId(ctx, ri.logger.WithFields(loggerFields)), ri.db, ri.nk, in)
+	}
+	return nil
 }
 
 // @group authenticate

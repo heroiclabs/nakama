@@ -424,6 +424,14 @@ service Nakama {
     };
   }
 
+  // Add an authentication provider identity to the current user's account.
+  rpc LinkProvider (api.AccountProvider) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/account/link/provider",
+      body: "*"
+    };
+  }
+
   // Add a device ID to the social profiles on the current user's account.
   rpc LinkDevice (api.AccountDevice) returns (google.protobuf.Empty) {
     option (google.api.http) = {
@@ -622,6 +630,14 @@ service Nakama {
   rpc UnlinkCustom (api.AccountCustom) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       post: "/v2/account/unlink/custom",
+      body: "*"
+    };
+  }
+
+  // Remove an authentication provider identity from the current user's account.
+  rpc UnlinkProvider (api.AccountProvider) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/account/unlink/provider",
       body: "*"
     };
   }

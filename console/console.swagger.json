@@ -974,6 +974,47 @@
         ]
       }
     },
+    "/v2/console/account/{id}/unlink/provider": {
+      "post": {
+        "summary": "Unlink an authentication provider identity from a user account.",
+        "operationId": "UnlinkProvider",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "User ID to unlink from.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UnlinkProviderBody"
+            }
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/account/{id}/unlink/steam": {
       "post": {
         "summary": "Unlink the Steam ID from a user account.",
@@ -5495,6 +5536,16 @@
         }
       },
       "description": "Unlink a particular device ID from a user's account."
+    },
+    "UnlinkProviderBody": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "description": "Name of the provider to unlink."
+        }
+      },
+      "description": "Unlink an authentication provider identity from a user account."
     },
     "UpdateAccountBody": {
       "type": "object",

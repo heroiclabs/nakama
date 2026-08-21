@@ -98,6 +98,28 @@ WHERE u.id = $1`
 		devices = append(devices, &api.AccountDevice{Id: deviceID})
 	}
 
+	rows, err := db.QueryContext(ctx, "SELECT provider, provider_user_id FROM user_provider WHERE user_id = $1", userID)
+	if err != nil {
+		logger.Error("Error retrieving user account providers.", zap.Error(err))
+		return nil, err
+	}
+	defer rows.Close()
+
+	providers := make([]*api.AccountProviderIdentity, 0, 1)
+	for rows.Next() {
+		var provider string
+		var providerUserID string
+		if err := rows.Scan(&provider, &providerUserID); err != nil {
+			logger.Error("Error retrieving user account providers.", zap.Error(err))
+			return nil, err
+		}
+		providers = append(providers, &api.AccountProviderIdentity{Provider: provider, ProviderUserId: providerUserID})
+	}
+	if err := rows.Err(); err != nil {
+		logger.Error("Error retrieving user account providers.", zap.Error(err))
+		return nil, err
+	}
+
 	var verifyTimestamp *timestamppb.Timestamp
 	if verifyTime.Valid && verifyTime.Time.Unix() != 0 {
 		verifyTimestamp = &timestamppb.Timestamp{Seconds: verifyTime.Time.Unix()}
@@ -139,6 +161,7 @@ WHERE u.id = $1`
 		CustomId:    customID.String,
 		VerifyTime:  verifyTimestamp,
 		DisableTime: disableTimestamp,
+		Providers:   providers,
 	}, nil
 }
 
@@ -249,6 +272,37 @@ FROM users u`
 		})
 	}
 	_ = rows.Close()
+
+	// One batched lookup for every account's provider identities, rather than a query per account.
+	if len(accounts) > 0 {
+		ids := make([]string, 0, len(accounts))
+		for _, account := range accounts {
+			ids = append(ids, account.User.Id)
+		}
+		rows, err := db.QueryContext(ctx, "SELECT user_id, provider, provider_user_id FROM user_provider WHERE user_id = ANY($1)", ids)
+		if err != nil {
+			logger.Error("Error retrieving user account providers.", zap.Error(err))
+			return nil, err
+		}
+		byUser := make(map[string][]*api.AccountProviderIdentity, len(accounts))
+		for rows.Next() {
+			var userID, provider, providerUserID string
+			if err := rows.Scan(&userID, &provider, &providerUserID); err != nil {
+				_ = rows.Close()
+				logger.Error("Error retrieving user account providers.", zap.Error(err))
+				return nil, err
+			}
+			byUser[userID] = append(byUser[userID], &api.AccountProviderIdentity{Provider: provider, ProviderUserId: providerUserID})
+		}
+		_ = rows.Close()
+		if err := rows.Err(); err != nil {
+			logger.Error("Error retrieving user account providers.", zap.Error(err))
+			return nil, err
+		}
+		for _, account := range accounts {
+			account.Providers = byUser[account.User.Id]
+		}
+	}
 
 	if statusRegistry != nil {
 		statusRegistry.FillOnlineAccounts(accounts)
@@ -592,6 +646,18 @@ VALUES (
 					return err
 				}
 			}
+
+			for _, provider := range data.Account.Providers {
+				_, err := tx.ExecContext(ctx, "INSERT INTO user_provider (provider, provider_user_id, user_id) VALUES ($1, $2, $3)",
+					strings.ToLower(provider.Provider), provider.ProviderUserId, data.Account.User.Id)
+				if err != nil {
+					if errors.Is(err, context.Canceled) {
+						return err
+					}
+					logger.Error("Error creating user provider identities during import", zap.Error(err), zap.String("user_id", userID.String()))
+					return err
+				}
+			}
 		} else {
 			query := "UPDATE users SET metadata = $1, wallet = $2 WHERE id = $3"
 			res, err := tx.ExecContext(ctx, query, data.Account.User.Metadata, data.Account.Wallet, userID.String())
@@ -718,13 +784,14 @@ WHERE u.id = $1`
 
 		online := false
 		if statusRegistry != nil {
-			online = statusRegistry.IsOnline(userID)
+			online = statusRegistry.IsOnline(uuid.FromStringOrNil(lookupUserID))
 		}
 
 		account = &console.Account{
 			Account: &api.Account{
 				User: &api.User{
-					Id:                    userID.String(),
+					// Not userID: it is uuid.Nil when the import created a brand new account.
+					Id:                    lookupUserID,
 					Username:              username.String,
 					DisplayName:           displayName.String,
 					AvatarUrl:             avatarURL.String,

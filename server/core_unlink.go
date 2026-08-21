@@ -50,7 +50,8 @@ func UnlinkApple(ctx context.Context, logger *zap.Logger, db *sql.DB, config Con
       OR steam_id IS NOT NULL
       OR email IS NOT NULL)
      OR
-     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
+     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1)
+     OR EXISTS (SELECT user_id FROM user_provider WHERE user_id = $1 LIMIT 1))`
 
 	res, err := db.ExecContext(ctx, query, params...)
 
@@ -81,7 +82,8 @@ func UnlinkCustom(ctx context.Context, logger *zap.Logger, db *sql.DB, id uuid.U
       OR steam_id IS NOT NULL
       OR email IS NOT NULL)
      OR
-     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
+     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1)
+     OR EXISTS (SELECT user_id FROM user_provider WHERE user_id = $1 LIMIT 1))`
 
 	res, err := db.ExecContext(ctx, query, params...)
 
@@ -90,6 +92,54 @@ func UnlinkCustom(ctx context.Context, logger *zap.Logger, db *sql.DB, id uuid.U
 		return status.Error(codes.Internal, "Error while trying to unlink custom ID.")
 	} else if count, _ := res.RowsAffected(); count == 0 {
 		return status.Error(codes.PermissionDenied, "Cannot unlink last account identifier. Check profile exists and is not last link.")
+	}
+	return nil
+}
+
+func UnlinkProvider(ctx context.Context, logger *zap.Logger, db *sql.DB, id uuid.UUID, providerID string) error {
+	if providerID == "" {
+		return status.Error(codes.InvalidArgument, "A provider name must be supplied.")
+	}
+	providerID = strings.ToLower(providerID)
+
+	err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx, `
+DELETE FROM user_provider
+WHERE user_id = $1 AND provider = $2
+AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
+    (apple_id IS NOT NULL
+     OR facebook_id IS NOT NULL
+     OR facebook_instant_game_id IS NOT NULL
+     OR google_id IS NOT NULL
+     OR gamecenter_id IS NOT NULL
+     OR steam_id IS NOT NULL
+     OR email IS NOT NULL
+     OR custom_id IS NOT NULL))
+   OR EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1)
+   OR EXISTS (SELECT user_id FROM user_provider WHERE user_id = $1 AND provider <> $2 LIMIT 1))`,
+			id, providerID)
+		if err != nil {
+			logger.Debug("Cannot unlink provider identity.", zap.Error(err), zap.Any("input", providerID))
+			return err
+		}
+		if count, _ := res.RowsAffected(); count == 0 {
+			return StatusError(codes.PermissionDenied, "Cannot unlink last account identifier. Check profile exists and is not last link.", ErrRowsAffectedCount)
+		}
+
+		_, err = tx.ExecContext(ctx, "UPDATE users SET update_time = now() WHERE id = $1", id)
+		if err != nil {
+			logger.Debug("Cannot update users table while unlinking.", zap.Error(err), zap.Any("input", providerID))
+			return err
+		}
+		return nil
+	})
+
+	if err != nil {
+		if e, ok := err.(*statusError); ok {
+			return e.Status()
+		}
+		logger.Error("Error in database transaction.", zap.Error(err))
+		return status.Error(codes.Internal, "Error while trying to unlink provider identity.")
 	}
 	return nil
 }
@@ -110,7 +160,8 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
      OR steam_id IS NOT NULL
      OR email IS NOT NULL
      OR custom_id IS NOT NULL))
-   OR EXISTS (SELECT id FROM user_device WHERE user_id = $1 AND id <> $2 LIMIT 1))`, id, deviceID)
+   OR EXISTS (SELECT id FROM user_device WHERE user_id = $1 AND id <> $2 LIMIT 1)
+   OR EXISTS (SELECT user_id FROM user_provider WHERE user_id = $1 LIMIT 1))`, id, deviceID)
 		if err != nil {
 			logger.Debug("Could not unlink device ID.", zap.Error(err), zap.Any("input", deviceID))
 			return err
@@ -160,7 +211,8 @@ func UnlinkEmail(ctx context.Context, logger *zap.Logger, db *sql.DB, id uuid.UU
       OR steam_id IS NOT NULL
       OR custom_id IS NOT NULL)
      OR
-     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
+     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1)
+     OR EXISTS (SELECT user_id FROM user_provider WHERE user_id = $1 LIMIT 1))`
 
 	res, err := db.ExecContext(ctx, query, params...)
 
@@ -199,7 +251,8 @@ func UnlinkFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, socialC
       OR steam_id IS NOT NULL
       OR email IS NOT NULL)
      OR
-     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
+     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1)
+     OR EXISTS (SELECT user_id FROM user_provider WHERE user_id = $1 LIMIT 1))`
 
 	res, err := db.ExecContext(ctx, query, params...)
 
@@ -235,7 +288,8 @@ func UnlinkFacebookInstantGame(ctx context.Context, logger *zap.Logger, db *sql.
       OR steam_id IS NOT NULL
       OR email IS NOT NULL)
      OR
-     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
+     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1)
+     OR EXISTS (SELECT user_id FROM user_provider WHERE user_id = $1 LIMIT 1))`
 
 	res, err := db.ExecContext(ctx, query, params...)
 
@@ -271,7 +325,8 @@ func UnlinkGameCenter(ctx context.Context, logger *zap.Logger, db *sql.DB, socia
       OR steam_id IS NOT NULL
       OR email IS NOT NULL)
      OR
-     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
+     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1)
+     OR EXISTS (SELECT user_id FROM user_provider WHERE user_id = $1 LIMIT 1))`
 
 	res, err := db.ExecContext(ctx, query, params...)
 
@@ -315,7 +370,8 @@ func UnlinkGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, socialCli
       OR steam_id IS NOT NULL
       OR email IS NOT NULL)
      OR
-     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
+     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1)
+     OR EXISTS (SELECT user_id FROM user_provider WHERE user_id = $1 LIMIT 1))`
 
 	res, err := db.ExecContext(ctx, query, params...)
 
@@ -351,7 +407,8 @@ func UnlinkSteam(ctx context.Context, logger *zap.Logger, db *sql.DB, config Con
       OR google_id IS NOT NULL
       OR email IS NOT NULL)
      OR
-     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1))`
+     EXISTS (SELECT id FROM user_device WHERE user_id = $1 LIMIT 1)
+     OR EXISTS (SELECT user_id FROM user_provider WHERE user_id = $1 LIMIT 1))`
 
 	res, err := db.ExecContext(ctx, query, params...)
 

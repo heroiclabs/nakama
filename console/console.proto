@@ -492,6 +492,14 @@ service Console {
     option (google.api.http).post = "/v2/console/account/{id}/unlink/custom";
   }
 
+  // Unlink an authentication provider identity from a user account.
+  rpc UnlinkProvider (UnlinkProviderRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/console/account/{id}/unlink/provider",
+      body: "*"
+    };
+  }
+
   // Unlink the device ID from a user account.
   rpc UnlinkDevice (UnlinkDeviceRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {
@@ -1350,6 +1358,14 @@ message UnlinkDeviceRequest {
   string id = 1;
   // Device ID to unlink.
   string device_id = 2;
+}
+
+// Unlink an authentication provider identity from a user account.
+message UnlinkProviderRequest {
+  // User ID to unlink from.
+  string id = 1;
+  // Name of the provider to unlink.
+  string provider = 2;
 }
 
 // Update user account information.
