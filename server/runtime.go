@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -361,12 +362,15 @@ type moduleInfo struct {
 }
 
 type RuntimeInfo struct {
-	GoRpcFunctions         []string
-	LuaRpcFunctions        []string
-	JavaScriptRpcFunctions []string
-	GoModules              []*moduleInfo
-	LuaModules             []*moduleInfo
-	JavaScriptModules      []*moduleInfo
+	GoRpcFunctions                  []string
+	LuaRpcFunctions                 []string
+	JavaScriptRpcFunctions          []string
+	GoModules                       []*moduleInfo
+	LuaModules                      []*moduleInfo
+	JavaScriptModules               []*moduleInfo
+	GoAuthenticateProviders         []string
+	LuaAuthenticateProviders        []string
+	JavaScriptAuthenticateProviders []string
 }
 
 type RuntimeBeforeReqFunctions struct {
@@ -2897,6 +2901,13 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		logger.Error("Error getting runtime info data.", zap.Error(err))
 		return nil, nil, err
 	}
+
+	authProviderRegistry.providers.Range(func(name string, _ RuntimeAuthenticateProviderFunction) bool {
+		rInfo.GoAuthenticateProviders = append(rInfo.GoAuthenticateProviders, name)
+		return true
+	})
+
+	sort.Strings(rInfo.GoAuthenticateProviders)
 
 	return &Runtime{
 		matchCreateFunction:                    matchProvider.CreateMatch,

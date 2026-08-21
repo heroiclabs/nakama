@@ -4987,6 +4987,27 @@
             "$ref": "#/definitions/ModuleInfo"
           },
           "title": "JavaScript loaded modules"
+        },
+        "lua_authenticate_providers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "Lua registered authentication providers"
+        },
+        "go_authenticate_providers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "Go registered authentication providers"
+        },
+        "js_authenticate_providers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "JavaScript registered authentication providers"
         }
       },
       "title": "Runtime information"

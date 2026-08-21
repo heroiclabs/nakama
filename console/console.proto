@@ -1516,6 +1516,12 @@ message RuntimeInfo {
   repeated ModuleInfo lua_modules = 5;
   // JavaScript loaded modules
   repeated ModuleInfo js_modules = 6;
+  // Lua registered authentication providers
+  repeated string lua_authenticate_providers = 7;
+  // Go registered authentication providers
+  repeated string go_authenticate_providers = 8;
+  // JavaScript registered authentication providers
+  repeated string js_authenticate_providers = 9;
 }
 
 // An individual update to a user's wallet.
