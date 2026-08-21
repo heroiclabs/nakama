@@ -773,6 +773,28 @@ WHERE u.id = $1`
 			devices = append(devices, &api.AccountDevice{Id: deviceID})
 		}
 
+		rows, err := tx.QueryContext(ctx, "SELECT provider, provider_user_id FROM user_provider WHERE user_id = $1", lookupUserID)
+		if err != nil {
+			logger.Error("Error retrieving user account providers during import", zap.Error(err), zap.String("user_id", userID.String()))
+			return err
+		}
+		defer rows.Close()
+
+		providers := make([]*api.AccountProviderIdentity, 0, 1)
+		for rows.Next() {
+			var provider string
+			var providerUserID string
+			if err := rows.Scan(&provider, &providerUserID); err != nil {
+				logger.Error("Error retrieving user account providers during import", zap.Error(err), zap.String("user_id", userID.String()))
+				return err
+			}
+			providers = append(providers, &api.AccountProviderIdentity{Provider: provider, ProviderUserId: providerUserID})
+		}
+		if err := rows.Err(); err != nil {
+			logger.Error("Error retrieving user account providers during import", zap.Error(err), zap.String("user_id", userID.String()))
+			return err
+		}
+
 		var verifyTimestamp *timestamppb.Timestamp
 		if verifyTime.Valid && verifyTime.Time.Unix() != 0 {
 			verifyTimestamp = &timestamppb.Timestamp{Seconds: verifyTime.Time.Unix()}
@@ -813,6 +835,7 @@ WHERE u.id = $1`
 				Wallet:      wallet.String,
 				Email:       email.String,
 				Devices:     devices,
+				Providers:   providers,
 				CustomId:    customID.String,
 				VerifyTime:  verifyTimestamp,
 				DisableTime: disableTimestamp,
