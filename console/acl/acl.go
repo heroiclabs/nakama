@@ -345,6 +345,8 @@ func CheckACL(path string, userPermissions Permission) bool {
 		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
 	case "/nakama.console.Console/UnlinkGoogle":
 		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
+	case "/nakama.console.Console/UnlinkProvider":
+		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
 	case "/nakama.console.Console/UnlinkSteam":
 		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
 	case "/nakama.console.Console/UpdateAccount":

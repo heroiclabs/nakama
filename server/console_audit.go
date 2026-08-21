@@ -359,6 +359,11 @@ func consoleAuditLogInterceptor(logger *zap.Logger, db *sql.DB) func(context.Con
 				resource = console.AclResources_ACCOUNT
 				metadata, mErr = auditLogMarshaller.Marshal(msg)
 				log = "player account unlinked from google"
+			case "/nakama.console.Console/UnlinkProvider":
+				action = console.AuditLogAction_UPDATE
+				resource = console.AclResources_ACCOUNT
+				metadata, mErr = auditLogMarshaller.Marshal(msg)
+				log = "player account provider link removed"
 			case "/nakama.console.Console/UnlinkSteam":
 				action = console.AuditLogAction_UPDATE
 				resource = console.AclResources_ACCOUNT
