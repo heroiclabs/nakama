@@ -3625,9 +3625,6 @@ func (ri *RuntimeGoInitializer) RegisterFleetManagerByName(name string, fleetMan
 	if fleetManager == nil {
 		return errors.New("fleet manager cannot be nil")
 	}
-	if _, found := ri.fleetManagers[name]; found {
-		return fmt.Errorf("fleet manager %q is already registered", name)
-	}
 	if err := fleetManager.Init(ri.nk, ri.fmCallbackHandler); err != nil {
 		return fmt.Errorf("failed to run fleet manager Init function: %s", err.Error())
 	}
@@ -3765,7 +3762,7 @@ func NewRuntimeProviderGo(ctx context.Context, logger, startupLogger *zap.Logger
 
 		fmCallbackHandler: fmCallbackHandler,
 
-		fleetManagers: nk.fleetManagers,
+		fleetManagers: make(map[string]runtime.FleetManager),
 	}
 
 	// The baseline context that will be passed to all InitModule calls.
