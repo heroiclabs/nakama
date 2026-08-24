@@ -110,6 +110,70 @@ AND (NOT EXISTS
 	return nil
 }
 
+func LinkProvider(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimeAuthenticateProviderRegistry, userID uuid.UUID, providerID, payload, traceID string) error {
+	providerID = strings.ToLower(providerID)
+
+	if registry == nil {
+		return status.Error(codes.NotFound, "Authentication provider not found: "+providerID)
+	}
+	authProviderFn := registry.Get(providerID)
+	if authProviderFn == nil {
+		return status.Error(codes.NotFound, "Authentication provider not found: "+providerID)
+	}
+
+	result, fnErr, code := authProviderFn(ctx, traceID, payload)
+	if fnErr != nil {
+		return status.Error(code, fnErr.Error())
+	}
+	if result == nil || result.ProviderUserID == "" {
+		logger.Error("Authentication provider returned no provider user ID.", zap.String("provider", providerID))
+		return status.Error(codes.Internal, "Error linking provider.")
+	}
+	providerUserID := result.ProviderUserID
+	if invalidCharsRegex.MatchString(providerUserID) || len(providerUserID) > 128 {
+		logger.Error("Authentication provider returned an invalid provider user ID.", zap.String("provider", providerID), zap.String("providerUserID", providerUserID))
+		return status.Error(codes.Internal, "Error linking provider.")
+	}
+
+	err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx, `
+INSERT INTO user_provider (provider, provider_user_id, user_id)
+VALUES ($2, $3, $1)
+ON CONFLICT (provider, provider_user_id)
+DO UPDATE SET user_id = EXCLUDED.user_id
+WHERE user_provider.user_id = EXCLUDED.user_id`,
+			userID, providerID, providerUserID)
+		if err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
+				// this account is linked to the provider under a different identity.
+				return StatusError(codes.AlreadyExists, "Account is already linked to this provider.", err)
+			}
+			logger.Debug("Cannot link provider identity.", zap.Error(err), zap.Any("input", providerID))
+			return err
+		}
+		if count, _ := res.RowsAffected(); count == 0 {
+			return StatusError(codes.AlreadyExists, "Provider identity is already in use.", ErrRowsAffectedCount)
+		}
+
+		_, err = tx.ExecContext(ctx, "UPDATE users SET update_time = now() WHERE id = $1", userID)
+		if err != nil {
+			logger.Debug("Cannot update users table while linking.", zap.Error(err), zap.Any("input", providerID))
+			return err
+		}
+		return nil
+	})
+
+	if err != nil {
+		if e, ok := err.(*statusError); ok {
+			return e.Status()
+		}
+		logger.Error("Error in database transaction.", zap.Error(err))
+		return status.Error(codes.Internal, "Error while trying to link provider identity.")
+	}
+	return nil
+}
+
 func LinkDevice(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, deviceID string) error {
 	if deviceID == "" {
 		return status.Error(codes.InvalidArgument, "Device ID is required.")

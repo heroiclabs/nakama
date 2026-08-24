@@ -35,11 +35,14 @@ func (s *ConsoleServer) GetRuntime(ctx context.Context, in *emptypb.Empty) (*con
 	}
 
 	return &console.RuntimeInfo{
-		LuaRpcFunctions: s.runtimeInfo.LuaRpcFunctions,
-		GoRpcFunctions:  s.runtimeInfo.GoRpcFunctions,
-		JsRpcFunctions:  s.runtimeInfo.JavaScriptRpcFunctions,
-		GoModules:       toConsole(s.runtimeInfo.GoModules),
-		LuaModules:      toConsole(s.runtimeInfo.LuaModules),
-		JsModules:       toConsole(s.runtimeInfo.JavaScriptModules),
+		LuaRpcFunctions:          s.runtimeInfo.LuaRpcFunctions,
+		GoRpcFunctions:           s.runtimeInfo.GoRpcFunctions,
+		JsRpcFunctions:           s.runtimeInfo.JavaScriptRpcFunctions,
+		GoModules:                toConsole(s.runtimeInfo.GoModules),
+		LuaModules:               toConsole(s.runtimeInfo.LuaModules),
+		JsModules:                toConsole(s.runtimeInfo.JavaScriptModules),
+		GoAuthenticateProviders:  s.runtimeInfo.GoAuthenticateProviders,
+		LuaAuthenticateProviders: s.runtimeInfo.LuaAuthenticateProviders,
+		JsAuthenticateProviders:  s.runtimeInfo.JavaScriptAuthenticateProviders,
 	}, nil
 }

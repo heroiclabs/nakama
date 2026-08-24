@@ -88,14 +88,15 @@ type RuntimeLuaNakamaModule struct {
 	httpClient           *http.Client
 	httpClientInsecure   *http.Client
 
-	node          string
-	matchCreateFn RuntimeMatchCreateFunction
-	eventFn       RuntimeEventCustomFunction
+	node                 string
+	matchCreateFn        RuntimeMatchCreateFunction
+	eventFn              RuntimeEventCustomFunction
+	authProviderRegistry *RuntimeAuthenticateProviderRegistry
 
 	satori runtime.Satori
 }
 
-func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, storageIndex StorageIndex, satoriClient runtime.Satori, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
+func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, storageIndex StorageIndex, satoriClient runtime.Satori, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, authProviderRegistry *RuntimeAuthenticateProviderRegistry, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
 	return &RuntimeLuaNakamaModule{
 		logger:               logger,
 		db:                   db,
@@ -124,9 +125,10 @@ func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshale
 		httpClient:           &http.Client{},
 		httpClientInsecure:   &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}},
 
-		node:          config.GetName(),
-		matchCreateFn: matchCreateFn,
-		eventFn:       eventFn,
+		node:                 config.GetName(),
+		matchCreateFn:        matchCreateFn,
+		eventFn:              eventFn,
+		authProviderRegistry: authProviderRegistry,
 
 		satori: satoriClient,
 	}
@@ -135,6 +137,7 @@ func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshale
 func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 	functions := map[string]lua.LGFunction{
 		"register_rpc":                       n.registerRPC,
+		"register_authenticate_provider":     n.registerAuthenticateProvider,
 		"register_req_before":                n.registerReqBefore,
 		"register_req_after":                 n.registerReqAfter,
 		"register_rt_before":                 n.registerRTBefore,
@@ -192,6 +195,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"authenticate_facebook_instant_game": n.authenticateFacebookInstantGame,
 		"authenticate_game_center":           n.authenticateGameCenter,
 		"authenticate_google":                n.authenticateGoogle,
+		"authenticate_provider":              n.authenticateProvider,
 		"authenticate_steam":                 n.authenticateSteam,
 		"authenticate_token_generate":        n.authenticateTokenGenerate,
 		"logger_debug":                       n.loggerDebug,
@@ -212,6 +216,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"users_unban_id":                     n.usersUnbanId,
 		"link_apple":                         n.linkApple,
 		"link_custom":                        n.linkCustom,
+		"link_provider":                      n.linkProvider,
 		"link_device":                        n.linkDevice,
 		"link_email":                         n.linkEmail,
 		"link_facebook":                      n.linkFacebook,
@@ -221,6 +226,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"link_steam":                         n.linkSteam,
 		"unlink_apple":                       n.unlinkApple,
 		"unlink_custom":                      n.unlinkCustom,
+		"unlink_provider":                    n.unlinkProvider,
 		"unlink_device":                      n.unlinkDevice,
 		"unlink_email":                       n.unlinkEmail,
 		"unlink_facebook":                    n.unlinkFacebook,
@@ -334,6 +340,31 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 
 	l.Push(mod)
 	return 1
+}
+
+// @group authenticate
+// @summary Register an authentication provider by name. The name can be used from client code to authenticate through the provider, and from server code via the authenticate_provider function. The provider validates the payload it is given and returns the identity that payload proves.
+// @param fn(type=function) A function reference which will be executed when the provider is selected.
+// @param name(type=string) The unique name of the authentication provider. Converted to lowercase.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) registerAuthenticateProvider(l *lua.LState) int {
+	fn := l.CheckFunction(1)
+	name := l.CheckString(2)
+
+	if name == "" || len(name) > 128 {
+		l.ArgError(2, "expects provider name to be valid, must be 1-128 bytes")
+		return 0
+	}
+
+	name = strings.ToLower(name)
+
+	if n.registerCallbackFn != nil {
+		n.registerCallbackFn(RuntimeExecutionModeAuthenticateProvider, name, fn)
+	}
+	if n.announceCallbackFn != nil {
+		n.announceCallbackFn(RuntimeExecutionModeAuthenticateProvider, name)
+	}
+	return 0
 }
 
 // @group hooks
@@ -2159,6 +2190,62 @@ func (n *RuntimeLuaNakamaModule) authenticateGoogle(l *lua.LState) int {
 }
 
 // @group authenticate
+// @summary Authenticate user and create a session token using an external provider identity.
+// @param provider(type=string) Name of the provider the identity belongs to. Case insensitive.
+// @param payload(type=string, optional=true) Payload handed to the provider.
+// @param userID(type=string, optional=true) The user ID to assign if an account is created. If left empty, one is generated.
+// @param username(type=string, optional=true) The user's username. If left empty, one is generated.
+// @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
+// @return user_id(string) The user ID of the authenticated user.
+// @return username(string) The username of the authenticated user.
+// @return create(bool) Value indicating if this account was just created or already existed.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) authenticateProvider(l *lua.LState) int {
+	provider := l.CheckString(1)
+	if provider == "" {
+		l.ArgError(1, "expects provider string")
+		return 0
+	} else if len(provider) > 128 {
+		l.ArgError(1, "expects provider to be valid, must be 1-128 bytes")
+		return 0
+	}
+
+	payload := l.OptString(2, "")
+
+	userID := l.OptString(3, "")
+	if userID != "" {
+		if uid, err := uuid.FromString(userID); err != nil || uid.IsNil() {
+			l.ArgError(3, "expects user ID to be a valid identifier")
+			return 0
+		}
+	}
+
+	username := l.OptString(4, "")
+	if username == "" {
+		username = generateUsername()
+	} else if invalidUsernameRegex.MatchString(username) {
+		l.ArgError(4, "expects username to be valid, no spaces or control characters allowed")
+		return 0
+	} else if len(username) > 128 {
+		l.ArgError(4, "expects username to be valid, must be 1-128 bytes")
+		return 0
+	}
+
+	create := l.OptBool(5, true)
+
+	dbUserID, dbUsername, created, _, err := AuthenticateProvider(l.Context(), n.logger, n.db, n.authProviderRegistry, provider, payload, userID, username, create, "")
+	if err != nil {
+		l.RaiseError("error authenticating: %v", err.Error())
+		return 0
+	}
+
+	l.Push(lua.LString(dbUserID))
+	l.Push(lua.LString(dbUsername))
+	l.Push(lua.LBool(created))
+	return 3
+}
+
+// @group authenticate
 // @summary Authenticate user and create a session token using a Steam account token.
 // @param token(type=string) Steam token.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
@@ -3219,6 +3306,58 @@ func (n *RuntimeLuaNakamaModule) linkApple(l *lua.LState) int {
 
 	if err := LinkApple(l.Context(), n.logger, n.db, n.config, n.socialClient, id, token); err != nil {
 		l.RaiseError("error linking: %v", err.Error())
+	}
+	return 0
+}
+
+// @group authenticate
+// @summary Link a provider identity to a user ID.
+// @param userID(type=string) The user ID to be linked.
+// @param provider(type=string) Name of the provider the identity belongs to. Case insensitive.
+// @param payload(type=string, optional=true) Payload handed to the provider.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) linkProvider(l *lua.LState) int {
+	userID := l.CheckString(1)
+	id, err := uuid.FromString(userID)
+	if err != nil {
+		l.ArgError(1, "user ID must be a valid identifier")
+		return 0
+	}
+
+	provider := l.CheckString(2)
+	if provider == "" {
+		l.ArgError(2, "expects provider string")
+		return 0
+	}
+	payload := l.OptString(3, "")
+
+	if err := LinkProvider(l.Context(), n.logger, n.db, n.authProviderRegistry, id, provider, payload, ""); err != nil {
+		l.RaiseError("error linking: %v", err.Error())
+	}
+	return 0
+}
+
+// @group authenticate
+// @summary Unlink a provider identity from a user ID.
+// @param userID(type=string) The user ID to be unlinked.
+// @param provider(type=string) Name of the provider the identity belongs to. Case insensitive.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) unlinkProvider(l *lua.LState) int {
+	userID := l.CheckString(1)
+	id, err := uuid.FromString(userID)
+	if err != nil {
+		l.ArgError(1, "user ID must be a valid identifier")
+		return 0
+	}
+
+	provider := l.CheckString(2)
+	if provider == "" {
+		l.ArgError(2, "expects provider string")
+		return 0
+	}
+
+	if err := UnlinkProvider(l.Context(), n.logger, n.db, id, provider); err != nil {
+		l.RaiseError("error unlinking: %v", err.Error())
 	}
 	return 0
 }

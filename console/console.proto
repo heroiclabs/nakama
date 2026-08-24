@@ -492,6 +492,14 @@ service Console {
     option (google.api.http).post = "/v2/console/account/{id}/unlink/custom";
   }
 
+  // Unlink an authentication provider identity from a user account.
+  rpc UnlinkProvider (UnlinkProviderRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/console/account/{id}/unlink/provider",
+      body: "*"
+    };
+  }
+
   // Unlink the device ID from a user account.
   rpc UnlinkDevice (UnlinkDeviceRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {
@@ -1352,6 +1360,14 @@ message UnlinkDeviceRequest {
   string device_id = 2;
 }
 
+// Unlink an authentication provider identity from a user account.
+message UnlinkProviderRequest {
+  // User ID to unlink from.
+  string id = 1;
+  // Name of the provider to unlink.
+  string provider = 2;
+}
+
 // Update user account information.
 message UpdateAccountRequest {
   // User ID to update.
@@ -1500,6 +1516,12 @@ message RuntimeInfo {
   repeated ModuleInfo lua_modules = 5;
   // JavaScript loaded modules
   repeated ModuleInfo js_modules = 6;
+  // Lua registered authentication providers
+  repeated string lua_authenticate_providers = 7;
+  // Go registered authentication providers
+  repeated string go_authenticate_providers = 8;
+  // JavaScript registered authentication providers
+  repeated string js_authenticate_providers = 9;
 }
 
 // An individual update to a user's wallet.

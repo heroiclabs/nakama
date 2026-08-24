@@ -249,6 +249,22 @@ service Nakama {
     };
   }
 
+  // Authenticate a user with a runtime-registered provider against the server.
+  rpc AuthenticateProvider (api.AuthenticateProviderRequest) returns (api.Session) {
+    option (google.api.http) = {
+      post: "/v2/account/authenticate/provider",
+      body: "account"
+    };
+    option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_operation) = {
+      security: {
+        security_requirement: {
+          key: "BasicAuth";
+          value: {};
+        }
+      }
+    };
+  }
+
   // Authenticate a user with Steam against the server.
   rpc AuthenticateSteam (api.AuthenticateSteamRequest) returns (api.Session) {
     option (google.api.http) = {
@@ -404,6 +420,14 @@ service Nakama {
   rpc LinkCustom (api.AccountCustom) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       post: "/v2/account/link/custom",
+      body: "*"
+    };
+  }
+
+  // Add an authentication provider identity to the current user's account.
+  rpc LinkProvider (api.AccountProvider) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/account/link/provider",
       body: "*"
     };
   }
@@ -606,6 +630,14 @@ service Nakama {
   rpc UnlinkCustom (api.AccountCustom) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       post: "/v2/account/unlink/custom",
+      body: "*"
+    };
+  }
+
+  // Remove an authentication provider identity from the current user's account.
+  rpc UnlinkProvider (api.AccountProvider) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/v2/account/unlink/provider",
       body: "*"
     };
   }

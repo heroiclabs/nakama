@@ -50,6 +50,7 @@ const (
 	Nakama_AuthenticateFacebookInstantGame_FullMethodName   = "/nakama.api.Nakama/AuthenticateFacebookInstantGame"
 	Nakama_AuthenticateGameCenter_FullMethodName            = "/nakama.api.Nakama/AuthenticateGameCenter"
 	Nakama_AuthenticateGoogle_FullMethodName                = "/nakama.api.Nakama/AuthenticateGoogle"
+	Nakama_AuthenticateProvider_FullMethodName              = "/nakama.api.Nakama/AuthenticateProvider"
 	Nakama_AuthenticateSteam_FullMethodName                 = "/nakama.api.Nakama/AuthenticateSteam"
 	Nakama_BanGroupUsers_FullMethodName                     = "/nakama.api.Nakama/BanGroupUsers"
 	Nakama_BlockFriends_FullMethodName                      = "/nakama.api.Nakama/BlockFriends"
@@ -75,6 +76,7 @@ const (
 	Nakama_LeaveGroup_FullMethodName                        = "/nakama.api.Nakama/LeaveGroup"
 	Nakama_LinkApple_FullMethodName                         = "/nakama.api.Nakama/LinkApple"
 	Nakama_LinkCustom_FullMethodName                        = "/nakama.api.Nakama/LinkCustom"
+	Nakama_LinkProvider_FullMethodName                      = "/nakama.api.Nakama/LinkProvider"
 	Nakama_LinkDevice_FullMethodName                        = "/nakama.api.Nakama/LinkDevice"
 	Nakama_LinkEmail_FullMethodName                         = "/nakama.api.Nakama/LinkEmail"
 	Nakama_LinkFacebook_FullMethodName                      = "/nakama.api.Nakama/LinkFacebook"
@@ -104,6 +106,7 @@ const (
 	Nakama_RpcFunc_FullMethodName                           = "/nakama.api.Nakama/RpcFunc"
 	Nakama_UnlinkApple_FullMethodName                       = "/nakama.api.Nakama/UnlinkApple"
 	Nakama_UnlinkCustom_FullMethodName                      = "/nakama.api.Nakama/UnlinkCustom"
+	Nakama_UnlinkProvider_FullMethodName                    = "/nakama.api.Nakama/UnlinkProvider"
 	Nakama_UnlinkDevice_FullMethodName                      = "/nakama.api.Nakama/UnlinkDevice"
 	Nakama_UnlinkEmail_FullMethodName                       = "/nakama.api.Nakama/UnlinkEmail"
 	Nakama_UnlinkFacebook_FullMethodName                    = "/nakama.api.Nakama/UnlinkFacebook"
@@ -156,6 +159,8 @@ type NakamaClient interface {
 	AuthenticateGameCenter(ctx context.Context, in *api.AuthenticateGameCenterRequest, opts ...grpc.CallOption) (*api.Session, error)
 	// Authenticate a user with Google against the server.
 	AuthenticateGoogle(ctx context.Context, in *api.AuthenticateGoogleRequest, opts ...grpc.CallOption) (*api.Session, error)
+	// Authenticate a user with a runtime-registered provider against the server.
+	AuthenticateProvider(ctx context.Context, in *api.AuthenticateProviderRequest, opts ...grpc.CallOption) (*api.Session, error)
 	// Authenticate a user with Steam against the server.
 	AuthenticateSteam(ctx context.Context, in *api.AuthenticateSteamRequest, opts ...grpc.CallOption) (*api.Session, error)
 	// Ban a set of users from a group.
@@ -206,6 +211,8 @@ type NakamaClient interface {
 	LinkApple(ctx context.Context, in *api.AccountApple, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Add a custom ID to the social profiles on the current user's account.
 	LinkCustom(ctx context.Context, in *api.AccountCustom, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Add an authentication provider identity to the current user's account.
+	LinkProvider(ctx context.Context, in *api.AccountProvider, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Add a device ID to the social profiles on the current user's account.
 	LinkDevice(ctx context.Context, in *api.AccountDevice, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Add an email+password to the social profiles on the current user's account.
@@ -264,6 +271,8 @@ type NakamaClient interface {
 	UnlinkApple(ctx context.Context, in *api.AccountApple, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Remove the custom ID from the social profiles on the current user's account.
 	UnlinkCustom(ctx context.Context, in *api.AccountCustom, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Remove an authentication provider identity from the current user's account.
+	UnlinkProvider(ctx context.Context, in *api.AccountProvider, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Remove the device ID from the social profiles on the current user's account.
 	UnlinkDevice(ctx context.Context, in *api.AccountDevice, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Remove the email+password from the social profiles on the current user's account.
@@ -426,6 +435,16 @@ func (c *nakamaClient) AuthenticateGoogle(ctx context.Context, in *api.Authentic
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(api.Session)
 	err := c.cc.Invoke(ctx, Nakama_AuthenticateGoogle_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nakamaClient) AuthenticateProvider(ctx context.Context, in *api.AuthenticateProviderRequest, opts ...grpc.CallOption) (*api.Session, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(api.Session)
+	err := c.cc.Invoke(ctx, Nakama_AuthenticateProvider_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -676,6 +695,16 @@ func (c *nakamaClient) LinkCustom(ctx context.Context, in *api.AccountCustom, op
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, Nakama_LinkCustom_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nakamaClient) LinkProvider(ctx context.Context, in *api.AccountProvider, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, Nakama_LinkProvider_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -972,6 +1001,16 @@ func (c *nakamaClient) UnlinkCustom(ctx context.Context, in *api.AccountCustom, 
 	return out, nil
 }
 
+func (c *nakamaClient) UnlinkProvider(ctx context.Context, in *api.AccountProvider, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, Nakama_UnlinkProvider_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *nakamaClient) UnlinkDevice(ctx context.Context, in *api.AccountDevice, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
@@ -1193,6 +1232,8 @@ type NakamaServer interface {
 	AuthenticateGameCenter(context.Context, *api.AuthenticateGameCenterRequest) (*api.Session, error)
 	// Authenticate a user with Google against the server.
 	AuthenticateGoogle(context.Context, *api.AuthenticateGoogleRequest) (*api.Session, error)
+	// Authenticate a user with a runtime-registered provider against the server.
+	AuthenticateProvider(context.Context, *api.AuthenticateProviderRequest) (*api.Session, error)
 	// Authenticate a user with Steam against the server.
 	AuthenticateSteam(context.Context, *api.AuthenticateSteamRequest) (*api.Session, error)
 	// Ban a set of users from a group.
@@ -1243,6 +1284,8 @@ type NakamaServer interface {
 	LinkApple(context.Context, *api.AccountApple) (*emptypb.Empty, error)
 	// Add a custom ID to the social profiles on the current user's account.
 	LinkCustom(context.Context, *api.AccountCustom) (*emptypb.Empty, error)
+	// Add an authentication provider identity to the current user's account.
+	LinkProvider(context.Context, *api.AccountProvider) (*emptypb.Empty, error)
 	// Add a device ID to the social profiles on the current user's account.
 	LinkDevice(context.Context, *api.AccountDevice) (*emptypb.Empty, error)
 	// Add an email+password to the social profiles on the current user's account.
@@ -1301,6 +1344,8 @@ type NakamaServer interface {
 	UnlinkApple(context.Context, *api.AccountApple) (*emptypb.Empty, error)
 	// Remove the custom ID from the social profiles on the current user's account.
 	UnlinkCustom(context.Context, *api.AccountCustom) (*emptypb.Empty, error)
+	// Remove an authentication provider identity from the current user's account.
+	UnlinkProvider(context.Context, *api.AccountProvider) (*emptypb.Empty, error)
 	// Remove the device ID from the social profiles on the current user's account.
 	UnlinkDevice(context.Context, *api.AccountDevice) (*emptypb.Empty, error)
 	// Remove the email+password from the social profiles on the current user's account.
@@ -1385,6 +1430,9 @@ func (UnimplementedNakamaServer) AuthenticateGameCenter(context.Context, *api.Au
 func (UnimplementedNakamaServer) AuthenticateGoogle(context.Context, *api.AuthenticateGoogleRequest) (*api.Session, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AuthenticateGoogle not implemented")
 }
+func (UnimplementedNakamaServer) AuthenticateProvider(context.Context, *api.AuthenticateProviderRequest) (*api.Session, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AuthenticateProvider not implemented")
+}
 func (UnimplementedNakamaServer) AuthenticateSteam(context.Context, *api.AuthenticateSteamRequest) (*api.Session, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AuthenticateSteam not implemented")
 }
@@ -1459,6 +1507,9 @@ func (UnimplementedNakamaServer) LinkApple(context.Context, *api.AccountApple) (
 }
 func (UnimplementedNakamaServer) LinkCustom(context.Context, *api.AccountCustom) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LinkCustom not implemented")
+}
+func (UnimplementedNakamaServer) LinkProvider(context.Context, *api.AccountProvider) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method LinkProvider not implemented")
 }
 func (UnimplementedNakamaServer) LinkDevice(context.Context, *api.AccountDevice) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LinkDevice not implemented")
@@ -1546,6 +1597,9 @@ func (UnimplementedNakamaServer) UnlinkApple(context.Context, *api.AccountApple)
 }
 func (UnimplementedNakamaServer) UnlinkCustom(context.Context, *api.AccountCustom) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UnlinkCustom not implemented")
+}
+func (UnimplementedNakamaServer) UnlinkProvider(context.Context, *api.AccountProvider) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnlinkProvider not implemented")
 }
 func (UnimplementedNakamaServer) UnlinkDevice(context.Context, *api.AccountDevice) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UnlinkDevice not implemented")
@@ -1837,6 +1891,24 @@ func _Nakama_AuthenticateGoogle_Handler(srv interface{}, ctx context.Context, de
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NakamaServer).AuthenticateGoogle(ctx, req.(*api.AuthenticateGoogleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Nakama_AuthenticateProvider_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(api.AuthenticateProviderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NakamaServer).AuthenticateProvider(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Nakama_AuthenticateProvider_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NakamaServer).AuthenticateProvider(ctx, req.(*api.AuthenticateProviderRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2287,6 +2359,24 @@ func _Nakama_LinkCustom_Handler(srv interface{}, ctx context.Context, dec func(i
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NakamaServer).LinkCustom(ctx, req.(*api.AccountCustom))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Nakama_LinkProvider_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(api.AccountProvider)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NakamaServer).LinkProvider(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Nakama_LinkProvider_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NakamaServer).LinkProvider(ctx, req.(*api.AccountProvider))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2813,6 +2903,24 @@ func _Nakama_UnlinkCustom_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Nakama_UnlinkProvider_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(api.AccountProvider)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NakamaServer).UnlinkProvider(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Nakama_UnlinkProvider_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NakamaServer).UnlinkProvider(ctx, req.(*api.AccountProvider))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Nakama_UnlinkDevice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(api.AccountDevice)
 	if err := dec(in); err != nil {
@@ -3211,6 +3319,10 @@ var Nakama_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Nakama_AuthenticateGoogle_Handler,
 		},
 		{
+			MethodName: "AuthenticateProvider",
+			Handler:    _Nakama_AuthenticateProvider_Handler,
+		},
+		{
 			MethodName: "AuthenticateSteam",
 			Handler:    _Nakama_AuthenticateSteam_Handler,
 		},
@@ -3309,6 +3421,10 @@ var Nakama_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "LinkCustom",
 			Handler:    _Nakama_LinkCustom_Handler,
+		},
+		{
+			MethodName: "LinkProvider",
+			Handler:    _Nakama_LinkProvider_Handler,
 		},
 		{
 			MethodName: "LinkDevice",
@@ -3425,6 +3541,10 @@ var Nakama_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UnlinkCustom",
 			Handler:    _Nakama_UnlinkCustom_Handler,
+		},
+		{
+			MethodName: "UnlinkProvider",
+			Handler:    _Nakama_UnlinkProvider_Handler,
 		},
 		{
 			MethodName: "UnlinkDevice",

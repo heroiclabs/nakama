@@ -67,6 +67,7 @@ type RuntimeLuaCallbacks struct {
 	PurchaseNotificationGoogle     *lua.LFunction
 	SubscriptionNotificationGoogle *lua.LFunction
 	StorageIndexFilter             *MapOf[string, *lua.LFunction]
+	AuthenticateProvider           *MapOf[string, *lua.LFunction]
 }
 
 type RuntimeLuaModule struct {
@@ -115,14 +116,14 @@ type RuntimeProviderLua struct {
 	statsCtx context.Context
 }
 
-func NewRuntimeProviderLua(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, satoriClient runtime.Satori, eventFn RuntimeEventCustomFunction, rootPath string, paths []string, matchProvider *MatchProvider, storageIndex StorageIndex) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, RuntimeShutdownFunction, RuntimePurchaseNotificationAppleFunction, RuntimeSubscriptionNotificationAppleFunction, RuntimePurchaseNotificationGoogleFunction, RuntimeSubscriptionNotificationGoogleFunction, map[string]RuntimeStorageIndexFilterFunction, error) {
+func NewRuntimeProviderLua(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, satoriClient runtime.Satori, eventFn RuntimeEventCustomFunction, rootPath string, paths []string, matchProvider *MatchProvider, storageIndex StorageIndex, authProviderRegistry *RuntimeAuthenticateProviderRegistry) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, RuntimeShutdownFunction, RuntimePurchaseNotificationAppleFunction, RuntimeSubscriptionNotificationAppleFunction, RuntimePurchaseNotificationGoogleFunction, RuntimeSubscriptionNotificationGoogleFunction, map[string]RuntimeStorageIndexFilterFunction, []string, error) {
 	startupLogger.Info("Initialising Lua runtime provider", zap.String("path", rootPath))
 
 	// Load Lua modules into memory by reading the file contents. No evaluation/execution at this stage.
 	moduleCache, modulePaths, stdLibs, err := openLuaModules(startupLogger, rootPath, paths)
 	if err != nil {
 		// Errors already logged in the function call above.
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 
 	once := &sync.Once{}
@@ -142,6 +143,8 @@ func NewRuntimeProviderLua(ctx context.Context, logger, startupLogger *zap.Logge
 	var purchaseNotificationGoogleFunction RuntimePurchaseNotificationGoogleFunction
 	var subscriptionNotificationGoogleFunction RuntimeSubscriptionNotificationGoogleFunction
 	storageIndexFilterFunctions := make(map[string]RuntimeStorageIndexFilterFunction, 0)
+	authProviderIDs := make([]string, 0)
+	var authProviderErr error
 
 	var sharedReg *lua.LTable
 	var sharedGlobals *lua.LTable
@@ -175,11 +178,11 @@ func NewRuntimeProviderLua(ctx context.Context, logger, startupLogger *zap.Logge
 
 	matchProvider.RegisterCreateFn("lua",
 		func(ctx context.Context, logger *zap.Logger, id uuid.UUID, node string, stopped *atomic.Bool, name string) (RuntimeMatchCore, error) {
-			return NewRuntimeLuaMatchCore(logger, name, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, stdLibs, once, localCache, satoriClient, eventFn, nil, nil, id, node, stopped, name, matchProvider, storageIndex)
+			return NewRuntimeLuaMatchCore(logger, name, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, stdLibs, once, localCache, satoriClient, eventFn, authProviderRegistry, nil, nil, id, node, stopped, name, matchProvider, storageIndex)
 		},
 	)
 
-	r, err := newRuntimeLuaVM(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, stdLibs, moduleCache, once, localCache, storageIndex, satoriClient, matchProvider.CreateMatch, eventFn, func(execMode RuntimeExecutionMode, id string) {
+	r, err := newRuntimeLuaVM(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, stdLibs, moduleCache, once, localCache, storageIndex, satoriClient, matchProvider.CreateMatch, eventFn, authProviderRegistry, func(execMode RuntimeExecutionMode, id string) {
 		switch execMode {
 		case RuntimeExecutionModeRPC:
 			rpcFunctions[id] = func(ctx context.Context, headers, queryParams map[string][]string, traceID, userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, lang, payload string) (string, error, codes.Code) {
@@ -304,6 +307,14 @@ func NewRuntimeProviderLua(ctx context.Context, logger, startupLogger *zap.Logge
 							return nil, err, code
 						}
 						return result.(*api.AuthenticateGoogleRequest), nil, 0
+					}
+				case "authenticateprovider":
+					beforeReqFunctions.beforeAuthenticateProviderFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AuthenticateProviderRequest) (*api.AuthenticateProviderRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, in)
+						if result == nil || err != nil {
+							return nil, err, code
+						}
+						return result.(*api.AuthenticateProviderRequest), nil, 0
 					}
 				case "authenticatesteam":
 					beforeReqFunctions.beforeAuthenticateSteamFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AuthenticateSteamRequest) (*api.AuthenticateSteamRequest, error, codes.Code) {
@@ -521,6 +532,14 @@ func NewRuntimeProviderLua(ctx context.Context, logger, startupLogger *zap.Logge
 						}
 						return result.(*api.AccountCustom), nil, 0
 					}
+				case "linkprovider":
+					beforeReqFunctions.beforeLinkProviderFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountProvider) (*api.AccountProvider, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, in)
+						if result == nil || err != nil {
+							return nil, err, code
+						}
+						return result.(*api.AccountProvider), nil, 0
+					}
 				case "linkdevice":
 					beforeReqFunctions.beforeLinkDeviceFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountDevice) (*api.AccountDevice, error, codes.Code) {
 						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, in)
@@ -688,6 +707,14 @@ func NewRuntimeProviderLua(ctx context.Context, logger, startupLogger *zap.Logge
 							return nil, err, code
 						}
 						return result.(*api.AccountCustom), nil, 0
+					}
+				case "unlinkprovider":
+					beforeReqFunctions.beforeUnlinkProviderFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountProvider) (*api.AccountProvider, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, in)
+						if result == nil || err != nil {
+							return nil, err, code
+						}
+						return result.(*api.AccountProvider), nil, 0
 					}
 				case "unlinkdevice":
 					beforeReqFunctions.beforeUnlinkDeviceFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountDevice) (*api.AccountDevice, error, codes.Code) {
@@ -899,6 +926,10 @@ func NewRuntimeProviderLua(ctx context.Context, logger, startupLogger *zap.Logge
 					afterReqFunctions.afterAuthenticateGoogleFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateGoogleRequest) error {
 						return runtimeProviderLua.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, out, in)
 					}
+				case "authenticateprovider":
+					afterReqFunctions.afterAuthenticateProviderFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateProviderRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, out, in)
+					}
 				case "authenticatesteam":
 					afterReqFunctions.afterAuthenticateSteamFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateSteamRequest) error {
 						return runtimeProviderLua.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, out, in)
@@ -1007,6 +1038,10 @@ func NewRuntimeProviderLua(ctx context.Context, logger, startupLogger *zap.Logge
 					afterReqFunctions.afterLinkCustomFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) error {
 						return runtimeProviderLua.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, nil, in)
 					}
+				case "linkprovider":
+					afterReqFunctions.afterLinkProviderFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountProvider) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, nil, in)
+					}
 				case "linkdevice":
 					afterReqFunctions.afterLinkDeviceFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountDevice) error {
 						return runtimeProviderLua.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, nil, in)
@@ -1089,6 +1124,10 @@ func NewRuntimeProviderLua(ctx context.Context, logger, startupLogger *zap.Logge
 					}
 				case "unlinkcustom":
 					afterReqFunctions.afterUnlinkCustomFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, nil, in)
+					}
+				case "unlinkprovider":
+					afterReqFunctions.afterUnlinkProviderFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountProvider) error {
 						return runtimeProviderLua.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, nil, in)
 					}
 				case "unlinkdevice":
@@ -1221,10 +1260,22 @@ func NewRuntimeProviderLua(ctx context.Context, logger, startupLogger *zap.Logge
 			storageIndexFilterFunctions[id] = func(ctx context.Context, write *StorageOpWrite) (bool, error) {
 				return runtimeProviderLua.StorageIndexFilter(ctx, id, write)
 			}
+		case RuntimeExecutionModeAuthenticateProvider:
+			if regErr := authProviderRegistry.Register(id, func(ctx context.Context, traceID, payload string) (*runtime.AuthenticateProviderResult, error, codes.Code) {
+				return runtimeProviderLua.AuthenticateProvider(ctx, id, traceID, payload)
+			}); regErr != nil {
+				authProviderErr = regErr
+				return
+			}
+			authProviderIDs = append(authProviderIDs, id)
 		}
 	})
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+	}
+	if authProviderErr != nil {
+		startupLogger.Error("Failed to register Lua authentication provider.", zap.Error(authProviderErr))
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, authProviderErr
 	}
 
 	if config.GetRuntime().GetLuaReadOnlyGlobals() {
@@ -1277,7 +1328,7 @@ func NewRuntimeProviderLua(ctx context.Context, logger, startupLogger *zap.Logge
 		r.Stop()
 
 		runtimeProviderLua.newFn = func() *RuntimeLua {
-			r, err := newRuntimeLuaVM(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, stdLibs, moduleCache, once, localCache, storageIndex, satoriClient, matchProvider.CreateMatch, eventFn, nil)
+			r, err := newRuntimeLuaVM(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, stdLibs, moduleCache, once, localCache, storageIndex, satoriClient, matchProvider.CreateMatch, eventFn, authProviderRegistry, nil)
 			if err != nil {
 				logger.Fatal("Failed to initialize Lua runtime", zap.Error(err))
 			}
@@ -1298,7 +1349,7 @@ func NewRuntimeProviderLua(ctx context.Context, logger, startupLogger *zap.Logge
 	}
 	startupLogger.Info("Allocated minimum Lua runtime pool")
 
-	return modulePaths, rpcFunctions, beforeRtFunctions, afterRtFunctions, beforeReqFunctions, afterReqFunctions, matchmakerMatchedFunction, tournamentEndFunction, tournamentResetFunction, leaderboardResetFunction, shutdownFunction, purchaseNotificationAppleFunction, subscriptionNotificationAppleFunction, purchaseNotificationGoogleFunction, subscriptionNotificationGoogleFunction, storageIndexFilterFunctions, nil
+	return modulePaths, rpcFunctions, beforeRtFunctions, afterRtFunctions, beforeReqFunctions, afterReqFunctions, matchmakerMatchedFunction, tournamentEndFunction, tournamentResetFunction, leaderboardResetFunction, shutdownFunction, purchaseNotificationAppleFunction, subscriptionNotificationAppleFunction, purchaseNotificationGoogleFunction, subscriptionNotificationGoogleFunction, storageIndexFilterFunctions, authProviderIDs, nil
 }
 
 func CheckRuntimeProviderLua(logger *zap.Logger, config Config, version string, paths []string) error {
@@ -1421,6 +1472,99 @@ func (rp *RuntimeProviderLua) Rpc(ctx context.Context, id string, headers, query
 		return "", errors.New("Runtime function returned invalid data - only allowed one return value of type String/Byte."), codes.Internal
 	}
 	return payload, nil, 0
+}
+
+func (rp *RuntimeProviderLua) AuthenticateProvider(ctx context.Context, name, traceID, payload string) (*runtime.AuthenticateProviderResult, error, codes.Code) {
+	r, err := rp.Get(ctx)
+	if err != nil {
+		return nil, err, codes.Internal
+	}
+
+	logger, _ := LoggerWithTraceId(ctx, rp.logger)
+
+	lf := r.GetCallback(RuntimeExecutionModeAuthenticateProvider, name)
+	if lf == nil {
+		rp.Put(r)
+		logger.Error("Lua runtime authentication provider function not found.", zap.String("provider", name))
+		return nil, errors.New("Could not run authentication provider function."), codes.Internal
+	}
+
+	// Set context value used for logging
+	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"provider": name})
+	vmCtx = NewRuntimeGoContext(vmCtx, r.node, r.version, r.env, RuntimeExecutionModeAuthenticateProvider, nil, nil, traceID, 0, "", "", nil, "", "", "", "")
+	r.vm.SetContext(vmCtx)
+	result, fnErr, code, isCustomErr := r.InvokeFunction(RuntimeExecutionModeAuthenticateProvider, lf, nil, nil, traceID, "", "", nil, 0, "", "", "", "", payload)
+	r.vm.SetContext(context.Background())
+
+	if fnErr != nil {
+		if !isCustomErr {
+			// Errors triggered with `error({msg, code})` could only have come directly from custom runtime code.
+			// Assume they've been fully handled (logged etc) before that error is invoked.
+			logger.Error("Runtime authentication provider function caused an error", zap.String("provider", name), zap.Error(fnErr))
+		}
+
+		if code <= 0 || code >= 17 {
+			// If error is present but code is invalid then default to 13 (Internal) as the error code.
+			code = 13
+		}
+
+		err = clearFnError(fnErr, rp, lf)
+		rp.Put(r) // don't return VM until error originated in that VM is processed
+		return nil, err, code
+	}
+	rp.Put(r)
+
+	resultMap, ok := result.(map[string]interface{})
+	if !ok {
+		msg := "Runtime authentication provider function returned invalid data - only allowed one return value of type table."
+		logger.Error(msg, zap.String("provider", name))
+		return nil, errors.New(msg), codes.Internal
+	}
+
+	providerResult := &runtime.AuthenticateProviderResult{}
+
+	providerUserIDIn, found := resultMap["provider_user_id"]
+	if !found {
+		msg := "Runtime authentication provider function returned no provider_user_id."
+		logger.Error(msg, zap.String("provider", name))
+		return nil, errors.New(msg), codes.Internal
+	}
+	providerResult.ProviderUserID, ok = providerUserIDIn.(string)
+	if !ok {
+		msg := "Runtime authentication provider function returned an invalid provider_user_id - must be a string."
+		logger.Error(msg, zap.String("provider", name))
+		return nil, errors.New(msg), codes.Internal
+	}
+
+	if usernameIn, found := resultMap["username"]; found && usernameIn != nil {
+		providerResult.Username, ok = usernameIn.(string)
+		if !ok {
+			msg := "Runtime authentication provider function returned an invalid username - must be a string."
+			logger.Error(msg, zap.String("provider", name))
+			return nil, errors.New(msg), codes.Internal
+		}
+	}
+
+	if varsIn, found := resultMap["vars"]; found && varsIn != nil {
+		varsMap, ok := varsIn.(map[string]interface{})
+		if !ok {
+			msg := "Runtime authentication provider function returned invalid vars - must be a table with string values."
+			logger.Error(msg, zap.String("provider", name))
+			return nil, errors.New(msg), codes.Internal
+		}
+		providerResult.Vars = make(map[string]string, len(varsMap))
+		for k, v := range varsMap {
+			vStr, ok := v.(string)
+			if !ok {
+				msg := "Runtime authentication provider function returned invalid vars - must be a table with string values."
+				logger.Error(msg, zap.String("provider", name))
+				return nil, errors.New(msg), codes.Internal
+			}
+			providerResult.Vars[k] = vStr
+		}
+	}
+
+	return providerResult, nil, codes.OK
 }
 
 func (rp *RuntimeProviderLua) BeforeRt(ctx context.Context, id string, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, lang string, envelope *rtapi.Envelope) (*rtapi.Envelope, error) {
@@ -2371,6 +2515,12 @@ func (r *RuntimeLua) GetCallback(e RuntimeExecutionMode, key string) *lua.LFunct
 			return nil
 		}
 		return fn
+	case RuntimeExecutionModeAuthenticateProvider:
+		fn, found := r.callbacks.AuthenticateProvider.Load(key)
+		if !found {
+			return nil
+		}
+		return fn
 	}
 
 	return nil
@@ -2497,7 +2647,7 @@ func checkRuntimeLuaVM(logger *zap.Logger, config Config, version string, stdLib
 		vm.Push(lua.LString(name))
 		vm.Call(1, 0)
 	}
-	nakamaModule := NewRuntimeLuaNakamaModule(logger, nil, nil, nil, config, version, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	nakamaModule := NewRuntimeLuaNakamaModule(logger, nil, nil, nil, config, version, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	vm.PreloadModule("nakama", nakamaModule.Loader)
 
 	preload := vm.GetField(vm.GetField(vm.Get(lua.EnvironIndex), "package"), "preload")
@@ -2518,7 +2668,7 @@ func checkRuntimeLuaVM(logger *zap.Logger, config Config, version string, stdLib
 	return nil
 }
 
-func newRuntimeLuaVM(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, stdLibs map[string]lua.LGFunction, moduleCache *RuntimeLuaModuleCache, once *sync.Once, localCache *RuntimeLuaLocalCache, storageIndex StorageIndex, satoriClient runtime.Satori, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, announceCallbackFn func(RuntimeExecutionMode, string)) (*RuntimeLua, error) {
+func newRuntimeLuaVM(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, stdLibs map[string]lua.LGFunction, moduleCache *RuntimeLuaModuleCache, once *sync.Once, localCache *RuntimeLuaLocalCache, storageIndex StorageIndex, satoriClient runtime.Satori, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, authProviderRegistry *RuntimeAuthenticateProviderRegistry, announceCallbackFn func(RuntimeExecutionMode, string)) (*RuntimeLua, error) {
 	vm := lua.NewState(lua.Options{
 		CallStackSize:       config.GetRuntime().GetLuaCallStackSize(),
 		RegistrySize:        config.GetRuntime().GetLuaRegistrySize(),
@@ -2532,10 +2682,11 @@ func newRuntimeLuaVM(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojs
 		vm.Call(1, 0)
 	}
 	callbacks := &RuntimeLuaCallbacks{
-		RPC:                &MapOf[string, *lua.LFunction]{},
-		Before:             &MapOf[string, *lua.LFunction]{},
-		After:              &MapOf[string, *lua.LFunction]{},
-		StorageIndexFilter: &MapOf[string, *lua.LFunction]{},
+		RPC:                  &MapOf[string, *lua.LFunction]{},
+		Before:               &MapOf[string, *lua.LFunction]{},
+		After:                &MapOf[string, *lua.LFunction]{},
+		StorageIndexFilter:   &MapOf[string, *lua.LFunction]{},
+		AuthenticateProvider: &MapOf[string, *lua.LFunction]{},
 	}
 	registerCallbackFn := func(e RuntimeExecutionMode, key string, fn *lua.LFunction) {
 		switch e {
@@ -2563,9 +2714,11 @@ func newRuntimeLuaVM(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojs
 			callbacks.SubscriptionNotificationGoogle = fn
 		case RuntimeExecutionModeStorageIndexFilter:
 			callbacks.StorageIndexFilter.Store(key, fn)
+		case RuntimeExecutionModeAuthenticateProvider:
+			callbacks.AuthenticateProvider.Store(key, fn)
 		}
 	}
-	nakamaModule := NewRuntimeLuaNakamaModule(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, rankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, once, localCache, storageIndex, satoriClient, matchCreateFn, eventFn, registerCallbackFn, announceCallbackFn)
+	nakamaModule := NewRuntimeLuaNakamaModule(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, rankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, once, localCache, storageIndex, satoriClient, matchCreateFn, eventFn, authProviderRegistry, registerCallbackFn, announceCallbackFn)
 	vm.PreloadModule("nakama", nakamaModule.Loader)
 	r := &RuntimeLua{
 		logger:    logger,
