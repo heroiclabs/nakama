@@ -775,13 +775,13 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		return nil, nil, err
 	}
 
-	luaModules, luaRPCFns, luaBeforeRtFns, luaAfterRtFns, luaBeforeReqFns, luaAfterReqFns, luaMatchmakerMatchedFn, luaTournamentEndFn, luaTournamentResetFn, luaLeaderboardResetFn, luaShutdownFn, luaPurchaseNotificationAppleFn, luaSubscriptionNotificationAppleFn, luaPurchaseNotificationGoogleFn, luaSubscriptionNotificationGoogleFn, luaIndexFilterFns, err := NewRuntimeProviderLua(ctx, logger, startupLogger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, satoriClient, allEventFns.eventFunction, runtimeConfig.Path, paths, matchProvider, storageIndex, authProviderRegistry)
+	luaModules, luaRPCFns, luaBeforeRtFns, luaAfterRtFns, luaBeforeReqFns, luaAfterReqFns, luaMatchmakerMatchedFn, luaTournamentEndFn, luaTournamentResetFn, luaLeaderboardResetFn, luaShutdownFn, luaPurchaseNotificationAppleFn, luaSubscriptionNotificationAppleFn, luaPurchaseNotificationGoogleFn, luaSubscriptionNotificationGoogleFn, luaIndexFilterFns, luaAuthProviderIDs, err := NewRuntimeProviderLua(ctx, logger, startupLogger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, satoriClient, allEventFns.eventFunction, runtimeConfig.Path, paths, matchProvider, storageIndex, authProviderRegistry)
 	if err != nil {
 		startupLogger.Error("Error initialising Lua runtime provider", zap.Error(err))
 		return nil, nil, err
 	}
 
-	jsModules, jsRPCFns, jsBeforeRtFns, jsAfterRtFns, jsBeforeReqFns, jsAfterReqFns, jsMatchmakerMatchedFn, jsTournamentEndFn, jsTournamentResetFn, jsLeaderboardResetFn, jsShutdownFn, jsPurchaseNotificationAppleFn, jsSubscriptionNotificationAppleFn, jsPurchaseNotificationGoogleFn, jsSubscriptionNotificationGoogleFn, jsIndexFilterFns, err := NewRuntimeProviderJS(ctx, logger, startupLogger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, satoriClient, allEventFns.eventFunction, runtimeConfig.Path, runtimeConfig.JsEntrypoint, matchProvider, storageIndex, authProviderRegistry)
+	jsModules, jsRPCFns, jsBeforeRtFns, jsAfterRtFns, jsBeforeReqFns, jsAfterReqFns, jsMatchmakerMatchedFn, jsTournamentEndFn, jsTournamentResetFn, jsLeaderboardResetFn, jsShutdownFn, jsPurchaseNotificationAppleFn, jsSubscriptionNotificationAppleFn, jsPurchaseNotificationGoogleFn, jsSubscriptionNotificationGoogleFn, jsIndexFilterFns, jsAuthProviderIDs, err := NewRuntimeProviderJS(ctx, logger, startupLogger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, satoriClient, allEventFns.eventFunction, runtimeConfig.Path, runtimeConfig.JsEntrypoint, matchProvider, storageIndex, authProviderRegistry)
 	if err != nil {
 		startupLogger.Error("Error initialising JavaScript runtime provider", zap.Error(err))
 		return nil, nil, err
@@ -2902,12 +2902,40 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		return nil, nil, err
 	}
 
+	// Go providers are not announced by name at registration, so they are whatever the registry holds beyond the Lua and JavaScript ones.
+	jsAuthProviderNames := make(map[string]bool, len(jsAuthProviderIDs))
+	for _, name := range jsAuthProviderIDs {
+		jsAuthProviderNames[name] = true
+	}
+	luaAuthProviderNames := make(map[string]bool, len(luaAuthProviderIDs))
+	for _, name := range luaAuthProviderIDs {
+		luaAuthProviderNames[name] = true
+	}
 	authProviderRegistry.providers.Range(func(name string, _ RuntimeAuthenticateProviderFunction) bool {
-		rInfo.GoAuthenticateProviders = append(rInfo.GoAuthenticateProviders, name)
+		switch {
+		case jsAuthProviderNames[name]:
+			rInfo.JavaScriptAuthenticateProviders = append(rInfo.JavaScriptAuthenticateProviders, name)
+		case luaAuthProviderNames[name]:
+			rInfo.LuaAuthenticateProviders = append(rInfo.LuaAuthenticateProviders, name)
+		default:
+			rInfo.GoAuthenticateProviders = append(rInfo.GoAuthenticateProviders, name)
+		}
 		return true
 	})
 
 	sort.Strings(rInfo.GoAuthenticateProviders)
+	sort.Strings(rInfo.LuaAuthenticateProviders)
+	sort.Strings(rInfo.JavaScriptAuthenticateProviders)
+
+	for _, name := range rInfo.JavaScriptAuthenticateProviders {
+		startupLogger.Info("Registered JavaScript runtime Authenticate Provider function invocation", zap.String("provider", name))
+	}
+	for _, name := range rInfo.LuaAuthenticateProviders {
+		startupLogger.Info("Registered Lua runtime Authenticate Provider function invocation", zap.String("provider", name))
+	}
+	for _, name := range rInfo.GoAuthenticateProviders {
+		startupLogger.Info("Registered Go runtime Authenticate Provider function invocation", zap.String("provider", name))
+	}
 
 	return &Runtime{
 		matchCreateFunction:                    matchProvider.CreateMatch,

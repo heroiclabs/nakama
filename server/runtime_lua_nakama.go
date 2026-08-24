@@ -137,6 +137,7 @@ func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshale
 func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 	functions := map[string]lua.LGFunction{
 		"register_rpc":                       n.registerRPC,
+		"register_authenticate_provider":     n.registerAuthenticateProvider,
 		"register_req_before":                n.registerReqBefore,
 		"register_req_after":                 n.registerReqAfter,
 		"register_rt_before":                 n.registerRTBefore,
@@ -339,6 +340,31 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 
 	l.Push(mod)
 	return 1
+}
+
+// @group authenticate
+// @summary Register an authentication provider by name. The name can be used from client code to authenticate through the provider, and from server code via the authenticate_provider function. The provider validates the payload it is given and returns the identity that payload proves.
+// @param fn(type=function) A function reference which will be executed when the provider is selected.
+// @param name(type=string) The unique name of the authentication provider. Converted to lowercase.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) registerAuthenticateProvider(l *lua.LState) int {
+	fn := l.CheckFunction(1)
+	name := l.CheckString(2)
+
+	if name == "" || len(name) > 128 {
+		l.ArgError(2, "expects provider name to be valid, must be 1-128 bytes")
+		return 0
+	}
+
+	name = strings.ToLower(name)
+
+	if n.registerCallbackFn != nil {
+		n.registerCallbackFn(RuntimeExecutionModeAuthenticateProvider, name, fn)
+	}
+	if n.announceCallbackFn != nil {
+		n.announceCallbackFn(RuntimeExecutionModeAuthenticateProvider, name)
+	}
+	return 0
 }
 
 // @group hooks
