@@ -65,6 +65,7 @@ type RuntimeJavascriptCallbacks struct {
 	Before                         map[string]string
 	After                          map[string]string
 	StorageIndexFilter             map[string]string
+	AuthenticateProvider           map[string]string
 	Matchmaker                     string
 	TournamentEnd                  string
 	TournamentReset                string
@@ -102,6 +103,7 @@ func (im *RuntimeJavascriptInitModule) mappings(r *goja.Runtime) map[string]func
 	return map[string]func(goja.FunctionCall) goja.Value{
 		"getConfig":                                       im.getConfig(r),
 		"registerRpc":                                     im.registerRpc(r),
+		"registerAuthenticateProvider":                    im.registerAuthenticateProvider(r),
 		"registerRtBefore":                                im.registerRtBefore(r),
 		"registerRtAfter":                                 im.registerRtAfter(r),
 		"registerMatchmakerMatched":                       im.registerMatchmakerMatched(r),
@@ -437,6 +439,39 @@ func (im *RuntimeJavascriptInitModule) registerRpc(r *goja.Runtime) func(goja.Fu
 	}
 }
 
+func (im *RuntimeJavascriptInitModule) registerAuthenticateProvider(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		fName := f.Argument(0)
+		if goja.IsNull(fName) || goja.IsUndefined(fName) {
+			panic(r.NewTypeError("expects a non empty string"))
+		}
+		key, ok := fName.Export().(string)
+		if !ok {
+			panic(r.NewTypeError("expects a non empty string"))
+		}
+		if key == "" || len(key) > 128 {
+			panic(r.NewTypeError("expects provider name to be valid, must be 1-128 bytes"))
+		}
+
+		fn := f.Argument(1)
+		_, ok = goja.AssertFunction(fn)
+		if !ok {
+			panic(r.NewTypeError("expects a function"))
+		}
+
+		fnKey, err := im.extractAuthenticateProviderFn(r, key)
+		if err != nil {
+			panic(r.NewGoError(err))
+		}
+
+		lKey := strings.ToLower(key)
+		im.registerCallbackFn(RuntimeExecutionModeAuthenticateProvider, lKey, fnKey)
+		im.announceCallbackFn(RuntimeExecutionModeAuthenticateProvider, lKey)
+
+		return goja.Undefined()
+	}
+}
+
 func (im *RuntimeJavascriptInitModule) extractRpcFn(r *goja.Runtime, rpcFnName string) (string, error) {
 	bs, initFnVarName, err := im.getInitModuleFn()
 	if err != nil {
@@ -460,6 +495,20 @@ func (im *RuntimeJavascriptInitModule) extractStorageIndexFilterFn(r *goja.Runti
 	globalFnId, err := im.getRegisteredFnIdentifier(r, bs, initFnVarName, indexName, "registerStorageIndexFilter")
 	if err != nil {
 		return "", fmt.Errorf("js %s function key could not be extracted: %s", indexName, err.Error())
+	}
+
+	return globalFnId, nil
+}
+
+func (im *RuntimeJavascriptInitModule) extractAuthenticateProviderFn(r *goja.Runtime, providerName string) (string, error) {
+	bs, initFnVarName, err := im.getInitModuleFn()
+	if err != nil {
+		return "", err
+	}
+
+	globalFnId, err := im.getRegisteredFnIdentifier(r, bs, initFnVarName, providerName, "registerAuthenticateProvider")
+	if err != nil {
+		return "", fmt.Errorf("js %s function key could not be extracted: %s", providerName, err.Error())
 	}
 
 	return globalFnId, nil
@@ -1976,5 +2025,7 @@ func (im *RuntimeJavascriptInitModule) registerCallbackFn(mode RuntimeExecutionM
 		im.Callbacks.SubscriptionNotificationGoogle = fn
 	case RuntimeExecutionModeStorageIndexFilter:
 		im.Callbacks.StorageIndexFilter[key] = fn
+	case RuntimeExecutionModeAuthenticateProvider:
+		im.Callbacks.AuthenticateProvider[key] = fn
 	}
 }
