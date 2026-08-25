@@ -802,7 +802,7 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		startupLogger.Info("Registered Go runtime RPC function invocation", zap.String("id", id))
 	}
 
-	for id, _ := range fleetManagers {
+	for id := range fleetManagers {
 		startupLogger.Info("Registered Fleet Manager", zap.String("id", id))
 	}
 
