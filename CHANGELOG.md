@@ -3,6 +3,10 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
+[Unreleased]
+### Added
+- Add support for namespaced multi fleet manager registration.
+
 ## [3.40.0] - 2026-07-13
 ### Added
 - Add Samsung Galaxy Store purchase validation request type and `SAMSUNG_GALAXY_STORE` store provider enum.
