@@ -565,7 +565,7 @@ type Runtime struct {
 
 	shutdownFunction RuntimeShutdownFunction
 
-	fleetManager runtime.FleetManager
+	fleetManagers map[string]runtime.FleetManager
 }
 
 type MatchNamesListFunction func() []string
@@ -715,7 +715,7 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		goPurchaseNotificationGoogleFn,
 		goSubscriptionNotificationGoogleFn,
 		goIndexFilterFns,
-		fleetManager,
+		fleetManagers,
 		httpHandlers,
 		consoleHttpHandlers,
 		allEventFns,
@@ -800,6 +800,10 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		delete(luaRpcIDs, id)
 		goRpcIDs[id] = true
 		startupLogger.Info("Registered Go runtime RPC function invocation", zap.String("id", id))
+	}
+
+	for id := range fleetManagers {
+		startupLogger.Info("Registered Fleet Manager", zap.String("id", id))
 	}
 
 	allBeforeRtFunctions := make(map[string]RuntimeBeforeRtFunction, len(jsBeforeRtFns)+len(luaBeforeRtFns)+len(goBeforeRtFns))
@@ -2836,7 +2840,7 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 
 		shutdownFunction: allShutdownFunction,
 
-		fleetManager: fleetManager,
+		fleetManagers: fleetManagers,
 
 		eventFunctions: allEventFns,
 	}, rInfo, nil

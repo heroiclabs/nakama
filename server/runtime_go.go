@@ -68,7 +68,7 @@ type RuntimeGoInitializer struct {
 	httpHandlers                   []*RuntimeHttpHandler
 	consoleHttpHandlers            []*RuntimeHttpHandler
 
-	fleetManager runtime.FleetManager
+	fleetManagers map[string]runtime.FleetManager
 
 	eventFunctions        []RuntimeEventFunction
 	sessionStartFunctions []RuntimeEventFunction
@@ -3613,17 +3613,23 @@ func (ri *RuntimeGoInitializer) RegisterStorageIndexFilter(indexName string, fn 
 // @param fleetManager(type=runtime.FleetManagerInitializer) The fleet manager implementation to register.
 // @return error(error) An optional error value if an error occurred.
 func (ri *RuntimeGoInitializer) RegisterFleetManager(fleetManager runtime.FleetManagerInitializer) error {
+	return ri.RegisterFleetManagerByName("", fleetManager)
+}
+
+// @group fleetmanager
+// @summary Register a FleetManager implementation under the given name. The fleet manager can be retrieved later from the runtime using GetFleetManagerByName().
+// @param name(type=string) The name to register the fleet manager under. The empty name is the default.
+// @param fleetManager(type=runtime.FleetManagerInitializer) The fleet manager implementation to register.
+// @return error(error) An optional error value if an error occurred.
+func (ri *RuntimeGoInitializer) RegisterFleetManagerByName(name string, fleetManager runtime.FleetManagerInitializer) error {
 	if fleetManager == nil {
 		return errors.New("fleet manager cannot be nil")
 	}
 	if err := fleetManager.Init(ri.nk, ri.fmCallbackHandler); err != nil {
 		return fmt.Errorf("failed to run fleet manager Init function: %s", err.Error())
 	}
-	ri.fleetManager = fleetManager
-	if nk, ok := ri.nk.(*RuntimeGoNakamaModule); ok {
-		nk.fleetManager = fleetManager
-	}
 
+	ri.fleetManagers[name] = fleetManager
 	return nil
 }
 
@@ -3684,7 +3690,7 @@ func (ri *RuntimeGoInitializer) RegisterMatch(name string, fn func(ctx context.C
 	return nil
 }
 
-func NewRuntimeProviderGo(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, storageIndex StorageIndex, satoriClient runtime.Satori, rootPath string, paths []string, eventQueue *RuntimeEventQueue, matchProvider *MatchProvider, fmCallbackHandler runtime.FmCallbackHandler) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeMatchmakerOverrideFunction, RuntimeMatchmakerProcessorFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, RuntimeShutdownFunction, RuntimePurchaseNotificationAppleFunction, RuntimeSubscriptionNotificationAppleFunction, RuntimePurchaseNotificationGoogleFunction, RuntimeSubscriptionNotificationGoogleFunction, map[string]RuntimeStorageIndexFilterFunction, runtime.FleetManager, []*RuntimeHttpHandler, []*RuntimeHttpHandler, *RuntimeEventFunctions, func() []string, error) {
+func NewRuntimeProviderGo(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, storageIndex StorageIndex, satoriClient runtime.Satori, rootPath string, paths []string, eventQueue *RuntimeEventQueue, matchProvider *MatchProvider, fmCallbackHandler runtime.FmCallbackHandler) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeMatchmakerOverrideFunction, RuntimeMatchmakerProcessorFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, RuntimeShutdownFunction, RuntimePurchaseNotificationAppleFunction, RuntimeSubscriptionNotificationAppleFunction, RuntimePurchaseNotificationGoogleFunction, RuntimeSubscriptionNotificationGoogleFunction, map[string]RuntimeStorageIndexFilterFunction, map[string]runtime.FleetManager, []*RuntimeHttpHandler, []*RuntimeHttpHandler, *RuntimeEventFunctions, func() []string, error) {
 	runtimeLogger := NewRuntimeGoLogger(logger)
 	node := config.GetName()
 	env := config.GetRuntime().Environment
@@ -3755,6 +3761,7 @@ func NewRuntimeProviderGo(ctx context.Context, logger, startupLogger *zap.Logger
 		matchLock: matchLock,
 
 		fmCallbackHandler: fmCallbackHandler,
+		fleetManagers:     nk.fleetManagers,
 	}
 
 	// The baseline context that will be passed to all InitModule calls.
@@ -3829,7 +3836,7 @@ func NewRuntimeProviderGo(ctx context.Context, logger, startupLogger *zap.Logger
 		}
 	}
 
-	return modulePaths, initializer.rpc, initializer.beforeRt, initializer.afterRt, initializer.beforeReq, initializer.afterReq, initializer.matchmakerMatched, initializer.matchmakerOverride, initializer.matchmakerProcessor, initializer.tournamentEnd, initializer.tournamentReset, initializer.leaderboardReset, initializer.shutdownFunction, initializer.purchaseNotificationApple, initializer.subscriptionNotificationApple, initializer.purchaseNotificationGoogle, initializer.subscriptionNotificationGoogle, initializer.storageIndexFunctions, initializer.fleetManager, initializer.httpHandlers, initializer.consoleHttpHandlers, events, matchNamesListFn, nil
+	return modulePaths, initializer.rpc, initializer.beforeRt, initializer.afterRt, initializer.beforeReq, initializer.afterReq, initializer.matchmakerMatched, initializer.matchmakerOverride, initializer.matchmakerProcessor, initializer.tournamentEnd, initializer.tournamentReset, initializer.leaderboardReset, initializer.shutdownFunction, initializer.purchaseNotificationApple, initializer.subscriptionNotificationApple, initializer.purchaseNotificationGoogle, initializer.subscriptionNotificationGoogle, initializer.storageIndexFunctions, initializer.fleetManagers, initializer.httpHandlers, initializer.consoleHttpHandlers, events, matchNamesListFn, nil
 }
 
 func CheckRuntimeProviderGo(logger *zap.Logger, rootPath string, paths []string) error {
