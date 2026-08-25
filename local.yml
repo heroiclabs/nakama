@@ -1,0 +1,50 @@
+# Nakama Configuration — LNBQSHA Product Layer
+# Dibuat untuk Global Social Game Universe
+
+runtime:
+  js_entrypoint: "src/index.ts"
+  lua_path: ""
+  go_path: ""
+
+session:
+  encryption_key: "change-this-in-production-1234567890"
+  token_expiry_sec: 7200
+
+socket:
+  port: 7350
+  max_request_size_bytes: 1048576
+
+console:
+  port: 7351
+  username: "admin"
+  password: "change-this-in-production"
+
+database:
+  address: "postgres:localdb@postgres:5432/nakama"
+
+matchmaker:
+  max_tickets: 1000
+  interval_sec: 15
+
+# Social providers — isi nanti
+social:
+  google:
+    client_id: ""
+    client_secret: ""
+  facebook:
+    app_id: ""
+    app_secret: ""
+  apple:
+    bundle_id: ""
+  steam:
+    app_id: ""
+    key: ""
+  gamecenter:
+    bundle_id: ""
+
+# IAP validation — isi nanti
+iap:
+  apple:
+    shared_secret: ""
+  google:
+    application_id: ""
