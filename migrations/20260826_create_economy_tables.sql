@@ -2,6 +2,7 @@
 -- ============================================================
 -- LNBQSHA ECONOMY SCHEMA — PRODUCTION
 -- Version: 2026-08-27
+-- Target: PostgreSQL 16+
 --
 -- Purpose:
 --   Production-grade economy foundation using PostgreSQL.
@@ -26,6 +27,9 @@
 -- EXTENSIONS
 -- ============================================================
 
+-- pgcrypto required for gen_random_uuid()
+-- If your environment restricts extension creation by migration,
+-- install this extension manually before running migration.
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 
@@ -51,8 +55,7 @@ CREATE TABLE IF NOT EXISTS lnbqsha_wallet (
         CHECK (premium_balance >= 0),
 
     -- Auxiliary trace only.
-    -- One logical transaction may contain multiple
-    -- currency mutations.
+    -- Nullable for initial wallet creation.
     last_transaction_id UUID,
 
     -- Optimistic/versioning metadata.
@@ -64,9 +67,8 @@ CREATE TABLE IF NOT EXISTS lnbqsha_wallet (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_wallet_user
-    ON lnbqsha_wallet(user_id);
-
+-- PRIMARY KEY (user_id) already creates unique index.
+-- Additional index for last_transaction_id trace lookups.
 CREATE INDEX IF NOT EXISTS idx_wallet_last_transaction
     ON lnbqsha_wallet(last_transaction_id);
 
@@ -159,14 +161,13 @@ CREATE TABLE IF NOT EXISTS lnbqsha_wallet_ledger (
         ON DELETE RESTRICT
 );
 
+-- UNIQUE(operation_id) already creates unique index.
+-- Additional indexes for common query patterns.
 CREATE INDEX IF NOT EXISTS idx_ledger_user_created
     ON lnbqsha_wallet_ledger(user_id, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_ledger_transaction
     ON lnbqsha_wallet_ledger(transaction_id);
-
-CREATE INDEX IF NOT EXISTS idx_ledger_operation
-    ON lnbqsha_wallet_ledger(operation_id);
 
 CREATE INDEX IF NOT EXISTS idx_ledger_idempotency
     ON lnbqsha_wallet_ledger(idempotency_key);
@@ -263,9 +264,8 @@ CREATE TABLE IF NOT EXISTS lnbqsha_idempotency (
         ON DELETE RESTRICT
 );
 
-CREATE INDEX IF NOT EXISTS idx_idempotency_transaction
-    ON lnbqsha_idempotency(transaction_id);
-
+-- UNIQUE(transaction_id) already creates unique index.
+-- Additional indexes for common query patterns.
 CREATE INDEX IF NOT EXISTS idx_idempotency_status
     ON lnbqsha_idempotency(status, created_at);
 
@@ -358,10 +358,9 @@ GROUP BY
 -- ============================================================
 -- +migrate Down
 --
--- WARNING:
---   This destroys production economy data.
---   Production rollback must be handled according to the
---   deployment/migration policy.
+-- ⚠️  WARNING: This destroys production economy data.
+-- ⚠️  Production rollback must follow deployment policy.
+-- ⚠️  Do NOT run this on production without explicit approval.
 -- ============================================================
 
 DROP VIEW IF EXISTS lnbqsha_wallet_projection;
