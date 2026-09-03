@@ -17,7 +17,6 @@ package server
 import (
 	"math"
 	"math/bits"
-	"sort"
 	"time"
 
 	"github.com/blugelabs/bluge"
@@ -249,17 +248,13 @@ func (m *LocalMatchmaker) processDefault(activeIndexCount int, activeIndexesCopy
 						eligibleIndexes = append(eligibleIndexes, idx)
 					}
 
-					eligibleGroups := groupIndexes(eligibleIndexes, rem)
-					if len(eligibleGroups) <= 0 {
+					indexesToRemove := selectIndexesToRemove(eligibleIndexes, rem)
+					if len(indexesToRemove) <= 0 {
 						// No possible combination to remove, unlikely but guard.
 						continue
 					}
-					// Sort to ensure we keep as many of the longest-waiting tickets as possible.
-					sort.Slice(eligibleGroups, func(i, j int) bool {
-						return eligibleGroups[i].avgCreatedAt > eligibleGroups[j].avgCreatedAt
-					})
-					// The most eligible group is removed from the combo.
-					for _, egIndex := range eligibleGroups[0].indexes {
+					// The newest exact-size group is removed to keep the longest-waiting tickets in the match.
+					for _, egIndex := range indexesToRemove {
 						for i := 0; i < len(foundCombo); i++ {
 							if egIndex.Ticket == foundCombo[i].Ticket {
 								foundCombo[i] = foundCombo[len(foundCombo)-1]

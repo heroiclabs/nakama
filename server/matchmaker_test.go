@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/big"
 	"os"
 	"testing"
 	"time"
@@ -1593,25 +1594,191 @@ func TestMatchmakerAddAndMatchAuthoritative(t *testing.T) {
 	}
 }
 
-func TestGroupIndexes(t *testing.T) {
-	a := &MatchmakerIndex{Ticket: "a", Count: 1, CreatedAt: 100}
-	b := &MatchmakerIndex{Ticket: "b", Count: 2, CreatedAt: 110}
-	c := &MatchmakerIndex{Ticket: "c", Count: 1, CreatedAt: 120}
-	d := &MatchmakerIndex{Ticket: "d", Count: 1, CreatedAt: 130}
-	e := &MatchmakerIndex{Ticket: "e", Count: 3, CreatedAt: 140}
-	f := &MatchmakerIndex{Ticket: "f", Count: 2, CreatedAt: 150}
-	indexes := []*MatchmakerIndex{a, b, c, d, e, f}
-	required := 2
+func TestSelectIndexesToRemove(t *testing.T) {
+	tests := []struct {
+		name     string
+		indexes  []*MatchmakerIndex
+		required int
+		expected []string
+	}{
+		{
+			name: "selects the newest per-party average",
+			indexes: []*MatchmakerIndex{
+				{Ticket: "old-party", Count: 2, CreatedAt: 100},
+				{Ticket: "new-solo-1", Count: 1, CreatedAt: 250},
+				{Ticket: "new-solo-2", Count: 1, CreatedAt: 250},
+				{Ticket: "middle-party", Count: 3, CreatedAt: 160},
+			},
+			required: 3,
+			expected: []string{"old-party", "new-solo-1"},
+		},
+		{
+			name: "compares fractional averages exactly",
+			indexes: []*MatchmakerIndex{
+				{Ticket: "party", Count: 2, CreatedAt: 100},
+				{Ticket: "solo-1", Count: 1, CreatedAt: 100},
+				{Ticket: "solo-2", Count: 1, CreatedAt: 101},
+			},
+			required: 2,
+			expected: []string{"solo-1", "solo-2"},
+		},
+		{
+			name: "does not overflow timestamp totals",
+			indexes: []*MatchmakerIndex{
+				{Ticket: "party", Count: 2, CreatedAt: math.MaxInt64 - 2},
+				{Ticket: "solo-1", Count: 1, CreatedAt: math.MaxInt64 - 1},
+				{Ticket: "solo-2", Count: 1, CreatedAt: math.MaxInt64 - 1},
+			},
+			required: 2,
+			expected: []string{"solo-1", "solo-2"},
+		},
+		{
+			name: "breaks equal averages deterministically",
+			indexes: []*MatchmakerIndex{
+				{Ticket: "c", Count: 1, CreatedAt: 100},
+				{Ticket: "b", Count: 1, CreatedAt: 100},
+				{Ticket: "a", Count: 1, CreatedAt: 100},
+			},
+			required: 2,
+			expected: []string{"a", "b"},
+		},
+		{
+			name: "does not reuse an index",
+			indexes: []*MatchmakerIndex{
+				{Ticket: "solo", Count: 1, CreatedAt: 100},
+			},
+			required: 2,
+		},
+		{
+			name: "requires an exact player count",
+			indexes: []*MatchmakerIndex{
+				{Ticket: "party", Count: 2, CreatedAt: 100},
+			},
+			required: 3,
+		},
+	}
 
-	groups := groupIndexes(indexes, required)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			selected := selectIndexesToRemove(tt.indexes, tt.required)
+			if tt.expected == nil {
+				assert.Nil(t, selected)
+				return
+			}
 
-	assert.EqualValues(t, []*MatchmakerIndexGroup{
-		{indexes: []*MatchmakerIndex{c, a}, avgCreatedAt: 110},
-		{indexes: []*MatchmakerIndex{d, a}, avgCreatedAt: 115},
-		{indexes: []*MatchmakerIndex{b}, avgCreatedAt: 110},
-		{indexes: []*MatchmakerIndex{d, c}, avgCreatedAt: 125},
-		{indexes: []*MatchmakerIndex{f}, avgCreatedAt: 150},
-	}, groups, "groups did not match")
+			selectedTickets := make([]string, 0, len(selected))
+			selectedCount := 0
+			for _, index := range selected {
+				selectedTickets = append(selectedTickets, index.Ticket)
+				selectedCount += index.Count
+			}
+			assert.Equal(t, tt.required, selectedCount)
+			assert.ElementsMatch(t, tt.expected, selectedTickets)
+		})
+	}
+}
+
+func TestSelectIndexesToRemoveHandlesLargeCandidatePool(t *testing.T) {
+	indexes := make([]*MatchmakerIndex, 1_000)
+	for i := range indexes {
+		indexes[i] = &MatchmakerIndex{
+			Ticket:    fmt.Sprintf("ticket-%04d", i),
+			Count:     1,
+			CreatedAt: int64(i),
+		}
+	}
+
+	selected := selectIndexesToRemove(indexes, 5)
+	assert.ElementsMatch(t, []string{"ticket-0995", "ticket-0996", "ticket-0997", "ticket-0998", "ticket-0999"}, removalGroupTickets(selected))
+}
+
+func TestSelectIndexesToRemoveMatchesExhaustiveSearch(t *testing.T) {
+	for candidateCount := 1; candidateCount <= 8; candidateCount++ {
+		for seed := 0; seed < 100; seed++ {
+			indexes := make([]*MatchmakerIndex, candidateCount)
+			for i := range indexes {
+				indexes[i] = &MatchmakerIndex{
+					Ticket:    fmt.Sprintf("ticket-%d", i),
+					Count:     1 + (seed+i)%3,
+					CreatedAt: int64(100 + (seed*17+i*31)%101),
+				}
+			}
+			required := 1 + seed%6
+
+			selected := selectIndexesToRemove(indexes, required)
+			expected := selectIndexesToRemoveExhaustively(indexes, required)
+			assert.Equal(t, removalGroupPlayerCount(expected), removalGroupPlayerCount(selected), "candidate count %d, seed %d", candidateCount, seed)
+			assert.Equal(t, removalGroupAverage(expected), removalGroupAverage(selected), "candidate count %d, seed %d", candidateCount, seed)
+		}
+	}
+}
+
+func selectIndexesToRemoveExhaustively(indexes []*MatchmakerIndex, required int) []*MatchmakerIndex {
+	var best []*MatchmakerIndex
+	for bits := 1; bits < 1<<len(indexes); bits++ {
+		playerCount := 0
+		candidate := make([]*MatchmakerIndex, 0, len(indexes))
+		for i, index := range indexes {
+			if bits&(1<<i) == 0 {
+				continue
+			}
+			playerCount += index.Count
+			candidate = append(candidate, index)
+		}
+		if playerCount != required || !hasNewerAverageCreatedAtForTest(candidate, best) {
+			continue
+		}
+		best = candidate
+	}
+	return best
+}
+
+func hasNewerAverageCreatedAtForTest(candidate, current []*MatchmakerIndex) bool {
+	if len(candidate) == 0 {
+		return false
+	}
+	if len(current) == 0 {
+		return true
+	}
+
+	var candidateTotal, currentTotal, candidateProduct, currentProduct big.Int
+	for _, index := range candidate {
+		candidateTotal.Add(&candidateTotal, big.NewInt(index.CreatedAt))
+	}
+	for _, index := range current {
+		currentTotal.Add(&currentTotal, big.NewInt(index.CreatedAt))
+	}
+	candidateProduct.Mul(&candidateTotal, big.NewInt(int64(len(current))))
+	currentProduct.Mul(&currentTotal, big.NewInt(int64(len(candidate))))
+	return candidateProduct.Cmp(&currentProduct) > 0
+}
+
+func removalGroupPlayerCount(indexes []*MatchmakerIndex) int {
+	var playerCount int
+	for _, index := range indexes {
+		playerCount += index.Count
+	}
+	return playerCount
+}
+
+func removalGroupTickets(indexes []*MatchmakerIndex) []string {
+	tickets := make([]string, 0, len(indexes))
+	for _, index := range indexes {
+		tickets = append(tickets, index.Ticket)
+	}
+	return tickets
+}
+
+func removalGroupAverage(indexes []*MatchmakerIndex) string {
+	if len(indexes) == 0 {
+		return ""
+	}
+
+	var total big.Int
+	for _, index := range indexes {
+		total.Add(&total, big.NewInt(index.CreatedAt))
+	}
+	return new(big.Rat).SetFrac(&total, big.NewInt(int64(len(indexes)))).RatString()
 }
 
 // createTestMatchmaker creates a minimally configured LocalMatchmaker for testing purposes
