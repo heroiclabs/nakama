@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -243,9 +244,7 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 			nextCursor.IsNext = !nextCursor.IsNext
 		}
 
-		for i, j := 0, len(subscriptions)-1; i < j; i, j = i+1, j-1 {
-			subscriptions[i], subscriptions[j] = subscriptions[j], subscriptions[i]
-		}
+		slices.Reverse(subscriptions)
 	}
 
 	var nextCursorStr string

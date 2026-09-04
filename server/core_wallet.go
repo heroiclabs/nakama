@@ -22,6 +22,7 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"time"
 
@@ -415,9 +416,7 @@ func ListWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, userI
 			nextCursor.IsNext = !nextCursor.IsNext
 		}
 
-		for i, j := 0, len(results)-1; i < j; i, j = i+1, j-1 {
-			results[i], results[j] = results[j], results[i]
-		}
+		slices.Reverse(results)
 	}
 
 	var nextCursorStr string
