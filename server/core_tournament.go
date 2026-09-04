@@ -721,11 +721,11 @@ func calculateTournamentDeadlines(startTime, endTime, duration int64, resetSched
 			startActiveUnix = resetSchedule.Next(time.Unix(startTime, 0).UTC()).UTC().Unix()
 		} else {
 			// check if we are landing squarely on the reset schedule
-			landsOnSched := resetSchedule.Next(t.Add(-1*time.Second)).Unix() == t.Unix()
+			landsOnSched := resetSchedule.Next(t.UTC().Add(-1*time.Second)).Unix() == t.Unix()
 			if landsOnSched {
 				startActiveUnix = tUnix
 			} else {
-				startActiveUnix = resetSchedule.Last(t).UTC().Unix()
+				startActiveUnix = resetSchedule.Last(t.UTC()).UTC().Unix()
 			}
 		}
 
