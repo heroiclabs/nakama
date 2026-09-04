@@ -17,6 +17,8 @@ package server
 import (
 	"context"
 	"fmt"
+	"math/big"
+	"sort"
 	"sync"
 	"time"
 
@@ -130,46 +132,112 @@ type MatchmakerExtract struct {
 	Node              string
 }
 
-type MatchmakerIndexGroup struct {
-	indexes      []*MatchmakerIndex
-	avgCreatedAt int64
+type matchmakerRemovalStateKey struct {
+	playerCount int
+	ticketCount int
 }
 
-func groupIndexes(indexes []*MatchmakerIndex, required int) []*MatchmakerIndexGroup {
+type matchmakerRemovalState struct {
+	createdAtTotal *big.Int
+	previous       *matchmakerRemovalState
+	index          *MatchmakerIndex
+}
+
+type matchmakerRemovalStateSnapshot struct {
+	key   matchmakerRemovalStateKey
+	state *matchmakerRemovalState
+}
+
+// selectIndexesToRemove returns the exact-size ticket group with the newest average creation time.
+func selectIndexesToRemove(indexes []*MatchmakerIndex, required int) []*MatchmakerIndex {
 	if len(indexes) == 0 || required <= 0 {
 		return nil
 	}
 
-	current, others := indexes[0], indexes[1:]
-
-	if current.Count > required {
-		// Current index is too large for the requirement, and cannot be used at all.
-		return groupIndexes(others, required)
+	eligibleIndexes := make([]*MatchmakerIndex, 0, len(indexes))
+	for _, index := range indexes {
+		if index.Count > 0 && index.Count <= required {
+			eligibleIndexes = append(eligibleIndexes, index)
+		}
 	}
+	if len(eligibleIndexes) == 0 {
+		return nil
+	}
+	// The input comes from a map, so order it to make equal-score selection deterministic.
+	sort.Slice(eligibleIndexes, func(i, j int) bool {
+		return eligibleIndexes[i].Ticket < eligibleIndexes[j].Ticket
+	})
 
-	var results []*MatchmakerIndexGroup
+	baseKey := matchmakerRemovalStateKey{}
+	// Keep the newest timestamp total for each removed-player and removed-ticket count pair.
+	states := map[matchmakerRemovalStateKey]*matchmakerRemovalState{
+		baseKey: {createdAtTotal: new(big.Int)},
+	}
+	stateKeys := []matchmakerRemovalStateKey{baseKey}
+	for _, index := range eligibleIndexes {
+		// Snapshot existing states so this index can be selected only once.
+		previousStates := make([]matchmakerRemovalStateSnapshot, len(stateKeys))
+		for i, key := range stateKeys {
+			previousStates[i] = matchmakerRemovalStateSnapshot{key: key, state: states[key]}
+		}
+		createdAt := big.NewInt(index.CreatedAt)
+		for _, previousState := range previousStates {
+			if index.Count > required-previousState.key.playerCount {
+				continue
+			}
+			playerCount := previousState.key.playerCount + index.Count
 
-	if current.Count == required {
-		// 1. The current index by itself satisfies the requirement. No need to combine with anything else.
-		results = append(results, &MatchmakerIndexGroup{
-			indexes:      []*MatchmakerIndex{current},
-			avgCreatedAt: current.CreatedAt,
-		})
-	} else if current.Count < required {
-		// 2. The current index plus some combination(s) of the others.
-		fillResults := groupIndexes(others, required-current.Count)
-		for _, fillResult := range fillResults {
-			indexesCount := int64(len(fillResult.indexes))
-			fillResult.avgCreatedAt = (fillResult.avgCreatedAt*indexesCount + current.CreatedAt) / (indexesCount + 1)
-			fillResult.indexes = append(fillResult.indexes, current)
-			results = append(results, fillResult)
+			key := matchmakerRemovalStateKey{
+				playerCount: playerCount,
+				ticketCount: previousState.key.ticketCount + 1,
+			}
+			createdAtTotal := new(big.Int).Add(previousState.state.createdAtTotal, createdAt)
+			current, ok := states[key]
+			// For an equal player and ticket count, a newer timestamp total dominates.
+			if ok && createdAtTotal.Cmp(current.createdAtTotal) <= 0 {
+				continue
+			}
+
+			states[key] = &matchmakerRemovalState{
+				createdAtTotal: createdAtTotal,
+				previous:       previousState.state,
+				index:          index,
+			}
+			if !ok {
+				stateKeys = append(stateKeys, key)
+			}
 		}
 	}
 
-	// 3. Other combinations not including the current index.
-	results = append(results, groupIndexes(others, required)...)
+	var best *matchmakerRemovalState
+	var bestTicketCount int
+	for _, key := range stateKeys {
+		if key.playerCount != required || key.ticketCount == 0 {
+			continue
+		}
 
-	return results
+		candidate := states[key]
+		if best == nil || hasNewerAverageCreatedAt(candidate, key.ticketCount, best, bestTicketCount) {
+			best = candidate
+			bestTicketCount = key.ticketCount
+		}
+	}
+	if best == nil {
+		return nil
+	}
+
+	indexesToRemove := make([]*MatchmakerIndex, 0, bestTicketCount)
+	for state := best; state.index != nil; state = state.previous {
+		indexesToRemove = append(indexesToRemove, state.index)
+	}
+	return indexesToRemove
+}
+
+func hasNewerAverageCreatedAt(candidate *matchmakerRemovalState, candidateTicketCount int, current *matchmakerRemovalState, currentTicketCount int) bool {
+	var candidateProduct, currentProduct big.Int
+	candidateProduct.Mul(candidate.createdAtTotal, big.NewInt(int64(currentTicketCount)))
+	currentProduct.Mul(current.createdAtTotal, big.NewInt(int64(candidateTicketCount)))
+	return candidateProduct.Cmp(&currentProduct) > 0
 }
 
 type Matchmaker interface {
