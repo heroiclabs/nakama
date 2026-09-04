@@ -147,11 +147,6 @@ func (m *LocalMatchmaker) processDefault(activeIndexCount int, activeIndexesCopy
 				}
 			}
 
-			if activeIndex.MaxCount < hitIndex.MaxCount && hitIndex.Intervals <= m.config.GetMatchmaker().MaxIntervals {
-				// This match would be less than the search hit's preferred max, and they can still wait. Let them wait more.
-				continue
-			}
-
 			// Check if there are overlapping session IDs, and if so these tickets are ineligible to match together.
 			var sessionIdConflict bool
 			for sessionID := range activeIndex.SessionIDs {
@@ -445,11 +440,6 @@ func (m *LocalMatchmaker) processOverride(activeIndexesCopy map[string]*Matchmak
 					// This search hit is not a mutual match with the outer ticket.
 					continue
 				}
-			}
-
-			if index.MaxCount < hitIndex.MaxCount && hitIndex.Intervals <= m.config.GetMatchmaker().MaxIntervals {
-				// This match would be less than the search hit's preferred max, and they can still wait. Let them wait more.
-				continue
 			}
 
 			// Check if there are overlapping session IDs, and if so these tickets are ineligible to match together.
