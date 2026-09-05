@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -1588,6 +1589,7 @@ var _ runtime.GoogleAuthConfig = (*GoogleAuthConfig)(nil)
 
 type GoogleAuthConfig struct {
 	CredentialsJSON string         `yaml:"credentials_json" json:"credentials_json" usage:"Google's Access Credentials."`
+	ClientIDs       []string       `yaml:"client_ids" json:"client_ids" usage:"OAuth client IDs accepted as Google ID token audiences."`
 	OAuthConfig     *oauth2.Config `yaml:"-" json:"-"`
 }
 
@@ -1601,6 +1603,9 @@ func (cfg *GoogleAuthConfig) Clone() *GoogleAuthConfig {
 	}
 
 	cfgCopy := *cfg
+	if cfg.ClientIDs != nil {
+		cfgCopy.ClientIDs = slices.Clone(cfg.ClientIDs)
+	}
 
 	if cfg.OAuthConfig != nil {
 		c := *cfg.OAuthConfig
@@ -1617,6 +1622,7 @@ func (cfg *GoogleAuthConfig) Clone() *GoogleAuthConfig {
 func NewGoogleAuthConfig() *GoogleAuthConfig {
 	return &GoogleAuthConfig{
 		CredentialsJSON: "",
+		ClientIDs:       []string{},
 		OAuthConfig:     nil,
 	}
 }

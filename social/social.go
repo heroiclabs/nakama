@@ -48,6 +48,7 @@ type Client struct {
 	googleMutex          sync.RWMutex
 	googleCerts          []*rsa.PublicKey
 	googleCertsRefreshAt int64
+	googleClientIDs      map[string]struct{}
 
 	facebookMutex          sync.RWMutex
 	facebookCerts          map[string]*JwksCert
@@ -217,8 +218,21 @@ type SteamProfileWrapper struct {
 	} `json:"response"`
 }
 
-// NewClient creates a new Social Client
-func NewClient(logger *zap.Logger, timeout time.Duration, googleCnf *oauth2.Config) *Client {
+// NewClient creates a new Social Client.
+func NewClient(logger *zap.Logger, timeout time.Duration, googleCnf *oauth2.Config, googleClientIDs ...string) *Client {
+	clientIDs := make(map[string]struct{}, len(googleClientIDs)+1)
+	if googleCnf != nil && googleCnf.ClientID != "" {
+		clientIDs[googleCnf.ClientID] = struct{}{}
+	}
+	for _, clientID := range googleClientIDs {
+		if clientID = strings.TrimSpace(clientID); clientID != "" {
+			clientIDs[clientID] = struct{}{}
+		}
+	}
+	if len(clientIDs) == 0 {
+		logger.Warn("Google auth config missing client ID config, so aud and azp token claims check skipped. Configure google_auth.client_ids or google_auth.credentials_json to restrict which Google OAuth clients are accepted.")
+	}
+
 	return &Client{
 		logger: logger,
 
@@ -226,7 +240,8 @@ func NewClient(logger *zap.Logger, timeout time.Duration, googleCnf *oauth2.Conf
 			Timeout: timeout,
 		},
 
-		config: googleCnf,
+		config:          googleCnf,
+		googleClientIDs: clientIDs,
 	}
 }
 
@@ -419,6 +434,25 @@ func (c *Client) CheckGoogleToken(ctx context.Context, idToken string) (GooglePr
 				return nil, fmt.Errorf("unexpected issuer: %v", claims["iss"])
 			}
 
+			if len(c.googleClientIDs) > 0 {
+				audience, ok := claims["aud"].(string)
+				if !ok || audience == "" {
+					return nil, fmt.Errorf("invalid audience claim: %v", claims["aud"])
+				}
+				if _, ok := c.googleClientIDs[audience]; !ok {
+					return nil, fmt.Errorf("unexpected audience: %v", claims["aud"])
+				}
+				if authorizedParty, found := claims["azp"]; found {
+					azp, ok := authorizedParty.(string)
+					if !ok || azp == "" {
+						return nil, fmt.Errorf("invalid authorized party claim: %v", authorizedParty)
+					}
+					if _, ok := c.googleClientIDs[azp]; !ok {
+						return nil, fmt.Errorf("unexpected authorized party: %v", authorizedParty)
+					}
+				}
+			}
+
 			return cert, nil
 		}, jwt.WithExpirationRequired(), jwt.WithValidMethods([]string{"RS256"}))
 		if err == nil {
@@ -429,6 +463,12 @@ func (c *Client) CheckGoogleToken(ctx context.Context, idToken string) (GooglePr
 
 	// All verification attempts failed.
 	if token == nil {
+		// A JWT-shaped value must not be sent to the authorization-code exchange endpoint.
+		if strings.Count(idToken, ".") == 2 {
+			c.logger.Debug("Failed to parse Google ID token.", zap.Error(err))
+			return nil, errors.New("google id token invalid")
+		}
+
 		// The id provided could be from the new auth flow. Let's exchange it for a token.
 		t, err := c.exchangeGoogleAuthCode(ctx, idToken)
 		if err != nil {
@@ -454,7 +494,7 @@ func (c *Client) CheckGoogleToken(ctx context.Context, idToken string) (GooglePr
 	}
 
 	if err != nil {
-		// JWT token validation failed and fallback to new flow didn't yield a result
+		c.logger.Debug("Google ID token validation failed.", zap.Error(err))
 		return nil, errors.New("google id token invalid")
 	}
 
@@ -478,8 +518,6 @@ func (c *Client) CheckGoogleToken(ctx context.Context, idToken string) (GooglePr
 		if profile.Azp, ok = v.(string); !ok {
 			return nil, errors.New("google id token azp field invalid")
 		}
-	} else {
-		return nil, errors.New("google id token azp field missing")
 	}
 	if v, ok := claims["aud"]; ok {
 		if profile.Aud, ok = v.(string); !ok {
