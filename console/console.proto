@@ -454,6 +454,11 @@ service Console {
     option (google.api.http).get = "/v2/console/purchase";
   }
 
+  // List storage indexes.
+  rpc ListStorageIndexes (google.protobuf.Empty) returns (StorageIndexesList) {
+    option (google.api.http).get = "/v2/console/storage/indexes";
+  }
+
   // List validated subscriptions
   rpc ListSubscriptions (ListSubscriptionsRequest) returns (api.SubscriptionList) {
     option (google.api.http).get = "/v2/console/subscription";
@@ -467,6 +472,14 @@ service Console {
   // Promote a user from a group.
   rpc PromoteGroupMember (UpdateGroupUserStateRequest) returns (google.protobuf.Empty) {
     option (google.api.http).post = "/v2/console/group/{group_id}/account/{id}/promote";
+  }
+
+  // Query a registered storage index.
+  rpc QueryStorageIndex (QueryStorageIndexRequest) returns (StorageIndexList) {
+    option (google.api.http) = {
+      post: "/v2/console/storage/index/{name}/query",
+      body: "*"
+    };
   }
 
   // Sets the user's MFA as required or not required.
@@ -1339,6 +1352,29 @@ message StorageList {
   string next_cursor = 3;
 }
 
+// List of storage indices.
+message StorageIndexesList {
+  // List of storage indexes matching list/filter operation.
+  repeated StorageIndex indexes = 1;
+}
+
+message StorageIndex {
+  // Collection name.
+  string collection = 1;
+  // Index name.
+  string index = 2;
+  // Index key.
+  string key = 3;
+  // Indexed fields.
+  repeated string fields = 4;
+  // Sortable fields.
+  repeated string  sortable_fields = 5;
+  // Maximum cap of index entries.
+  int64 max_entries = 6;
+  // Whether the index fetches values exclusively from the index (returning only indexed fields) only or goes to db.
+  bool index_only = 7;
+}
+
 message StorageCollectionsList {
   // Available collection names in the whole of the storage
   repeated string collections = 3;
@@ -1574,6 +1610,19 @@ message GetSubscriptionRequest {
   string original_transaction_id = 1;
 }
 
+message QueryStorageIndexRequest {
+  // Index name.
+  string name = 1;
+  // Index query.
+  string query = 2;
+  // Max number of results per page.
+  int32 limit = 3;
+  // Optional sorting for the results.
+  repeated string order = 4;
+  // Optional cursor to retrieve next page of records.
+  string cursor = 5;
+}
+
 // An object within the storage engine.
 message StorageListObject {
   // The collection which stores the object.
@@ -1614,6 +1663,13 @@ message SettingRequest {
 message ListSettingsRequest {
   // The list of setting names, if empty all settings are returned.
   repeated string names = 1;
+}
+
+message StorageIndexList {
+  // A list of storage objects.
+  repeated api.StorageObject objects = 1;
+  // Cursor to fetch next page of results, if any.
+  string next_cursor = 2;
 }
 
 // Request to update an existing setting.

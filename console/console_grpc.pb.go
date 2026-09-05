@@ -105,9 +105,11 @@ const (
 	Console_ListNotifications_FullMethodName          = "/nakama.console.Console/ListNotifications"
 	Console_ListMatches_FullMethodName                = "/nakama.console.Console/ListMatches"
 	Console_ListPurchases_FullMethodName              = "/nakama.console.Console/ListPurchases"
+	Console_ListStorageIndexes_FullMethodName         = "/nakama.console.Console/ListStorageIndexes"
 	Console_ListSubscriptions_FullMethodName          = "/nakama.console.Console/ListSubscriptions"
 	Console_ListUsers_FullMethodName                  = "/nakama.console.Console/ListUsers"
 	Console_PromoteGroupMember_FullMethodName         = "/nakama.console.Console/PromoteGroupMember"
+	Console_QueryStorageIndex_FullMethodName          = "/nakama.console.Console/QueryStorageIndex"
 	Console_RequireUserMfa_FullMethodName             = "/nakama.console.Console/RequireUserMfa"
 	Console_ResetUserMfa_FullMethodName               = "/nakama.console.Console/ResetUserMfa"
 	Console_UnbanAccount_FullMethodName               = "/nakama.console.Console/UnbanAccount"
@@ -264,12 +266,16 @@ type ConsoleClient interface {
 	ListMatches(ctx context.Context, in *ListMatchesRequest, opts ...grpc.CallOption) (*MatchList, error)
 	// List validated purchases
 	ListPurchases(ctx context.Context, in *ListPurchasesRequest, opts ...grpc.CallOption) (*api.PurchaseList, error)
+	// List storage indexes.
+	ListStorageIndexes(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*StorageIndexesList, error)
 	// List validated subscriptions
 	ListSubscriptions(ctx context.Context, in *ListSubscriptionsRequest, opts ...grpc.CallOption) (*api.SubscriptionList, error)
 	// List (and optionally filter) users.
 	ListUsers(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*UserList, error)
 	// Promote a user from a group.
 	PromoteGroupMember(ctx context.Context, in *UpdateGroupUserStateRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Query a registered storage index.
+	QueryStorageIndex(ctx context.Context, in *QueryStorageIndexRequest, opts ...grpc.CallOption) (*StorageIndexList, error)
 	// Sets the user's MFA as required or not required.
 	RequireUserMfa(ctx context.Context, in *RequireUserMfaRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Reset a user's multi-factor authentication credentials.
@@ -989,6 +995,16 @@ func (c *consoleClient) ListPurchases(ctx context.Context, in *ListPurchasesRequ
 	return out, nil
 }
 
+func (c *consoleClient) ListStorageIndexes(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*StorageIndexesList, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(StorageIndexesList)
+	err := c.cc.Invoke(ctx, Console_ListStorageIndexes_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *consoleClient) ListSubscriptions(ctx context.Context, in *ListSubscriptionsRequest, opts ...grpc.CallOption) (*api.SubscriptionList, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(api.SubscriptionList)
@@ -1013,6 +1029,16 @@ func (c *consoleClient) PromoteGroupMember(ctx context.Context, in *UpdateGroupU
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, Console_PromoteGroupMember_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *consoleClient) QueryStorageIndex(ctx context.Context, in *QueryStorageIndexRequest, opts ...grpc.CallOption) (*StorageIndexList, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(StorageIndexList)
+	err := c.cc.Invoke(ctx, Console_QueryStorageIndex_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1362,12 +1388,16 @@ type ConsoleServer interface {
 	ListMatches(context.Context, *ListMatchesRequest) (*MatchList, error)
 	// List validated purchases
 	ListPurchases(context.Context, *ListPurchasesRequest) (*api.PurchaseList, error)
+	// List storage indexes.
+	ListStorageIndexes(context.Context, *emptypb.Empty) (*StorageIndexesList, error)
 	// List validated subscriptions
 	ListSubscriptions(context.Context, *ListSubscriptionsRequest) (*api.SubscriptionList, error)
 	// List (and optionally filter) users.
 	ListUsers(context.Context, *emptypb.Empty) (*UserList, error)
 	// Promote a user from a group.
 	PromoteGroupMember(context.Context, *UpdateGroupUserStateRequest) (*emptypb.Empty, error)
+	// Query a registered storage index.
+	QueryStorageIndex(context.Context, *QueryStorageIndexRequest) (*StorageIndexList, error)
 	// Sets the user's MFA as required or not required.
 	RequireUserMfa(context.Context, *RequireUserMfaRequest) (*emptypb.Empty, error)
 	// Reset a user's multi-factor authentication credentials.
@@ -1618,6 +1648,9 @@ func (UnimplementedConsoleServer) ListMatches(context.Context, *ListMatchesReque
 func (UnimplementedConsoleServer) ListPurchases(context.Context, *ListPurchasesRequest) (*api.PurchaseList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListPurchases not implemented")
 }
+func (UnimplementedConsoleServer) ListStorageIndexes(context.Context, *emptypb.Empty) (*StorageIndexesList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListStorageIndexes not implemented")
+}
 func (UnimplementedConsoleServer) ListSubscriptions(context.Context, *ListSubscriptionsRequest) (*api.SubscriptionList, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListSubscriptions not implemented")
 }
@@ -1626,6 +1659,9 @@ func (UnimplementedConsoleServer) ListUsers(context.Context, *emptypb.Empty) (*U
 }
 func (UnimplementedConsoleServer) PromoteGroupMember(context.Context, *UpdateGroupUserStateRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PromoteGroupMember not implemented")
+}
+func (UnimplementedConsoleServer) QueryStorageIndex(context.Context, *QueryStorageIndexRequest) (*StorageIndexList, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method QueryStorageIndex not implemented")
 }
 func (UnimplementedConsoleServer) RequireUserMfa(context.Context, *RequireUserMfaRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RequireUserMfa not implemented")
@@ -2917,6 +2953,24 @@ func _Console_ListPurchases_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Console_ListStorageIndexes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).ListStorageIndexes(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Console_ListStorageIndexes_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).ListStorageIndexes(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Console_ListSubscriptions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListSubscriptionsRequest)
 	if err := dec(in); err != nil {
@@ -2967,6 +3021,24 @@ func _Console_PromoteGroupMember_Handler(srv interface{}, ctx context.Context, d
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ConsoleServer).PromoteGroupMember(ctx, req.(*UpdateGroupUserStateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Console_QueryStorageIndex_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryStorageIndexRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConsoleServer).QueryStorageIndex(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Console_QueryStorageIndex_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConsoleServer).QueryStorageIndex(ctx, req.(*QueryStorageIndexRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -3625,6 +3697,10 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Console_ListPurchases_Handler,
 		},
 		{
+			MethodName: "ListStorageIndexes",
+			Handler:    _Console_ListStorageIndexes_Handler,
+		},
+		{
 			MethodName: "ListSubscriptions",
 			Handler:    _Console_ListSubscriptions_Handler,
 		},
@@ -3635,6 +3711,10 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "PromoteGroupMember",
 			Handler:    _Console_PromoteGroupMember_Handler,
+		},
+		{
+			MethodName: "QueryStorageIndex",
+			Handler:    _Console_QueryStorageIndex_Handler,
 		},
 		{
 			MethodName: "RequireUserMfa",

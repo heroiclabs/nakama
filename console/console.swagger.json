@@ -2999,6 +2999,69 @@
         ]
       }
     },
+    "/v2/console/storage/index/{name}/query": {
+      "post": {
+        "summary": "Query a registered storage index.",
+        "operationId": "QueryStorageIndex",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/StorageIndexList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "name",
+            "description": "Index name.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/QueryStorageIndexBody"
+            }
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
+    "/v2/console/storage/indexes": {
+      "get": {
+        "summary": "List storage indexes.",
+        "operationId": "ListStorageIndexes",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/StorageIndexesList"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/storage/{collection}/{key}/{user_id}": {
       "get": {
         "summary": "Get a storage object.",
@@ -4865,6 +4928,31 @@
       },
       "description": "A list of validated purchases stored by Nakama."
     },
+    "QueryStorageIndexBody": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "Index query."
+        },
+        "limit": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Max number of results per page."
+        },
+        "order": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Optional sorting for the results."
+        },
+        "cursor": {
+          "type": "string",
+          "description": "Optional cursor to retrieve next page of records."
+        }
+      }
+    },
     "RequireUserMfaBody": {
       "type": "object",
       "properties": {
@@ -5202,6 +5290,77 @@
         }
       }
     },
+    "StorageIndex": {
+      "type": "object",
+      "properties": {
+        "collection": {
+          "type": "string",
+          "description": "Collection name."
+        },
+        "index": {
+          "type": "string",
+          "description": "Index name."
+        },
+        "key": {
+          "type": "string",
+          "description": "Index key."
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Indexed fields."
+        },
+        "sortable_fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Sortable fields."
+        },
+        "max_entries": {
+          "type": "string",
+          "format": "int64",
+          "description": "Maximum cap of index entries."
+        },
+        "index_only": {
+          "type": "boolean",
+          "description": "Whether the index fetches values exclusively from the index (returning only indexed fields) only or goes to db."
+        }
+      }
+    },
+    "StorageIndexList": {
+      "type": "object",
+      "properties": {
+        "objects": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/StorageObject"
+          },
+          "description": "A list of storage objects."
+        },
+        "next_cursor": {
+          "type": "string",
+          "description": "Cursor to fetch next page of results, if any."
+        }
+      }
+    },
+    "StorageIndexesList": {
+      "type": "object",
+      "properties": {
+        "indexes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/StorageIndex"
+          },
+          "description": "List of storage indexes matching list/filter operation."
+        }
+      },
+      "description": "List of storage indices."
+    },
     "StorageList": {
       "type": "object",
       "properties": {
@@ -5362,10 +5521,11 @@
         "APPLE_APP_STORE",
         "GOOGLE_PLAY_STORE",
         "HUAWEI_APP_GALLERY",
-        "FACEBOOK_INSTANT_STORE"
+        "FACEBOOK_INSTANT_STORE",
+        "SAMSUNG_GALAXY_STORE"
       ],
       "default": "APPLE_APP_STORE",
-      "description": "- APPLE_APP_STORE: Apple App Store\n - GOOGLE_PLAY_STORE: Google Play Store\n - HUAWEI_APP_GALLERY: Huawei App Gallery\n - FACEBOOK_INSTANT_STORE: Facebook Instant Store",
+      "description": "- APPLE_APP_STORE: Apple App Store\n - GOOGLE_PLAY_STORE: Google Play Store\n - HUAWEI_APP_GALLERY: Huawei App Gallery\n - FACEBOOK_INSTANT_STORE: Facebook Instant Store\n - SAMSUNG_GALAXY_STORE: Samsung Galaxy Store",
       "title": "Validation Provider,"
     },
     "SubscriptionList": {
