@@ -172,6 +172,7 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, p
 	// Should start after GRPC server itself because RegisterNakamaHandlerFromEndpoint below tries to dial GRPC.
 	ctx := context.Background()
 	grpcGateway := grpcgw.NewServeMux(
+		grpcgw.WithErrorHandler(handleHTTPError),
 		grpcgw.WithRoutingErrorHandler(handleRoutingError),
 		grpcgw.WithMetadata(func(ctx context.Context, r *http.Request) metadata.MD {
 			// For RPC GET operations pass through any custom query parameters.
@@ -825,5 +826,21 @@ func handleRoutingError(ctx context.Context, mux *grpcgw.ServeMux, marshaler grp
 	}
 
 	// Set empty ServerMetadata to prevent logging error on nil metadata.
-	grpcgw.DefaultHTTPErrorHandler(grpcgw.NewServerMetadataContext(ctx, grpcgw.ServerMetadata{}), mux, marshaler, w, r, sterr)
+	handleHTTPError(grpcgw.NewServerMetadataContext(ctx, grpcgw.ServerMetadata{}), mux, marshaler, w, r, sterr)
+}
+
+func handleHTTPError(ctx context.Context, mux *grpcgw.ServeMux, marshaler grpcgw.Marshaler, w http.ResponseWriter, r *http.Request, err error) {
+	grpcgw.DefaultHTTPErrorHandler(ctx, mux, marshaler, &wwwAuthenticateFixWriter{ResponseWriter: w}, r, err)
+}
+
+type wwwAuthenticateFixWriter struct {
+	http.ResponseWriter
+}
+
+func (w *wwwAuthenticateFixWriter) WriteHeader(statusCode int) {
+	if statusCode == http.StatusUnauthorized {
+		w.ResponseWriter.Header().Del("WWW-Authenticate")
+		w.ResponseWriter.Header().Set("WWW-Authenticate", `Bearer realm="nakama"`)
+	}
+	w.ResponseWriter.WriteHeader(statusCode)
 }
