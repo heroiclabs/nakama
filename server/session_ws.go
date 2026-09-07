@@ -176,6 +176,10 @@ func (s *sessionWS) Vars() map[string]string {
 	return s.vars
 }
 
+func (s *sessionWS) Headers() map[string][]string {
+	return s.headers
+}
+
 func (s *sessionWS) Expiry() int64 {
 	return s.expiry
 }

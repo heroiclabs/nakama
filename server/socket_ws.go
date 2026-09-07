@@ -17,6 +17,7 @@ package server
 import (
 	"net"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -96,9 +97,13 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry Sess
 		sessionID := uuid.Must(sessionIdGen.NewV1())
 		// Mark the start of the session.
 		metrics.CountWebsocketOpened(1)
+		headers := make(map[string][]string, len(r.Header))
+		for k, v := range r.Header {
+			headers[k] = slices.Clone(v)
+		}
 
 		// Wrap the connection for application handling.
-		session := NewSessionWS(logger, config, format, sessionID, userID, username, tokenId, r.Header, vars, expiry, issuedAt, clientIP, clientPort, lang, protojsonMarshaler, protojsonUnmarshaler, conn, sessionRegistry, statusRegistry, matchmaker, tracker, metrics, pipeline, runtime)
+		session := NewSessionWS(logger, config, format, sessionID, userID, username, tokenId, headers, vars, expiry, issuedAt, clientIP, clientPort, lang, protojsonMarshaler, protojsonUnmarshaler, conn, sessionRegistry, statusRegistry, matchmaker, tracker, metrics, pipeline, runtime)
 
 		// Add to the session registry.
 		sessionRegistry.Add(session)

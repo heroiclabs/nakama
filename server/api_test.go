@@ -94,6 +94,7 @@ func (d *DummySession) SetUsername(string) {}
 func (d *DummySession) Vars() map[string]string {
 	return nil
 }
+func (d *DummySession) Headers() map[string][]string { return nil }
 
 func (d *DummySession) Expiry() int64 {
 	return int64(0)
