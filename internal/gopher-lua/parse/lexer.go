@@ -491,7 +491,7 @@ func isInlineDumpNode(rv reflect.Value) bool {
 	}
 }
 
-func dump(node interface{}, level int, s string) string {
+func dump(node any, level int, s string) string {
 	rt := reflect.TypeOf(node)
 	if fmt.Sprint(rt) == "<nil>" {
 		return strings.Repeat(s, level) + "<nil>"

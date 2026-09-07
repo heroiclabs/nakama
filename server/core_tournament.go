@@ -496,7 +496,7 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 
 	expiryTime := time.Unix(expiryUnix, 0).UTC()
 
-	params := make([]interface{}, 0, 10)
+	params := make([]any, 0, 10)
 	params = append(params, leaderboard.Id, ownerId)
 	if username == "" {
 		params = append(params, nil)

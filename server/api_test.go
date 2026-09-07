@@ -31,11 +31,11 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid/v5"
+	grpcgw "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/apigrpc"
-	grpcgw "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -287,7 +287,7 @@ func UserIDFromSession(session *api.Session) (uuid.UUID, error) {
 		return uuid.Nil, err
 	}
 
-	data := make(map[string]interface{}, 0)
+	data := make(map[string]any, 0)
 	err = json.Unmarshal(content, &data)
 	if err != nil {
 		return uuid.Nil, err

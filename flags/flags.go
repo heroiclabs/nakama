@@ -247,7 +247,7 @@ func NewFlagMakerFlagSet(options *FlagMakingOptions, fs *flag.FlagSet) *FlagMake
 //
 // obj is the struct to populate. args are the command line arguments,
 // typically obtained from os.Args.
-func ParseArgs(obj interface{}, args []string) ([]string, error) {
+func ParseArgs(obj any, args []string) ([]string, error) {
 	fm := NewFlagMaker()
 	return fm.ParseArgs(obj, args)
 }
@@ -259,7 +259,7 @@ func (fm *FlagMaker) PrintDefaults() {
 }
 
 // ParseArgs parses the arguments based on the FlagMaker's setting.
-func (fm *FlagMaker) ParseArgs(obj interface{}, args []string) ([]string, error) {
+func (fm *FlagMaker) ParseArgs(obj any, args []string) ([]string, error) {
 	v := reflect.ValueOf(obj)
 	if v.Kind() != reflect.Pointer {
 		return args, fmt.Errorf("top level object must be a pointer. %v is passed", v.Type())
@@ -336,7 +336,7 @@ func (fm *FlagMaker) enumerateAndCreate(prefix string, value reflect.Value, usag
 	numFields := value.NumField()
 	tt := value.Type()
 
-	for i := 0; i < numFields; i++ {
+	for i := range numFields {
 		stField := tt.Field(i)
 		// Skip unexported fields, as only exported fields can be set. This is similar to how json and yaml work.
 		if stField.PkgPath != "" && !stField.Anonymous {
@@ -404,20 +404,20 @@ func (fm *FlagMaker) getUnderlyingType(ttype reflect.Type) reflect.Type {
 
 // I wish GoLang had macro...
 var (
-	stringPtrType  = reflect.TypeOf((*string)(nil))
-	boolPtrType    = reflect.TypeOf((*bool)(nil))
-	float32PtrType = reflect.TypeOf((*float32)(nil))
-	float64PtrType = reflect.TypeOf((*float64)(nil))
-	intPtrType     = reflect.TypeOf((*int)(nil))
-	int8PtrType    = reflect.TypeOf((*int8)(nil))
-	int16PtrType   = reflect.TypeOf((*int16)(nil))
-	int32PtrType   = reflect.TypeOf((*int32)(nil))
-	int64PtrType   = reflect.TypeOf((*int64)(nil))
-	uintPtrType    = reflect.TypeOf((*uint)(nil))
-	uint8PtrType   = reflect.TypeOf((*uint8)(nil))
-	uint16PtrType  = reflect.TypeOf((*uint16)(nil))
-	uint32PtrType  = reflect.TypeOf((*uint32)(nil))
-	uint64PtrType  = reflect.TypeOf((*uint64)(nil))
+	stringPtrType  = reflect.TypeFor[*string]()
+	boolPtrType    = reflect.TypeFor[*bool]()
+	float32PtrType = reflect.TypeFor[*float32]()
+	float64PtrType = reflect.TypeFor[*float64]()
+	intPtrType     = reflect.TypeFor[*int]()
+	int8PtrType    = reflect.TypeFor[*int8]()
+	int16PtrType   = reflect.TypeFor[*int16]()
+	int32PtrType   = reflect.TypeFor[*int32]()
+	int64PtrType   = reflect.TypeFor[*int64]()
+	uintPtrType    = reflect.TypeFor[*uint]()
+	uint8PtrType   = reflect.TypeFor[*uint8]()
+	uint16PtrType  = reflect.TypeFor[*uint16]()
+	uint32PtrType  = reflect.TypeFor[*uint32]()
+	uint64PtrType  = reflect.TypeFor[*uint64]()
 )
 
 func (fm *FlagMaker) defineFlag(name string, value reflect.Value, usage string) {

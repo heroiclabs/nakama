@@ -73,7 +73,7 @@ func (s *ConsoleTokenClaims) GetSubject() (string, error) {
 }
 
 func parseConsoleToken(hmacSecretByte []byte, tokenString string) (id, username, email string, userAcl acl.Permission, exp int64, ok bool, err error) {
-	token, err := jwt.ParseWithClaims(tokenString, &ConsoleTokenClaims{}, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &ConsoleTokenClaims{}, func(token *jwt.Token) (any, error) {
 		return hmacSecretByte, nil
 	}, jwt.WithExpirationRequired(), jwt.WithValidMethods([]string{"HS256"}))
 	if err != nil {
@@ -295,7 +295,7 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 
 func (s *ConsoleServer) AuthenticateLogout(ctx context.Context, in *console.AuthenticateLogoutRequest) (*emptypb.Empty, error) {
 	logger, _ := LoggerWithTraceId(ctx, s.logger)
-	token, err := jwt.Parse(in.Token, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.Parse(in.Token, func(token *jwt.Token) (any, error) {
 		if s, ok := token.Method.(*jwt.SigningMethodHMAC); !ok || s.Hash != crypto.SHA256 {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}

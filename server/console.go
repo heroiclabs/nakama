@@ -45,7 +45,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 var _ http.ResponseWriter = (*statusCheckResponseWriter)(nil)
@@ -189,14 +188,10 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		grpcgw.WithUnescapingMode(grpcgw.UnescapingModeAllExceptReserved),
 		grpcgw.WithMarshalerOption(grpcgw.MIMEWildcard, &grpcgw.HTTPBodyMarshaler{
 			Marshaler: &grpcgw.JSONPb{
-				MarshalOptions: protojson.MarshalOptions{
-					UseProtoNames:   true,
-					UseEnumNumbers:  true,
-					EmitUnpopulated: true,
-				},
-				UnmarshalOptions: protojson.UnmarshalOptions{
-					DiscardUnknown: true,
-				},
+				UseProtoNames:   true,
+				UseEnumNumbers:  true,
+				EmitUnpopulated: true,
+				DiscardUnknown:  true,
 			},
 		}),
 	)
@@ -525,8 +520,8 @@ func (s *ConsoleServer) Stop() {
 	s.grpcServer.GracefulStop()
 }
 
-func consoleAuthInterceptor(logger *zap.Logger, config Config, sessionCache SessionCache, loginAttmeptCache LoginAttemptCache) func(context.Context, interface{}, *grpc.UnaryServerInfo, grpc.UnaryHandler) (interface{}, error) {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+func consoleAuthInterceptor(logger *zap.Logger, config Config, sessionCache SessionCache, loginAttmeptCache LoginAttemptCache) func(context.Context, any, *grpc.UnaryServerInfo, grpc.UnaryHandler) (any, error) {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		if info.FullMethod == "/nakama.console.Console/Authenticate" {
 			// Skip authentication check for Login endpoint.
 			return handler(ctx, req)
@@ -608,7 +603,7 @@ func checkAuth(ctx context.Context, logger *zap.Logger, config Config, auth, pat
 	} else if strings.HasPrefix(auth, bearerPrefix) {
 		// Bearer token authentication.
 		tokenStr := auth[len(bearerPrefix):]
-		token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
+		token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (any, error) {
 			if s, ok := token.Method.(*jwt.SigningMethodHMAC); !ok || s.Hash != crypto.SHA256 {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
@@ -697,7 +692,7 @@ func checkAuthCustom(r *http.Request, logger *zap.Logger, config Config, auth, m
 	} else if strings.HasPrefix(auth, bearerPrefix) {
 		// Bearer token authentication.
 		tokenStr := auth[len(bearerPrefix):]
-		token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
+		token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (any, error) {
 			if s, ok := token.Method.(*jwt.SigningMethodHMAC); !ok || s.Hash != crypto.SHA256 {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}

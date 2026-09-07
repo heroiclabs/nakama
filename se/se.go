@@ -23,12 +23,12 @@ import (
 )
 
 type seEvent struct {
-	Type    string                 `json:"type,omitempty"`
-	UserID  string                 `json:"userId,omitempty"`
-	Event   string                 `json:"event,omitempty"`
-	Context map[string]interface{} `json:"context,omitempty"`
-	App     map[string]interface{} `json:"app,omitempty"`
-	Os      map[string]interface{} `json:"os,omitempty"`
+	Type    string         `json:"type,omitempty"`
+	UserID  string         `json:"userId,omitempty"`
+	Event   string         `json:"event,omitempty"`
+	Context map[string]any `json:"context,omitempty"`
+	App     map[string]any `json:"app,omitempty"`
+	Os      map[string]any `json:"os,omitempty"`
 }
 
 type seBatch struct {
@@ -46,9 +46,9 @@ func Start(key, id, version, variant string) error {
 		{
 			Type:   "identify",
 			UserID: id,
-			Context: map[string]interface{}{
+			Context: map[string]any{
 				"direct": true,
-				"library": map[string]interface{}{
+				"library": map[string]any{
 					"name":    "go",
 					"version": runtime.Version(),
 				},
@@ -58,18 +58,18 @@ func Start(key, id, version, variant string) error {
 			Type:   "track",
 			UserID: id,
 			Event:  "start",
-			Context: map[string]interface{}{
+			Context: map[string]any{
 				"direct": true,
-				"library": map[string]interface{}{
+				"library": map[string]any{
 					"name":    "go",
 					"version": runtime.Version(),
 				},
 			},
-			App: map[string]interface{}{
+			App: map[string]any{
 				"version": version,
 				"name":    variant,
 			},
-			Os: map[string]interface{}{
+			Os: map[string]any{
 				"name":    runtime.GOOS,
 				"version": runtime.GOARCH,
 			},
@@ -84,9 +84,9 @@ func End(key, id string) error {
 			Type:   "track",
 			UserID: id,
 			Event:  "end",
-			Context: map[string]interface{}{
+			Context: map[string]any{
 				"direct": true,
-				"library": map[string]interface{}{
+				"library": map[string]any{
 					"name":    "go",
 					"version": runtime.Version(),
 				},

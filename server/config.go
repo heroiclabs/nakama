@@ -18,6 +18,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
+	"maps"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -445,9 +446,7 @@ func ValidateConfigDatabase(logger *zap.Logger, c Config) {
 
 func convertRuntimeEnv(logger *zap.Logger, existingEnv map[string]string, mergeEnv []string) map[string]string {
 	envMap := make(map[string]string, len(existingEnv))
-	for k, v := range existingEnv {
-		envMap[k] = v
-	}
+	maps.Copy(envMap, existingEnv)
 
 	for _, e := range mergeEnv {
 		if !strings.Contains(e, "=") {
@@ -874,9 +873,7 @@ func (cfg *SocketConfig) Clone() (*SocketConfig, error) {
 	}
 	if cfg.Headers != nil {
 		cfgCopy.Headers = make(map[string]string, len(cfg.Headers))
-		for k, v := range cfg.Headers {
-			cfgCopy.Headers[k] = v
-		}
+		maps.Copy(cfgCopy.Headers, cfg.Headers)
 	}
 	if cfg.CertPEMBlock != nil {
 		cfgCopy.CertPEMBlock = make([]byte, len(cfg.CertPEMBlock))
@@ -1124,9 +1121,7 @@ func (r *RuntimeConfig) Clone() *RuntimeConfig {
 	}
 	if r.Environment != nil {
 		cfgCopy.Environment = make(map[string]string, len(r.Environment))
-		for k, v := range r.Environment {
-			cfgCopy.Environment[k] = v
-		}
+		maps.Copy(cfgCopy.Environment, r.Environment)
 	}
 
 	return &cfgCopy

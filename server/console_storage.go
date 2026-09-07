@@ -192,7 +192,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 	}
 
 	limit := defaultLimit
-	var params []interface{}
+	var params []any
 	var query string
 
 	// Allowed input filter combinations are:
@@ -217,11 +217,11 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 	case in.Collection == "" && in.Key == "" && userID != nil:
 		// Filtering by user ID only returns all results, no pagination or limit.
 		limit = 0
-		params = []interface{}{*userID}
+		params = []any{*userID}
 		query = "SELECT collection, key, user_id, version, read, write, create_time, update_time FROM storage WHERE user_id = $1"
 	case in.Collection != "" && in.Key == "" && userID == nil:
 		// Collection only. Querying and paginating on primary key (collection, read, key, user_id).
-		params = []interface{}{in.Collection}
+		params = []any{in.Collection}
 		query = "SELECT collection, key, user_id, version, read, write, create_time, update_time FROM storage WHERE collection = $1"
 		if cursor != nil {
 			params = append(params, cursor.Read, cursor.Key, cursor.UserID)
@@ -231,7 +231,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 		query += " ORDER BY read ASC, key ASC, user_id ASC LIMIT $" + strconv.Itoa(len(params))
 	case in.Collection != "" && in.Key != "" && userID == nil && isPrefixSearch(in.Key):
 		// Collection and key%. Querying and paginating on unique index (collection, key, user_id).
-		params = []interface{}{in.Collection, in.Key}
+		params = []any{in.Collection, in.Key}
 		query = "SELECT collection, key, user_id, version, read, write, create_time, update_time FROM storage WHERE collection = $1 AND key LIKE $2"
 		if cursor != nil {
 			params = append(params, cursor.Key, cursor.UserID)
@@ -241,7 +241,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 		query += " ORDER BY collection ASC, key ASC, user_id ASC LIMIT $" + strconv.Itoa(len(params))
 	case in.Collection != "" && in.Key != "" && userID == nil:
 		// Collection and key. Querying and paginating on unique index (collection, key, user_id).
-		params = []interface{}{in.Collection, in.Key}
+		params = []any{in.Collection, in.Key}
 		query = "SELECT collection, key, user_id, version, read, write, create_time, update_time FROM storage WHERE collection = $1 AND key = $2"
 		if cursor != nil {
 			params = append(params, cursor.UserID)
@@ -251,7 +251,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 		query += " ORDER BY user_id ASC LIMIT $" + strconv.Itoa(len(params))
 	case in.Collection != "" && in.Key == "" && userID != nil:
 		// Collection and user ID. Querying and paginating on index (collection, user_id, read, key).
-		params = []interface{}{in.Collection, *userID}
+		params = []any{in.Collection, *userID}
 		query = "SELECT collection, key, user_id, version, read, write, create_time, update_time FROM storage WHERE collection = $1 AND user_id = $2"
 		if cursor != nil {
 			params = append(params, cursor.Read, cursor.Key)
@@ -261,7 +261,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 		query += " ORDER BY read ASC, key ASC LIMIT $" + strconv.Itoa(len(params))
 	case in.Collection != "" && in.Key != "" && userID != nil && isPrefixSearch(in.Key):
 		// Collection, key%, user ID. Querying and paginating on unique index (collection, key, user_id).
-		params = []interface{}{in.Collection, in.Key, *userID}
+		params = []any{in.Collection, in.Key, *userID}
 		query = "SELECT collection, key, user_id, version, read, write, create_time, update_time FROM storage WHERE collection = $1 AND key LIKE $2 AND user_id = $3"
 		if cursor != nil {
 			params = append(params, cursor.Key)
@@ -272,7 +272,7 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 	case in.Collection != "" && in.Key != "" && userID != nil:
 		// Filtering by collection, key, user ID returns 0 or 1 results, no pagination or limit. Querying on unique index (collection, key, user_id).
 		limit = 0
-		params = []interface{}{in.Collection, in.Key, *userID}
+		params = []any{in.Collection, in.Key, *userID}
 		query = "SELECT collection, key, user_id, version, read, write, create_time, update_time FROM storage WHERE collection = $1 AND key = $2 AND user_id = $3"
 	default:
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid combination of filters.")

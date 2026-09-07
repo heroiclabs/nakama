@@ -22,6 +22,7 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"sort"
 	"time"
@@ -55,7 +56,7 @@ type walletLedger struct {
 	ID         string
 	UserID     string
 	Changeset  map[string]int64
-	Metadata   map[string]interface{}
+	Metadata   map[string]any
 	CreateTime int64
 	UpdateTime int64
 }
@@ -80,7 +81,7 @@ func (w *walletLedger) GetChangeset() map[string]int64 {
 	return w.Changeset
 }
 
-func (w *walletLedger) GetMetadata() map[string]interface{} {
+func (w *walletLedger) GetMetadata() map[string]any {
 	return w.Metadata
 }
 
@@ -181,9 +182,7 @@ func updateWallets(ctx context.Context, logger *zap.Logger, tx pgx.Tx, updates [
 
 		// Deep copy the previous state of the wallet.
 		previousMap := make(map[string]int64, len(walletMap))
-		for k, v := range walletMap {
-			previousMap[k] = v
-		}
+		maps.Copy(previousMap, walletMap)
 		result := &runtime.WalletUpdateResult{UserID: userID, Previous: previousMap}
 
 		for k, v := range update.Changeset {
@@ -316,7 +315,7 @@ func ListWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, userI
 		}
 	}
 
-	params := []interface{}{userID, time.Now().UTC(), uuid.UUID{}}
+	params := []any{userID, time.Now().UTC(), uuid.UUID{}}
 	if incomingCursor != nil {
 		params[1] = incomingCursor.CreateTime
 		params[2] = incomingCursor.Id
@@ -380,7 +379,7 @@ func ListWalletLedger(ctx context.Context, logger *zap.Logger, db *sql.DB, userI
 			return nil, "", "", err
 		}
 
-		var metadataMap map[string]interface{}
+		var metadataMap map[string]any
 		err = json.Unmarshal([]byte(metadata.String), &metadataMap)
 		if err != nil {
 			logger.Error("Error converting user wallet ledger metadata.", zap.String("user_id", userID.String()), zap.Error(err))

@@ -121,7 +121,7 @@ func newTxnRestartError(err error, retryErr error) *TxnRestartError {
 	const msgPattern = "restarting txn failed. ROLLBACK TO SAVEPOINT " +
 		"encountered error: %s. Original error: %s."
 	return &TxnRestartError{
-		txError:    txError{cause: err},
+		cause:      err,
 		retryCause: retryErr,
 		msg:        fmt.Sprintf(msgPattern, err, retryErr),
 	}

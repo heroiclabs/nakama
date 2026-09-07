@@ -133,7 +133,7 @@ func NotificationSendAll(ctx context.Context, logger *zap.Logger, db *sql.DB, tr
 		for {
 			sends := make(map[uuid.UUID][]*api.Notification, limit)
 
-			params := make([]interface{}, 0, 1)
+			params := make([]any, 0, 1)
 			query := "SELECT id FROM users"
 			if userIDStr != "" {
 				query += " WHERE id > $1"
@@ -219,7 +219,7 @@ func NotificationList(ctx context.Context, logger *zap.Logger, db *sql.DB, userI
 		}
 	}
 
-	params := []interface{}{userID}
+	params := []any{userID}
 
 	limitQuery := ""
 	if limit > 0 {

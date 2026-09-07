@@ -198,7 +198,7 @@ func ValidateLegacyReceiptAppleWithUrl(ctx context.Context, httpc *http.Client, 
 		return nil, nil, errors.New("'password' must not be empty")
 	}
 
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"receipt-data":             receipt,
 		"exclude-old-transactions": true,
 		"password":                 password,
@@ -283,7 +283,7 @@ type ValidateReceiptGoogleResponse struct {
 //	    \\\"price_currency_code\\\":\\\"EUR\\\",\\\"title\\\":\\\"..\\\",\\\"description\\\":\\\"..\\\",
 //	    \\\"skuDetailsToken\\\":\\\"..\\\"}\"}"
 func decodeReceiptGoogle(receipt string) (*ReceiptGoogle, error) {
-	var wrapper map[string]interface{}
+	var wrapper map[string]any
 	if err := json.Unmarshal([]byte(receipt), &wrapper); err != nil {
 		return nil, err
 	}

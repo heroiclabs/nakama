@@ -25,7 +25,7 @@ func (e *Element) Next() *Element {
 // newElement returns an initialized element.
 func newElement(level int, v Interface) *Element {
 	slLevels := make([]*skiplistLevel, level)
-	for i := 0; i < level; i++ {
+	for i := range level {
 		slLevels[i] = new(skiplistLevel)
 	}
 

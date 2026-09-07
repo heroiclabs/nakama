@@ -23,7 +23,7 @@ type testInterface struct {
 	val int
 }
 
-func (ti testInterface) Less(other interface{}) bool {
+func (ti testInterface) Less(other any) bool {
 	otherTi := other.(testInterface)
 
 	if ti.val < otherTi.val {
@@ -45,7 +45,7 @@ func TestSkiplistChaos(t *testing.T) {
 
 	rndMain := rand.New(rand.NewSource(seed))
 
-	for i := 0; i < iterations; i++ {
+	for i := range iterations {
 		i := i
 		numUsers := rndMain.Intn(2000) + 100
 		numOps := rndMain.Intn(100_000) + 100
@@ -59,12 +59,12 @@ func TestSkiplistChaos(t *testing.T) {
 			rnd := rand.New(rand.NewSource(seed + int64(i)))
 
 			users := make([]string, numUsers)
-			for j := 0; j < numUsers; j++ {
+			for j := range numUsers {
 				users[j] = randString(t, rnd)
 			}
 
 			ops := make([]testInterface, numOps)
-			for j := 0; j < numOps; j++ {
+			for j := range numOps {
 				id := users[rnd.Intn(numUsers)]
 				ops[j] = testInterface{
 					id:  id,
@@ -76,7 +76,7 @@ func TestSkiplistChaos(t *testing.T) {
 			userOps := make([]map[string]testInterface, numLists)
 
 			// Populate lists
-			for j := 0; j < numLists; j++ {
+			for j := range numLists {
 				rnd.Shuffle(len(ops), func(i, j int) {
 					ops[i], ops[j] = ops[j], ops[i]
 				})

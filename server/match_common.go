@@ -31,7 +31,7 @@ import (
 
 type blugeMatch struct {
 	ID     string
-	Fields map[string]interface{}
+	Fields map[string]any
 }
 
 type BlugeResult struct {
@@ -43,7 +43,7 @@ func IterateBlugeMatches(dmi search.DocumentMatchIterator, loadFields map[string
 	dm, err := dmi.Next()
 	for dm != nil && err == nil {
 		var bm blugeMatch
-		bm.Fields = make(map[string]interface{})
+		bm.Fields = make(map[string]any)
 		err = dm.VisitStoredFields(func(field string, value []byte) bool {
 			if field == "_id" {
 				bm.ID = string(value)
@@ -75,7 +75,7 @@ func IterateBlugeMatches(dmi search.DocumentMatchIterator, loadFields map[string
 	return rv, nil
 }
 
-func BlugeWalkDocument(data interface{}, path []string, sortablePaths map[string]bool, doc *bluge.Document) {
+func BlugeWalkDocument(data any, path []string, sortablePaths map[string]bool, doc *bluge.Document) {
 	val := reflect.ValueOf(data)
 	if !val.IsValid() {
 		return
@@ -145,7 +145,7 @@ func BlugeWalkDocument(data interface{}, path []string, sortablePaths map[string
 	}
 }
 
-func blugeProcessProperty(property interface{}, path []string, sortablePaths map[string]bool, doc *bluge.Document) {
+func blugeProcessProperty(property any, path []string, sortablePaths map[string]bool, doc *bluge.Document) {
 	pathString := strings.Join(path, ".")
 
 	propertyValue := reflect.ValueOf(property)
@@ -236,8 +236,8 @@ func blugeProcessProperty(property interface{}, path []string, sortablePaths map
 }
 
 func blugeParseTagName(tag string) string {
-	if idx := strings.Index(tag, ","); idx != -1 {
-		return tag[:idx]
+	if before, _, ok := strings.Cut(tag, ","); ok {
+		return before
 	}
 	return tag
 }

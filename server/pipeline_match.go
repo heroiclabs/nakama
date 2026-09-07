@@ -123,7 +123,7 @@ func (p *Pipeline) matchJoin(ctx context.Context, logger *zap.Logger, session Se
 		}
 		node = matchIDComponents[1]
 	case *rtapi.MatchJoin_Token:
-		token, err := jwt.Parse(incoming.GetToken(), func(token *jwt.Token) (interface{}, error) {
+		token, err := jwt.Parse(incoming.GetToken(), func(token *jwt.Token) (any, error) {
 			if s, ok := token.Method.(*jwt.SigningMethodHMAC); !ok || s.Hash != crypto.SHA256 {
 				return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
 			}

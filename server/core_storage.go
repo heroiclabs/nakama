@@ -176,7 +176,7 @@ func StorageListObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, cal
 
 func StorageListObjectsAll(ctx context.Context, logger *zap.Logger, db *sql.DB, authoritative bool, collection string, limit int, cursor string, storageCursor *storageCursor) (*api.StorageObjectList, error) {
 	cursorQuery := ""
-	params := []interface{}{collection, limit + 1}
+	params := []any{collection, limit + 1}
 	if storageCursor != nil {
 		if authoritative {
 			// Authoritative listings observe the read permission in the cursor.
@@ -232,7 +232,7 @@ LIMIT $2`
 
 func StorageListObjectsPublicReadUser(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, collection string, limit int, cursor string, storageCursor *storageCursor) (*api.StorageObjectList, error) {
 	cursorQuery := ""
-	params := []interface{}{collection, userID, limit + 1}
+	params := []any{collection, userID, limit + 1}
 	if storageCursor != nil {
 		// Ignore cursor read permission and user ID, the listing operation itself is only scoped to one user and public read permission.
 		cursorQuery = ` AND (collection, read, user_id, key) > ($1, 2, $2, $4) `
@@ -272,7 +272,7 @@ LIMIT $3`
 
 func StorageListObjectsUser(ctx context.Context, logger *zap.Logger, db *sql.DB, authoritative bool, userID uuid.UUID, collection string, limit int, cursor string, storageCursor *storageCursor) (*api.StorageObjectList, error) {
 	cursorQuery := ""
-	params := []interface{}{collection, userID, limit + 1}
+	params := []any{collection, userID, limit + 1}
 	if storageCursor != nil {
 		// User ID is always a known user based on the type of the listing operation.
 		cursorQuery = ` AND (collection, user_id, read, key) > ($1, $2, $4, $5) `
@@ -759,7 +759,7 @@ func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWr
 	newPermissionRead := op.permissionRead()
 	newPermissionWrite := op.permissionWrite()
 
-	params := []interface{}{object.Collection, object.Key, ownerID, object.Value, newVersion, newPermissionRead, newPermissionWrite}
+	params := []any{object.Collection, object.Key, ownerID, object.Value, newVersion, newPermissionRead, newPermissionWrite}
 	var query string
 
 	writeCheck := ""
@@ -862,7 +862,7 @@ func storageDeleteObjects(ctx context.Context, logger *zap.Logger, tx pgx.Tx, au
 	sort.Sort(ops)
 
 	for _, op := range ops {
-		params := []interface{}{op.ObjectID.Collection, op.ObjectID.Key, op.OwnerID}
+		params := []any{op.ObjectID.Collection, op.ObjectID.Key, op.OwnerID}
 		var query string
 		if authoritativeDelete {
 			// Deleting from the runtime.

@@ -38,8 +38,8 @@ import (
 
 func init() {
 	// Ensure gob can deal with typical types that might be used in match parameters.
-	gob.Register(map[string]interface{}(nil))
-	gob.Register([]interface{}(nil))
+	gob.Register(map[string]any(nil))
+	gob.Register([]any(nil))
 	gob.Register([]runtime.Presence(nil))
 	gob.Register(&Presence{})
 	gob.Register([]runtime.MatchmakerEntry(nil))
@@ -58,12 +58,12 @@ var (
 )
 
 type MatchIndexEntry struct {
-	Node        string                 `json:"node"`
-	Label       map[string]interface{} `json:"label"`
-	LabelString string                 `json:"label_string"`
-	TickRate    int                    `json:"tick_rate"`
-	HandlerName string                 `json:"handler_name"`
-	CreateTime  int64                  `json:"create_time"`
+	Node        string         `json:"node"`
+	Label       map[string]any `json:"label"`
+	LabelString string         `json:"label_string"`
+	TickRate    int            `json:"tick_rate"`
+	HandlerName string         `json:"handler_name"`
+	CreateTime  int64          `json:"create_time"`
 }
 
 type MatchJoinAttemptResult struct {
@@ -86,9 +86,9 @@ type MatchGetStateResult struct {
 
 type MatchRegistry interface {
 	// Create and start a new match, given a Lua module name or registered Go or JS match function.
-	CreateMatch(ctx context.Context, createFn RuntimeMatchCreateFunction, module string, params map[string]interface{}) (string, error)
+	CreateMatch(ctx context.Context, createFn RuntimeMatchCreateFunction, module string, params map[string]any) (string, error)
 	// Register and initialise a match that's ready to run.
-	NewMatch(logger *zap.Logger, id uuid.UUID, core RuntimeMatchCore, stopped *atomic.Bool, params map[string]interface{}) (*MatchHandler, error)
+	NewMatch(logger *zap.Logger, id uuid.UUID, core RuntimeMatchCore, stopped *atomic.Bool, params map[string]any) (*MatchHandler, error)
 	// Return a match by ID.
 	GetMatch(ctx context.Context, id string) (*api.Match, string, error)
 	// Remove a tracked match and ensure all its presences are cleaned up.
@@ -225,7 +225,7 @@ func (r *LocalMatchRegistry) processLabelUpdates(batch *index.Batch) {
 	batch.Reset()
 }
 
-func (r *LocalMatchRegistry) CreateMatch(ctx context.Context, createFn RuntimeMatchCreateFunction, module string, params map[string]interface{}) (string, error) {
+func (r *LocalMatchRegistry) CreateMatch(ctx context.Context, createFn RuntimeMatchCreateFunction, module string, params map[string]any) (string, error) {
 	buf := &bytes.Buffer{}
 	if err := gob.NewEncoder(buf).Encode(params); err != nil {
 		return "", runtime.ErrCannotEncodeParams
@@ -255,7 +255,7 @@ func (r *LocalMatchRegistry) CreateMatch(ctx context.Context, createFn RuntimeMa
 	return mh.IDStr, nil
 }
 
-func (r *LocalMatchRegistry) NewMatch(logger *zap.Logger, id uuid.UUID, core RuntimeMatchCore, stopped *atomic.Bool, params map[string]interface{}) (*MatchHandler, error) {
+func (r *LocalMatchRegistry) NewMatch(logger *zap.Logger, id uuid.UUID, core RuntimeMatchCore, stopped *atomic.Bool, params map[string]any) (*MatchHandler, error) {
 	if r.stopped.Load() {
 		// Server is shutting down, reject new matches.
 		return nil, errors.New("shutdown in progress")
@@ -347,7 +347,7 @@ func (r *LocalMatchRegistry) UpdateMatchLabel(id uuid.UUID, tickRate int, handle
 	if len(label) > MatchLabelMaxBytes {
 		return runtime.ErrMatchLabelTooLong
 	}
-	var labelJSON map[string]interface{}
+	var labelJSON map[string]any
 	// Doesn't matter if this is not JSON.
 	_ = json.Unmarshal([]byte(label), &labelJSON)
 

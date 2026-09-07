@@ -170,7 +170,7 @@ func TestMatchmakerPropertyRegexSubmatch(t *testing.T) {
 
 	matchmakerIndexDoc1, err := MapMatchmakerIndex("ticket1", &MatchmakerIndex{
 		Ticket: "ticket1",
-		Properties: map[string]interface{}{
+		Properties: map[string]any{
 			"blocked":   "4bd6667a-2659-4888-b245-e13690ff4a9b cc44260e-6b7d-4237-9871-6146d86f7a71 324b7447-ec0f-4b5f-9a13-06511d0bb527",
 			"game_mode": "foo",
 		},
@@ -296,7 +296,7 @@ func TestMatchmakerPropertyRegexSubmatchMultiple(t *testing.T) {
 
 	matchmakerIndexDoc1, err := MapMatchmakerIndex("ticket1", &MatchmakerIndex{
 		Ticket: "ticket1",
-		Properties: map[string]interface{}{
+		Properties: map[string]any{
 			"maps":      "map1 map2 some_map other_map",
 			"game_mode": "foo",
 		},
@@ -1675,7 +1675,7 @@ func createTestMatchmaker(t fatalable, logger *zap.Logger, tickerActive bool, me
 		}
 
 		res, err := matchRegistry.CreateMatch(context.Background(),
-			runtimeMatchCreateFunc, "match", map[string]interface{}{})
+			runtimeMatchCreateFunc, "match", map[string]any{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2015,7 +2015,7 @@ func TestMatchmakerRequireMutualMatchLargerReversed(t *testing.T) {
 	}
 }
 
-func isModeAuthoritative(props map[string]interface{}) bool {
+func isModeAuthoritative(props map[string]any) bool {
 	if mode, ok := props["mode"]; ok {
 		if modeStr, ok := mode.(string); ok {
 			if modeStr == "authoritative" {
@@ -2229,7 +2229,7 @@ func TestMatchmakerMaxPartyTracking(t *testing.T) {
 
 	// create max tickets with party-a
 	maxTickets := matchMaker.config.GetMatchmaker().MaxTickets
-	for i := 0; i < maxTickets; i++ {
+	for range maxTickets {
 		err := createTicketFunc("party-a")
 		if err != nil {
 			t.Fatalf("error adding ticket: %v", err)
@@ -2311,7 +2311,7 @@ func TestMatchmakerMaxSessionTracking(t *testing.T) {
 
 	// create max tickets with sessionID1
 	maxTickets := matchMaker.config.GetMatchmaker().MaxTickets
-	for i := 0; i < maxTickets; i++ {
+	for range maxTickets {
 		err := createTicketFunc(sessionID1)
 		if err != nil {
 			t.Fatalf("error adding ticket: %v", err)
@@ -2373,7 +2373,7 @@ func benchmarkMatchmakerProcessTickets(ticketsMax int32, unmatchable int, minCou
 	}
 	defer cleanup()
 
-	for i := 0; i < unmatchable; i++ {
+	for range unmatchable {
 		sessionID, _ := uuid.NewV4()
 		sessionIDStr := sessionID.String()
 		userID, _ := uuid.NewV4()

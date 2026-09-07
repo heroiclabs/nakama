@@ -218,7 +218,7 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 	var fnErr error
 	result, fnErr, rpcCode = fn(requestCtx, headers, queryParams, traceID, uid, username, vars, expiry, "", clientIP, clientPort, "", payload)
 	if fnErr != nil {
-		response, _ := json.Marshal(map[string]interface{}{"error": fnErr, "message": fnErr.Error(), "code": rpcCode})
+		response, _ := json.Marshal(map[string]any{"error": fnErr, "message": fnErr.Error(), "code": rpcCode})
 		w.Header().Set("content-type", "application/json")
 		w.WriteHeader(grpcgw.HTTPStatusFromCode(rpcCode))
 		sentBytes, err = w.Write(response)
@@ -233,7 +233,7 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 	if !unwrap {
 		// GRPC Gateway equivalent behaviour.
 		var err error
-		response, err = json.Marshal(map[string]interface{}{"payload": result})
+		response, err = json.Marshal(map[string]any{"payload": result})
 		if err != nil {
 			// Failed to encode the wrapped response.
 			logger.Error("Error marshaling wrapped response to client", zap.Error(err))

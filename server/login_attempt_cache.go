@@ -16,6 +16,7 @@ package server
 
 import (
 	"context"
+	"slices"
 	"sync"
 	"time"
 )
@@ -55,8 +56,8 @@ func (ls *lockoutStatus) trim(now time.Time, retentionPeriod time.Duration) bool
 	if ls.lockedUntil.Before(now) {
 		ls.lockedUntil = time.Time{}
 	}
-	for i := len(ls.attempts) - 1; i >= 0; i-- {
-		if now.Sub(ls.attempts[i]) >= retentionPeriod {
+	for i, v := range slices.Backward(ls.attempts) {
+		if now.Sub(v) >= retentionPeriod {
 			ls.attempts = ls.attempts[i+1:]
 			break
 		}

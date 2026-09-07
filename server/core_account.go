@@ -152,7 +152,7 @@ SELECT u.id, u.username, u.display_name, u.avatar_url, u.lang_tag, u.location, u
 	u.email, u.apple_id, u.facebook_id, u.facebook_instant_game_id, u.google_id, u.gamecenter_id, u.steam_id, u.custom_id, u.edge_count,
 	u.create_time, u.update_time, u.verify_time, u.disable_time, array(select ud.id from user_device ud where u.id = ud.user_id)
 FROM users u`
-	params := make([]interface{}, 0, 2)
+	params := make([]any, 0, 2)
 	switch {
 	case len(userIDs) > 0 && len(deviceIDs) > 0:
 		query += " WHERE u.id = ANY($1) OR u.id IN (SELECT ud.user_id FROM user_device ud WHERE ud.id = ANY($2))"
@@ -265,8 +265,7 @@ func UpdateAccounts(ctx context.Context, logger *zap.Logger, db *sql.DB, updates
 		}
 		return nil
 	}); err != nil {
-		var statusErr *statusError
-		if errors.As(err, &statusErr) {
+		if statusErr, ok := errors.AsType[*statusError](err); ok {
 			return statusErr.Cause()
 		}
 		logger.Error("Error updating user accounts.", zap.Error(err))
@@ -280,7 +279,7 @@ func updateAccounts(ctx context.Context, logger *zap.Logger, tx pgx.Tx, updates 
 	for _, update := range updates {
 		updateStatements := make([]string, 0, 7)
 		distinctStatements := make([]string, 0, 7)
-		params := make([]interface{}, 0, 8)
+		params := make([]any, 0, 8)
 
 		// Ensure user ID is always present.
 		params = append(params, update.userID)
@@ -573,7 +572,7 @@ VALUES (
 
 			if len(data.Account.Devices) > 0 {
 				query = `INSERT INTO user_device (id, user_id)`
-				params := []interface{}{data.Account.User.Id}
+				params := []any{data.Account.User.Id}
 				for _, d := range data.Account.Devices {
 					params = append(params, d.Id)
 					if l := len(params); l == 2 {
@@ -622,8 +621,9 @@ VALUES (
 			}
 		}
 		if l := len(data.Objects); l > 0 {
-			query := `INSERT INTO storage (user_id, collection, key, "value", "version", "read", "write", create_time, update_time)`
-			params := make([]interface{}, 0, l*8+1)
+			var query strings.Builder
+			query.WriteString(`INSERT INTO storage (user_id, collection, key, "value", "version", "read", "write", create_time, update_time)`)
+			params := make([]any, 0, l*8+1)
 			if userID == uuid.Nil {
 				params = append(params, data.Account.User.Id)
 			} else {
@@ -632,13 +632,13 @@ VALUES (
 			for i, d := range data.Objects {
 				params = append(params, d.Collection, d.Key, d.Value, d.Version, d.PermissionRead, d.PermissionWrite, d.CreateTime.AsTime(), d.UpdateTime.AsTime())
 				if i == 0 {
-					query += fmt.Sprintf(" VALUES ($1, $%v, $%v, $%v, $%v, $%v, $%v, $%v, $%v)", i*8+2, i*8+3, i*8+4, i*8+5, i*8+6, i*8+7, i*8+8, i*8+9)
+					query.WriteString(fmt.Sprintf(" VALUES ($1, $%v, $%v, $%v, $%v, $%v, $%v, $%v, $%v)", i*8+2, i*8+3, i*8+4, i*8+5, i*8+6, i*8+7, i*8+8, i*8+9))
 				} else {
-					query += fmt.Sprintf(", ($1, $%v, $%v, $%v, $%v, $%v, $%v, $%v, $%v)", i*8+2, i*8+3, i*8+4, i*8+5, i*8+6, i*8+7, i*8+8, i*8+9)
+					query.WriteString(fmt.Sprintf(", ($1, $%v, $%v, $%v, $%v, $%v, $%v, $%v, $%v)", i*8+2, i*8+3, i*8+4, i*8+5, i*8+6, i*8+7, i*8+8, i*8+9))
 				}
 			}
 
-			res, err := tx.ExecContext(ctx, query, params...)
+			res, err := tx.ExecContext(ctx, query.String(), params...)
 			if err != nil {
 				if errors.Is(err, context.Canceled) {
 					return err

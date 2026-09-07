@@ -89,14 +89,12 @@ func TestUpdateWalletSingleUser(t *testing.T) {
 	var wg sync.WaitGroup
 	for _, val := range values[len(values)/2:] {
 		v := val
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			_, _, err := nk.WalletUpdate(context.Background(), userID, map[string]int64{"value": v}, nil, true)
 			if err != nil {
 				panic(fmt.Sprintf("error updating wallet: %v", err.Error()))
 			}
-		}()
+		})
 	}
 	wg.Wait()
 
@@ -168,7 +166,7 @@ func TestUpdateWalletMultiUser(t *testing.T) {
 	count := 5
 
 	userIDs := make([]string, 0, count)
-	for i := 0; i < count; i++ {
+	for range count {
 		userID, _, _, err := AuthenticateCustom(context.Background(), logger, db, uuid.Must(uuid.NewV4()).String(), uuid.Must(uuid.NewV4()).String(), true)
 		if err != nil {
 			t.Fatalf("error creating user: %v", err.Error())
@@ -255,7 +253,7 @@ func TestUpdateWalletsMultiUser(t *testing.T) {
 	count := 5
 
 	userIDs := make([]string, 0, count)
-	for i := 0; i < count; i++ {
+	for range count {
 		userID, _, _, err := AuthenticateCustom(context.Background(), logger, db, uuid.Must(uuid.NewV4()).String(), uuid.Must(uuid.NewV4()).String(), true)
 		if err != nil {
 			t.Fatalf("error creating user: %v", err.Error())
@@ -347,7 +345,7 @@ func TestUpdateWalletsMultiUserSharedChangeset(t *testing.T) {
 	count := 5
 
 	userIDs := make([]string, 0, count)
-	for i := 0; i < count; i++ {
+	for range count {
 		userID, _, _, err := AuthenticateCustom(context.Background(), logger, db, uuid.Must(uuid.NewV4()).String(), uuid.Must(uuid.NewV4()).String(), true)
 		if err != nil {
 			t.Fatalf("error creating user: %v", err.Error())
@@ -443,7 +441,7 @@ func TestUpdateWalletsMultiUserSharedChangesetDeductions(t *testing.T) {
 	count := 5
 
 	userIDs := make([]string, 0, count)
-	for i := 0; i < count; i++ {
+	for range count {
 		userID, _, _, err := AuthenticateCustom(context.Background(), logger, db, uuid.Must(uuid.NewV4()).String(), uuid.Must(uuid.NewV4()).String(), true)
 		if err != nil {
 			t.Fatalf("error creating user: %v", err.Error())
@@ -528,7 +526,7 @@ func TestUpdateWalletsSingleUser(t *testing.T) {
 
 	assert.NotNil(t, account, "account is nil")
 
-	var wallet map[string]interface{}
+	var wallet map[string]any
 	err = json.Unmarshal([]byte(account.Wallet), &wallet)
 	if err != nil {
 		t.Fatalf("json unmarshal error: %v", err.Error())
@@ -568,7 +566,7 @@ func TestUpdateWalletRepeatedSingleUser(t *testing.T) {
 
 	assert.NotNil(t, account, "account is nil")
 
-	var wallet map[string]interface{}
+	var wallet map[string]any
 	err = json.Unmarshal([]byte(account.Wallet), &wallet)
 	if err != nil {
 		t.Fatalf("json unmarshal error: %v", err.Error())

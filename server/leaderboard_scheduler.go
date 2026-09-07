@@ -202,10 +202,7 @@ func (ls *LocalLeaderboardScheduler) scheduleLoop() {
 			}
 		}
 
-		delay := time.Unix(wakeTs, 0).UTC().Sub(now)
-		if delay < 0 {
-			delay = 0
-		}
+		delay := max(time.Unix(wakeTs, 0).UTC().Sub(now), 0)
 
 		timer := time.NewTimer(delay)
 		select {

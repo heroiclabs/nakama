@@ -646,7 +646,7 @@ func combineIndexes(from []*MatchmakerIndex, min, max int) <-chan []*MatchmakerI
 
 			combination := make([]*MatchmakerIndex, 0, count)
 			entryCount := 0
-			for element := uint(0); element < length; element++ {
+			for element := range length {
 				// Check if element should be contained in combination by checking if bit 'element' is set in combinationBits.
 				if (combinationBits>>element)&1 == 1 {
 					entryCount = entryCount + from[element].Count

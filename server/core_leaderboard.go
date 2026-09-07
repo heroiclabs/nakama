@@ -164,7 +164,7 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			}
 		}
 		query += " LIMIT $3"
-		params := make([]interface{}, 0, 6)
+		params := make([]any, 0, 6)
 		params = append(params, leaderboardId, time.Unix(expiryTime, 0).UTC(), limitNumber+1)
 		if incomingCursor != nil {
 			params = append(params, incomingCursor.Score, incomingCursor.Subscore, incomingCursor.OwnerId)
@@ -495,7 +495,7 @@ func LeaderboardRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB,
             DO UPDATE SET ` + opSQL + `, num_score = leaderboard_record.num_score + 1, metadata = COALESCE($6, leaderboard_record.metadata), username = COALESCE($3, leaderboard_record.username), update_time = now()` + filterSQL + `
             RETURNING username, score, subscore, num_score, max_num_score, metadata, create_time, update_time`
 
-	params := make([]interface{}, 0, 9)
+	params := make([]any, 0, 9)
 	params = append(params, leaderboardId, ownerID)
 	if username == "" {
 		params = append(params, nil)
@@ -768,7 +768,7 @@ func getLeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *
 	AND expiry_time = $2`
 
 		// First half.
-		params := []interface{}{leaderboardId, expiryTime, ownerRecord.Score, ownerRecord.Subscore, ownerID}
+		params := []any{leaderboardId, expiryTime, ownerRecord.Score, ownerRecord.Subscore, ownerID}
 		firstQuery := query
 		if sortOrder == LeaderboardSortOrderAscending {
 			// Lower score is better, but get in reverse order from current user to get those immediately above.
@@ -844,10 +844,7 @@ func getLeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *
 		if start < 0 || len(firstRecords) < secondLimit {
 			start = 0
 		}
-		end := start + limit
-		if end > numRecords {
-			end = numRecords
-		}
+		end := min(start+limit, numRecords)
 
 		if start > 0 {
 			// There was a previous result that was discarded, the prev_cursor should be set.

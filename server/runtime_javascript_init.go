@@ -1675,7 +1675,7 @@ func (im *RuntimeJavascriptInitModule) registerMatch(r *goja.Runtime) func(goja.
 			panic(r.NewTypeError("expects an object"))
 		}
 
-		funcMap, ok := funcObj.Export().(map[string]interface{})
+		funcMap, ok := funcObj.Export().(map[string]any)
 		if !ok {
 			panic(r.NewTypeError("expects an object"))
 		}

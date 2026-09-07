@@ -160,8 +160,7 @@ func (s *ApiServer) UpdateAccount(ctx context.Context, in *api.UpdateAccountRequ
 		metadata:    nil,
 	}})
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) {
+		if _, ok := errors.AsType[*pgconn.PgError](err); ok {
 			return nil, status.Error(codes.Internal, "Error while trying to update account.")
 		}
 		return nil, status.Error(codes.InvalidArgument, err.Error())

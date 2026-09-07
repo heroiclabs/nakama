@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 
 	"github.com/dop251/goja"
 	"go.uber.org/zap"
@@ -38,19 +39,19 @@ func NewJsLogger(ctx context.Context, r *goja.Runtime, logger *zap.Logger, field
 }
 
 func (l *jsLogger) Constructor(r *goja.Runtime) (*goja.Object, error) {
-	getArgs := func(values []goja.Value) (string, []interface{}, error) {
+	getArgs := func(values []goja.Value) (string, []any, error) {
 		format, ok := values[0].Export().(string)
 		if !ok {
 			return "", nil, errors.New("invalid format argument: must be a string")
 		}
-		args := make([]interface{}, 0, len(values)-1)
+		args := make([]any, 0, len(values)-1)
 		for _, v := range values[1:] {
 			args = append(args, v.Export())
 		}
 		return format, args, nil
 	}
 
-	toLoggerFields := func(m map[string]interface{}) []zap.Field {
+	toLoggerFields := func(m map[string]any) []zap.Field {
 		zFields := make([]zap.Field, 0, len(m))
 		for k, v := range m {
 			zFields = append(zFields, zap.Any(k, v))
@@ -72,7 +73,7 @@ func (l *jsLogger) Constructor(r *goja.Runtime) (*goja.Object, error) {
 			if err != nil {
 				panic(r.NewTypeError(err.Error()))
 			}
-			fields := call.This.Get("fields").Export().(map[string]interface{})
+			fields := call.This.Get("fields").Export().(map[string]any)
 			l.logger.Info(fmt.Sprintf(format, a...), toLoggerFields(fields)...)
 			return nil
 		})
@@ -82,7 +83,7 @@ func (l *jsLogger) Constructor(r *goja.Runtime) (*goja.Object, error) {
 			if err != nil {
 				panic(r.NewTypeError(err.Error()))
 			}
-			fields := call.This.Get("fields").Export().(map[string]interface{})
+			fields := call.This.Get("fields").Export().(map[string]any)
 			l.logger.Warn(fmt.Sprintf(format, a...), toLoggerFields(fields)...)
 			return nil
 		})
@@ -92,7 +93,7 @@ func (l *jsLogger) Constructor(r *goja.Runtime) (*goja.Object, error) {
 			if err != nil {
 				panic(r.NewTypeError(err.Error()))
 			}
-			fields := call.This.Get("fields").Export().(map[string]interface{})
+			fields := call.This.Get("fields").Export().(map[string]any)
 			l.logger.Error(fmt.Sprintf(format, a...), toLoggerFields(fields)...)
 			return nil
 		})
@@ -102,7 +103,7 @@ func (l *jsLogger) Constructor(r *goja.Runtime) (*goja.Object, error) {
 			if err != nil {
 				panic(r.NewTypeError(err.Error()))
 			}
-			fields := call.This.Get("fields").Export().(map[string]interface{})
+			fields := call.This.Get("fields").Export().(map[string]any)
 			l.logger.Debug(fmt.Sprintf(format, a...), toLoggerFields(fields)...)
 			return nil
 		})
@@ -117,7 +118,7 @@ func (l *jsLogger) Constructor(r *goja.Runtime) (*goja.Object, error) {
 				panic(r.NewTypeError("value argument must be a string"))
 			}
 
-			fields := call.This.Get("fields").Export().(map[string]interface{})
+			fields := call.This.Get("fields").Export().(map[string]any)
 			fields[key] = value
 
 			c := r.ToValue(call.This.Get("constructor"))
@@ -130,15 +131,13 @@ func (l *jsLogger) Constructor(r *goja.Runtime) (*goja.Object, error) {
 		})
 
 		_ = call.This.Set("withFields", func(f goja.FunctionCall) goja.Value {
-			argMap, ok := f.Arguments[0].Export().(map[string]interface{})
+			argMap, ok := f.Arguments[0].Export().(map[string]any)
 			if !ok {
 				panic(r.NewTypeError("argument must be a map"))
 			}
 
-			fields := call.This.Get("fields").Export().(map[string]interface{})
-			for k, v := range argMap {
-				fields[k] = v
-			}
+			fields := call.This.Get("fields").Export().(map[string]any)
+			maps.Copy(fields, argMap)
 
 			c := r.ToValue(call.This.Get("constructor"))
 			objInst, err := r.New(c, r.ToValue(fields))

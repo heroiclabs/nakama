@@ -106,7 +106,7 @@ func TestGoLoggerWithFields(t *testing.T) {
 	observer, logs := observer.New(zap.InfoLevel)
 
 	obs := zap.New(observer)
-	fields := map[string]interface{}{
+	fields := map[string]any{
 		"key1":    "value1",
 		"key2":    2,
 		"runtime": "foo", // Overwriting runtime should yield no effect
@@ -127,7 +127,7 @@ func TestGoLoggerFields(t *testing.T) {
 	observer, _ := observer.New(zap.InfoLevel)
 
 	obs := zap.New(observer)
-	fields := map[string]interface{}{
+	fields := map[string]any{
 		"key2":    "value2",
 		"key3":    3,
 		"runtime": "foo", // Should not be added to fields

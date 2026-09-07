@@ -9,7 +9,7 @@ import (
 
 type Int int
 
-func (i Int) Less(other interface{}) bool {
+func (i Int) Less(other any) bool {
 	return i < other.(Int)
 }
 
@@ -206,7 +206,7 @@ func BenchmarkIntInsertRandom(b *testing.B) {
 func BenchmarkIntDeleteOrder(b *testing.B) {
 	b.StopTimer()
 	sl := New()
-	for i := 0; i < 1000000; i++ {
+	for i := range 1000000 {
 		sl.Insert(Int(i))
 	}
 	b.StartTimer()
@@ -219,7 +219,7 @@ func BenchmarkIntDeleteOrder(b *testing.B) {
 func BenchmarkIntDeleteRandome(b *testing.B) {
 	b.StopTimer()
 	sl := New()
-	for i := 0; i < 1000000; i++ {
+	for range 1000000 {
 		sl.Insert(Int(rand.Int()))
 	}
 	b.StartTimer()
@@ -232,7 +232,7 @@ func BenchmarkIntDeleteRandome(b *testing.B) {
 func BenchmarkIntFindOrder(b *testing.B) {
 	b.StopTimer()
 	sl := New()
-	for i := 0; i < 1000000; i++ {
+	for i := range 1000000 {
 		sl.Insert(Int(i))
 	}
 	b.StartTimer()
@@ -245,7 +245,7 @@ func BenchmarkIntFindOrder(b *testing.B) {
 func BenchmarkIntFindRandom(b *testing.B) {
 	b.StopTimer()
 	sl := New()
-	for i := 0; i < 1000000; i++ {
+	for range 1000000 {
 		sl.Insert(Int(rand.Int()))
 	}
 	b.StartTimer()
@@ -258,7 +258,7 @@ func BenchmarkIntFindRandom(b *testing.B) {
 func BenchmarkIntRankOrder(b *testing.B) {
 	b.StopTimer()
 	sl := New()
-	for i := 0; i < 1000000; i++ {
+	for i := range 1000000 {
 		sl.Insert(Int(i))
 	}
 	b.StartTimer()
@@ -271,7 +271,7 @@ func BenchmarkIntRankOrder(b *testing.B) {
 func BenchmarkIntRankRandom(b *testing.B) {
 	b.StopTimer()
 	sl := New()
-	for i := 0; i < 1000000; i++ {
+	for range 1000000 {
 		sl.Insert(Int(rand.Int()))
 	}
 	b.StartTimer()
@@ -284,7 +284,7 @@ func BenchmarkIntRankRandom(b *testing.B) {
 // nolint:unused
 func output(sl *SkipList) {
 	var x *Element
-	for i := 0; i < SKIPLIST_MAXLEVEL; i++ {
+	for i := range SKIPLIST_MAXLEVEL {
 		fmt.Printf("LEVEL[%v]: ", i)
 		count := 0
 		x = sl.header.level[i].forward

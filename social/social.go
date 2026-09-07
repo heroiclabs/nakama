@@ -757,7 +757,7 @@ func (c *Client) CheckAppleToken(ctx context.Context, bundleId string, idToken s
 	c.appleMutex.RUnlock()
 
 	// Try to parse and validate the JWT token.
-	token, err := jwt.Parse(idToken, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.Parse(idToken, func(token *jwt.Token) (any, error) {
 		// Grab the token's "kid" (key id) claim and see if we have a JWK certificate that matches it.
 		kid, ok := token.Header["kid"]
 		if !ok {
@@ -905,7 +905,7 @@ func (c *Client) CheckFacebookLimitedLoginToken(ctx context.Context, appId strin
 	c.facebookMutex.RUnlock()
 
 	// Try to parse and validate the JWT token.
-	token, err := jwt.Parse(idToken, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.Parse(idToken, func(token *jwt.Token) (any, error) {
 		// Grab the token's "kid" (key id) claim and see if we have a JWK certificate that matches it.
 		kid, ok := token.Header["kid"]
 		if !ok {
@@ -977,7 +977,7 @@ func (c *Client) CheckFacebookLimitedLoginToken(ctx context.Context, appId strin
 	return profile, nil
 }
 
-func (c *Client) request(ctx context.Context, provider, path string, headers map[string]string, to interface{}) error {
+func (c *Client) request(ctx context.Context, provider, path string, headers map[string]string, to any) error {
 	body, err := c.requestRaw(ctx, provider, path, headers)
 	if err != nil {
 		return err

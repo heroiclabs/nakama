@@ -112,10 +112,10 @@ type MatchHandler struct {
 	Rate int64
 
 	// Match state.
-	state interface{}
+	state any
 }
 
-func NewMatchHandler(logger *zap.Logger, config Config, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, router MessageRouter, core RuntimeMatchCore, id uuid.UUID, node string, stopped *atomic.Bool, params map[string]interface{}) (*MatchHandler, error) {
+func NewMatchHandler(logger *zap.Logger, config Config, sessionRegistry SessionRegistry, matchRegistry MatchRegistry, router MessageRouter, core RuntimeMatchCore, id uuid.UUID, node string, stopped *atomic.Bool, params map[string]any) (*MatchHandler, error) {
 	presenceList := NewMatchPresenceList()
 	deferredCh := make(chan *DeferredMessage, config.GetMatch().DeferredQueueSize)
 	deferMessageFn := func(msg *DeferredMessage) error {
@@ -337,7 +337,7 @@ func (mh *MatchHandler) processDeferred() {
 	deferredCount := len(mh.deferredCh)
 	if deferredCount != 0 {
 		deferredMessages := make([]*DeferredMessage, deferredCount)
-		for i := 0; i < deferredCount; i++ {
+		for i := range deferredCount {
 			msg := <-mh.deferredCh
 			deferredMessages[i] = msg
 		}
