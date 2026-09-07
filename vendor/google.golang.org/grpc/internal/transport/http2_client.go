@@ -498,10 +498,9 @@ func (t *http2Client) newStream(ctx context.Context, callHdr *CallHdr, handler s
 		ct:           t,
 		done:         make(chan struct{}),
 		headerChan:   make(chan struct{}),
-		doneFunc:     callHdr.DoneFunc,
 		statsHandler: handler,
 	}
-	s.Stream.buf.init()
+	s.Stream.buf.init(t.bufferPool)
 	s.Stream.wq.init(defaultWriteQuota, s.done)
 	s.readRequester = s
 	// The client side stream context should have exactly the same life cycle with the user provided context.
@@ -806,9 +805,8 @@ func (t *http2Client) NewStream(ctx context.Context, callHdr *CallHdr, handler s
 			close(s.headerChan)
 		}
 	}
-	hdr := &headerFrame{
-		hf:        headerFields,
-		endStream: false,
+	hdr := &clientHeaders{
+		hf: headerFields,
 		initStream: func(uint32) error {
 			t.mu.Lock()
 			// TODO: handle transport closure in loopy instead and remove this
@@ -999,9 +997,6 @@ func (t *http2Client) closeStream(s *ClientStream, err error, rst bool, rstCode 
 	t.controlBuf.executeAndPut(addBackStreamQuota, cleanup)
 	// This will unblock write.
 	close(s.done)
-	if s.doneFunc != nil {
-		s.doneFunc()
-	}
 }
 
 // Close kicks off the shutdown process of the transport. This should be called
@@ -1251,7 +1246,10 @@ func (t *http2Client) handleData(f *parsedDataFrame) {
 		dataLen := f.data.Len()
 		if f.Header().Flags.Has(http2.FlagDataPadded) {
 			if w := s.fc.onRead(size - uint32(dataLen)); w > 0 {
-				t.controlBuf.put(&outgoingWindowUpdate{s.id, w})
+				t.controlBuf.put(&outgoingWindowUpdate{
+					streamID:  s.id,
+					increment: w,
+				})
 			}
 		}
 		if dataLen > 0 {
@@ -1879,7 +1877,7 @@ func (t *http2Client) getOutFlowWindow() int64 {
 	resp := make(chan uint32, 1)
 	timer := time.NewTimer(time.Second)
 	defer timer.Stop()
-	t.controlBuf.put(&outFlowControlSizeRequest{resp})
+	t.controlBuf.put(&outFlowControlSizeRequest{resp: resp})
 	select {
 	case sz := <-resp:
 		return int64(sz)

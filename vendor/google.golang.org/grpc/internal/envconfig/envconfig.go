@@ -141,6 +141,27 @@ var (
 	// feature if unforeseen issues arise, and it will be removed in a future
 	// release.
 	EnableHTTPFramerReadBufferPooling = boolFromEnv("GRPC_GO_EXPERIMENTAL_HTTP_FRAMER_READ_BUFFER_POOLING", true)
+
+	// ControlBufferThrottleLimit is the maximum number of control frames that can
+	// be queued in the control buffer before throttling is applied. The value
+	// must be between 1 and 10,000, and is set to 100 by default.
+	//
+	// This environment variable serves as an escape hatch to increase the
+	// throttling limit if unforeseen issues arise, and it will be removed in a
+	// future release.
+	//
+	// TODO: Remove this env var once v1.83.0 is released.
+	ControlBufferThrottleLimit = uint64FromEnv("GRPC_GO_EXPERIMENTAL_CONTROL_BUFFER_THROTTLE_LIMIT", 100, 1, 10000)
+
+	// EnableReceiveBufferCompaction enables the compaction of data buffers
+	// to reduce the number of buffers in the receive buffer.
+	//
+	// This environment variable serves as an escape hatch to disable the
+	// feature if unforeseen issues arise, and it will be removed in a future
+	// release.
+	//
+	// TODO: Remove this env var once v1.85.0 is released.
+	EnableReceiveBufferCompaction = boolFromEnv("GRPC_GO_EXPERIMENTAL_ENABLE_RECEIVE_BUFFER_COMPACTION", true)
 )
 
 func boolFromEnv(envVar string, def bool) bool {

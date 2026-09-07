@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"io"
 	"net/http"
 	"os"
@@ -15,6 +13,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/heroiclabs/sql-migrate/sqlparse"
 )
@@ -73,9 +75,13 @@ func (p *PlanError) Error() string {
 		p.Migration.Id, p.ErrorMessage)
 }
 
-// TxError is returned when any error is encountered during a database
-// transaction. It contains the relevant *Migration and notes it's Id in the
-// Error function output.
+// TxError is returned when an error is encountered while applying a migration
+// or recording it in the tracking table. It contains the relevant *Migration
+// and notes its Id in the Error function output.
+//
+// Note: for migrations run with the notransaction option there is no
+// surrounding transaction, so a TxError does not imply the migration's
+// statements were rolled back.
 type TxError struct {
 	Migration *Migration
 	Err       error
@@ -391,41 +397,59 @@ func (ms MigrationSet) applyMigrations(ctx context.Context, db *pgx.Conn, dir Mi
 	applied := 0
 
 	for _, migration := range migrations {
-		tx, err := db.Begin(ctx)
-		if err != nil {
-			return applied, fmt.Errorf("failed to init db transaction: %s", err.Error())
-		}
-
-		for _, stmt := range migration.Queries {
-			if _, err = tx.Exec(ctx, stmt); err != nil {
-				tx.Rollback(ctx)
-				return applied, fmt.Errorf("failed to exec migration statement %q: %s", stmt, err.Error())
+		if migration.DisableTransaction {
+			if err := ms.runMigration(ctx, db, dir, migration); err != nil {
+				return applied, err
 			}
-		}
+		} else {
+			tx, err := db.Begin(ctx)
+			if err != nil {
+				return applied, newTxError(migration, fmt.Errorf("failed to init db transaction: %s", err.Error()))
+			}
 
-		switch dir {
-		case Up:
-			if _, err = tx.Exec(ctx, fmt.Sprintf("INSERT INTO %q (id, applied_at) VALUES ($1, now())", ms.TableName), migration.Id); err != nil {
+			if err := ms.runMigration(ctx, tx, dir, migration); err != nil {
 				tx.Rollback(ctx)
+				return applied, err
+			}
+
+			if err := tx.Commit(ctx); err != nil {
 				return applied, newTxError(migration, err)
 			}
-		case Down:
-			if _, err = tx.Exec(ctx, fmt.Sprintf("DELETE FROM %q WHERE id = $1", ms.TableName), migration.Id); err != nil {
-				tx.Rollback(ctx)
-				return applied, newTxError(migration, err)
-			}
-		default:
-			panic("Invalid direction")
-		}
-
-		if err := tx.Commit(ctx); err != nil {
-			return applied, newTxError(migration, err)
 		}
 
 		applied++
 	}
 
 	return applied, nil
+}
+
+// executor is the subset of *pgx.Conn and pgx.Tx used to run a migration.
+type executor interface {
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+}
+
+// runMigration executes the migration's statements and records the result in the tracking table using the given executor.
+func (ms MigrationSet) runMigration(ctx context.Context, exec executor, dir MigrationDirection, migration *PlannedMigration) error {
+	for _, stmt := range migration.Queries {
+		if _, err := exec.Exec(ctx, stmt); err != nil {
+			return newTxError(migration, fmt.Errorf("failed to exec migration statement %q: %s", stmt, err.Error()))
+		}
+	}
+
+	switch dir {
+	case Up:
+		if _, err := exec.Exec(ctx, fmt.Sprintf("INSERT INTO %q (id, applied_at) VALUES ($1, now())", ms.getTableName()), migration.Id); err != nil {
+			return newTxError(migration, err)
+		}
+	case Down:
+		if _, err := exec.Exec(ctx, fmt.Sprintf("DELETE FROM %q WHERE id = $1", ms.getTableName()), migration.Id); err != nil {
+			return newTxError(migration, err)
+		}
+	default:
+		panic("Invalid direction")
+	}
+
+	return nil
 }
 
 // Plan a migration.

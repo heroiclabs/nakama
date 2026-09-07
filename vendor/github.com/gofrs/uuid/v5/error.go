@@ -1,5 +1,7 @@
 package uuid
 
+import "fmt"
+
 // Error is a custom error type for UUID-related errors
 type Error string
 
@@ -32,6 +34,22 @@ const (
 
 	// ErrInvalidVersion indicates an unsupported or invalid UUID version.
 	ErrInvalidVersion = Error("uuid:")
+
+	// ErrV8FieldLength indicates a V8 custom field has incorrect length.
+	ErrV8FieldLength = Error("uuid: V8 field has incorrect length")
+)
+
+// Wrapped errors for backward compatibility. These wrap ErrIncorrectFormatInString
+// so code like errors.Is(err, uuid.ErrIncorrectFormatInString) continues to work.
+var (
+	// ErrInvalidBraces is returned when braced format has invalid braces.
+	ErrInvalidBraces = fmt.Errorf("%w: invalid braces", ErrIncorrectFormatInString)
+
+	// ErrInvalidURNPrefix is returned when URN format has invalid prefix.
+	ErrInvalidURNPrefix = fmt.Errorf("%w: invalid URN prefix", ErrIncorrectFormatInString)
+
+	// ErrInvalidDashes is returned when canonical format has dashes not in expected positions.
+	ErrInvalidDashes = fmt.Errorf("%w: dashes were not in expected positions", ErrIncorrectFormatInString)
 )
 
 // Error returns the string representation of the UUID error.
