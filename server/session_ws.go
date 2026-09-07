@@ -40,6 +40,7 @@ type sessionWS struct {
 	config     Config
 	id         uuid.UUID
 	format     SessionFormat
+	headers    map[string][]string
 	userID     uuid.UUID
 	username   *atomic.String
 	vars       map[string]string
@@ -78,7 +79,7 @@ type sessionWS struct {
 	closeMu                sync.Mutex
 }
 
-func NewSessionWS(logger *zap.Logger, config Config, format SessionFormat, sessionID, userID uuid.UUID, username, tokenId string, vars map[string]string, tokenExpiry, tokenIssuedAt int64, clientIP, clientPort, lang string, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, conn *websocket.Conn, sessionRegistry SessionRegistry, statusRegistry StatusRegistry, matchmaker Matchmaker, tracker Tracker, metrics Metrics, pipeline *Pipeline, runtime *Runtime) Session {
+func NewSessionWS(logger *zap.Logger, config Config, format SessionFormat, sessionID, userID uuid.UUID, username, tokenId string, headers map[string][]string, vars map[string]string, tokenExpiry, tokenIssuedAt int64, clientIP, clientPort, lang string, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, conn *websocket.Conn, sessionRegistry SessionRegistry, statusRegistry StatusRegistry, matchmaker Matchmaker, tracker Tracker, metrics Metrics, pipeline *Pipeline, runtime *Runtime) Session {
 	sessionLogger := logger.With(zap.String("uid", userID.String()), zap.String("sid", sessionID.String()))
 
 	sessionLogger.Info("New WebSocket session connected", zap.Uint8("format", uint8(format)))
@@ -96,6 +97,7 @@ func NewSessionWS(logger *zap.Logger, config Config, format SessionFormat, sessi
 		config:     config,
 		id:         sessionID,
 		format:     format,
+		headers:    headers,
 		userID:     userID,
 		username:   atomic.NewString(username),
 		vars:       vars,
@@ -181,7 +183,7 @@ func (s *sessionWS) Expiry() int64 {
 func (s *sessionWS) Consume() {
 	// Fire an event for session start.
 	if fn := s.runtime.EventSessionStart(); fn != nil {
-		fn(s.ctx, s.userID.String(), s.username.Load(), s.vars, s.expiry, s.id.String(), s.clientIP, s.clientPort, s.lang, time.Now().UTC().Unix())
+		fn(s.ctx, s.userID.String(), s.username.Load(), s.headers, s.vars, s.expiry, s.id.String(), s.clientIP, s.clientPort, s.lang, time.Now().UTC().Unix())
 	}
 
 	s.conn.SetReadLimit(s.config.GetSocket().MaxMessageSizeBytes)
@@ -558,6 +560,6 @@ func (s *sessionWS) Close(msg string, reason runtime.PresenceReason, envelopes .
 
 	// Fire an event for session end.
 	if fn := s.runtime.EventSessionEnd(); fn != nil {
-		fn(s.ctx, s.userID.String(), s.username.Load(), s.vars, s.expiry, s.id.String(), s.clientIP, s.clientPort, s.lang, time.Now().UTC().Unix(), msg)
+		fn(s.ctx, s.userID.String(), s.username.Load(), s.headers, s.vars, s.expiry, s.id.String(), s.clientIP, s.clientPort, s.lang, time.Now().UTC().Unix(), msg)
 	}
 }
