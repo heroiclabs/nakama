@@ -1,0 +1,3 @@
+# docker-compose need to install in platform first before you start build.sh
+
+sudo apt install docker-compose
