@@ -780,9 +780,11 @@ func extractClientAddress(logger *zap.Logger, config Config, candidateAddresses 
 
 	if clientIP == "" {
 		if r, isRequest := source.(*http.Request); isRequest {
-			source = map[string]any{"headers": r.Header, "remote_addr": r.RemoteAddr}
+			sourceData := map[string]any{"x-forwarded-for": r.Header.Get("x-forwarded-for"), "remote_addr": r.RemoteAddr}
+			logger.Warn("cannot extract client address", zap.String("address_source_type", sourceType), zap.Any("address_source", sourceData))
+		} else {
+			logger.Warn("cannot extract client address", zap.String("address_source_type", sourceType))
 		}
-		logger.Warn("cannot extract client address", zap.String("address_source_type", sourceType), zap.Any("address_source", source))
 	}
 
 	return clientIP, clientPort

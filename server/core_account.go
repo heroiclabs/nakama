@@ -622,7 +622,7 @@ VALUES (
 		}
 		if l := len(data.Objects); l > 0 {
 			var query strings.Builder
-			query.WriteString(`INSERT INTO storage (user_id, collection, key, "value", "version", "read", "write", create_time, update_time)`)
+			fmt.Fprint(&query, `INSERT INTO storage (user_id, collection, key, "value", "version", "read", "write", create_time, update_time)`)
 			params := make([]any, 0, l*8+1)
 			if userID == uuid.Nil {
 				params = append(params, data.Account.User.Id)
@@ -632,9 +632,9 @@ VALUES (
 			for i, d := range data.Objects {
 				params = append(params, d.Collection, d.Key, d.Value, d.Version, d.PermissionRead, d.PermissionWrite, d.CreateTime.AsTime(), d.UpdateTime.AsTime())
 				if i == 0 {
-					query.WriteString(fmt.Sprintf(" VALUES ($1, $%v, $%v, $%v, $%v, $%v, $%v, $%v, $%v)", i*8+2, i*8+3, i*8+4, i*8+5, i*8+6, i*8+7, i*8+8, i*8+9))
+					fmt.Fprintf(&query, " VALUES ($1, $%v, $%v, $%v, $%v, $%v, $%v, $%v, $%v)", i*8+2, i*8+3, i*8+4, i*8+5, i*8+6, i*8+7, i*8+8, i*8+9)
 				} else {
-					query.WriteString(fmt.Sprintf(", ($1, $%v, $%v, $%v, $%v, $%v, $%v, $%v, $%v)", i*8+2, i*8+3, i*8+4, i*8+5, i*8+6, i*8+7, i*8+8, i*8+9))
+					fmt.Fprintf(&query, ", ($1, $%v, $%v, $%v, $%v, $%v, $%v, $%v, $%v)", i*8+2, i*8+3, i*8+4, i*8+5, i*8+6, i*8+7, i*8+8, i*8+9)
 				}
 			}
 
