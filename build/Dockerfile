@@ -27,9 +27,7 @@ ENV GOARCH=$TARGETARCH
 ENV CGO_ENABLED=1
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update && \
-    apt-get -y upgrade && \
-    apt-get install -y --no-install-recommends ca-certificates gcc libc6-dev
+RUN apt-get update; apt-get -y upgrade;  apt-get install -y --no-install-recommends apt-utils ca-certificates gcc libc6-dev
 
 WORKDIR /go/build/nakama
 COPY . .
@@ -47,12 +45,8 @@ LABEL description="Distributed server for social and realtime games and apps."
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN mkdir -p /nakama/data/modules && \
-    apt-get update && \
-    apt-get -y upgrade && \
-    apt-get install -y --no-install-recommends ca-certificates tzdata iproute2 tini && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+RUN mkdir -p /nakama/data/modules ;
+    apt-get update; apt-get -y upgrade; apt-get install -y --no-install-recommends apt-utils ca-certificates tzdata iproute2 tini ;apt-get clean ;rm -rf /var/lib/apt/lists/*
 
 WORKDIR /nakama/
 COPY --from=builder "/go/build-out/nakama" /nakama/
