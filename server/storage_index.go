@@ -295,29 +295,28 @@ func (si *LocalStorageIndex) List(ctx context.Context, callerID uuid.UUID, index
 	}
 
 	if callerID != uuid.Nil {
+		// Logically the query is:
 		// QUERY AND (read:2 OR (read:1 AND owner:user_id))
-		// QUERY AND (NOT (NOT read:2 AND NOT (read:1 AND owner:user_id)))
+		//
+		// But expressed in Bluge terms as:
+		// QUERY AND (NOT read:0) AND (NOT (read:1 AND NOT owner:user_id))
 
-		read := bluge.NewNumericRangeInclusiveQuery(2, 2, true, true)
-		read.SetField("read")
+		noRead := bluge.NewNumericRangeInclusiveQuery(0, 0, true, true)
+		noRead.SetField("read")
 
 		ownerRead := bluge.NewNumericRangeInclusiveQuery(1, 1, true, true)
 		ownerRead.SetField("read")
-
 		owner := bluge.NewTermQuery(callerID.String())
 		owner.SetField("user_id")
 
 		noOtherOwnerRead := bluge.NewBooleanQuery()
 		noOtherOwnerRead.AddMust(ownerRead)
-		noOtherOwnerRead.AddMust(owner)
-
-		notVisible := bluge.NewBooleanQuery()
-		notVisible.AddMustNot(read)
-		notVisible.AddMustNot(noOtherOwnerRead)
+		noOtherOwnerRead.AddMustNot(owner)
 
 		callerAwareQuery := bluge.NewBooleanQuery()
 		callerAwareQuery.AddMust(parsedQuery)
-		callerAwareQuery.AddMustNot(notVisible)
+		callerAwareQuery.AddMustNot(noRead)
+		callerAwareQuery.AddMustNot(noOtherOwnerRead)
 
 		parsedQuery = callerAwareQuery
 	}
