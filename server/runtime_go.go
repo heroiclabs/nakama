@@ -3805,8 +3805,8 @@ func NewRuntimeProviderGo(ctx context.Context, logger, startupLogger *zap.Logger
 		nk.SetEventFn(events.eventFunction)
 	}
 	if len(initializer.sessionStartFunctions) > 0 {
-		events.sessionStartFunction = func(ctx context.Context, userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, lang string, evtTimeSec int64) {
-			ctx = NewRuntimeGoContext(ctx, initializer.node, initializer.version, initializer.env, RuntimeExecutionModeEvent, nil, nil, "", expiry, userID, username, vars, sessionID, clientIP, clientPort, lang)
+		events.sessionStartFunction = func(ctx context.Context, userID, username string, headers map[string][]string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, lang string, evtTimeSec int64) {
+			ctx = NewRuntimeGoContext(ctx, initializer.node, initializer.version, initializer.env, RuntimeExecutionModeEvent, headers, nil, "", expiry, userID, username, vars, sessionID, clientIP, clientPort, lang)
 			evt := &api.Event{
 				Name:      "session_start",
 				Timestamp: &timestamppb.Timestamp{Seconds: evtTimeSec},
@@ -3819,8 +3819,8 @@ func NewRuntimeProviderGo(ctx context.Context, logger, startupLogger *zap.Logger
 		}
 	}
 	if len(initializer.sessionEndFunctions) > 0 {
-		events.sessionEndFunction = func(ctx context.Context, userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, lang string, evtTimeSec int64, reason string) {
-			ctx = NewRuntimeGoContext(ctx, initializer.node, initializer.version, initializer.env, RuntimeExecutionModeEvent, nil, nil, "", expiry, userID, username, vars, sessionID, clientIP, clientPort, lang)
+		events.sessionEndFunction = func(ctx context.Context, userID, username string, headers map[string][]string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, lang string, evtTimeSec int64, reason string) {
+			ctx = NewRuntimeGoContext(ctx, initializer.node, initializer.version, initializer.env, RuntimeExecutionModeEvent, headers, nil, "", expiry, userID, username, vars, sessionID, clientIP, clientPort, lang)
 			evt := &api.Event{
 				Name:       "session_end",
 				Properties: map[string]string{"reason": reason},

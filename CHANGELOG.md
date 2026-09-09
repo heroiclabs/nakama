@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 [Unreleased]
 ### Added
 - Add support for namespaced multi fleet manager registration.
+- Expose websocket connection upgrade http headers to session context.
 
 ## [3.40.0] - 2026-07-13
 ### Added

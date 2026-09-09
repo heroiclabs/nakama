@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -209,8 +210,7 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 		if k == "Grpc-Timeout" {
 			continue
 		}
-		headers[k] = make([]string, 0, len(v))
-		headers[k] = append(headers[k], v...)
+		headers[k] = slices.Clone(v)
 	}
 
 	// Execute the function.

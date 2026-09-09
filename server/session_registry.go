@@ -39,6 +39,7 @@ type Session interface {
 	ID() uuid.UUID
 	UserID() uuid.UUID
 	Vars() map[string]string
+	Headers() map[string][]string
 	ClientIP() string
 	ClientPort() string
 	Lang() string

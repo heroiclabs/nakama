@@ -61,7 +61,7 @@ func (p *Pipeline) rpc(ctx context.Context, logger *zap.Logger, session Session,
 		p.metrics.WsRpc(id, time.Since(start), recvBytes, sentBytes, rpcCode)
 	}()
 
-	result, fnErr, code := fn(session.Context(), nil, nil, traceID, session.UserID().String(), session.Username(), session.Vars(), session.Expiry(), session.ID().String(), session.ClientIP(), session.ClientPort(), session.Lang(), rpcMessage.Payload)
+	result, fnErr, code := fn(session.Context(), session.Headers(), nil, traceID, session.UserID().String(), session.Username(), session.Vars(), session.Expiry(), session.ID().String(), session.ClientIP(), session.ClientPort(), session.Lang(), rpcMessage.Payload)
 	if fnErr != nil {
 		_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_RUNTIME_FUNCTION_EXCEPTION),
