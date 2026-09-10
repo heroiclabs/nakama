@@ -837,7 +837,6 @@ type wwwAuthenticateFixWriter struct {
 
 func (w *wwwAuthenticateFixWriter) WriteHeader(statusCode int) {
 	if statusCode == http.StatusUnauthorized {
-		w.ResponseWriter.Header().Del("WWW-Authenticate")
 		w.ResponseWriter.Header().Set("WWW-Authenticate", `Bearer realm="nakama"`)
 	}
 	w.ResponseWriter.WriteHeader(statusCode)
