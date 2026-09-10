@@ -958,6 +958,41 @@
         ]
       }
     },
+    "/v2/account/link/provider": {
+      "post": {
+        "summary": "Add an authentication provider identity to the current user's account.",
+        "operationId": "Nakama_LinkProvider",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "Send credentials for a runtime-registered authentication provider. Used with authenticate/link/unlink.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountProvider"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
     "/v2/account/link/steam": {
       "post": {
         "summary": "Add Steam to the social profiles on the current user's account.",
@@ -1304,6 +1339,41 @@
             "required": true,
             "schema": {
               "$ref": "#/definitions/apiAccountGoogle"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/account/unlink/provider": {
+      "post": {
+        "summary": "Remove an authentication provider identity from the current user's account.",
+        "operationId": "Nakama_UnlinkProvider",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "Send credentials for a runtime-registered authentication provider. Used with authenticate/link/unlink.",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/apiAccountProvider"
             }
           }
         ],
@@ -3946,6 +4016,14 @@
           "type": "string",
           "format": "date-time",
           "description": "The UNIX time (for gRPC clients) or ISO string (for REST clients) when the user's account was disabled/banned."
+        },
+        "providers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/apiAccountProviderIdentity"
+          },
+          "description": "The authentication provider identities linked to the user's account."
         }
       },
       "description": "A user with additional account details. Always the current user."
@@ -4130,7 +4208,21 @@
           "description": "Extra information that will be bundled in the session token."
         }
       },
-      "description": "Send credentials for a runtime-registered authentication provider. Used with authenticate."
+      "description": "Send credentials for a runtime-registered authentication provider. Used with authenticate/link/unlink."
+    },
+    "apiAccountProviderIdentity": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "description": "The name the provider was registered under during runtime initialization."
+        },
+        "providerUserId": {
+          "type": "string",
+          "description": "The user's ID with that provider."
+        }
+      },
+      "description": "A provider identity linked to a user's account."
     },
     "apiAccountSteam": {
       "type": "object",
