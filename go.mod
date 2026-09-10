@@ -19,7 +19,7 @@ require (
 	github.com/heroiclabs/nakama-common v1.47.1-0.20260819164846-bb20b5e08d21
 	github.com/heroiclabs/sql-migrate v0.0.0-20260723131912-797198e52567
 	github.com/jackc/pgerrcode v0.0.0-20250907135507-afb5586c32a6
-	github.com/jackc/pgx/v5 v5.10.0
+	github.com/jackc/pgx/v5 v5.11.0
 	github.com/klauspost/compress v1.20.0
 	github.com/prometheus/client_golang v1.24.1
 	github.com/prometheus/common v0.71.0
@@ -27,9 +27,9 @@ require (
 	github.com/uber-go/tally/v4 v4.1.17
 	go.uber.org/atomic v1.11.0
 	go.uber.org/zap v1.28.0
-	golang.org/x/crypto v0.56.0
-	golang.org/x/oauth2 v0.36.0
-	google.golang.org/genproto/googleapis/api v0.0.0-20260904194346-d0f1323225a4
+	golang.org/x/crypto v0.57.0
+	golang.org/x/oauth2 v0.37.0
+	google.golang.org/genproto/googleapis/api v0.0.0-20260908043556-f8649ddbbfe6
 	google.golang.org/grpc v1.83.2
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.6.0
 	google.golang.org/protobuf v1.36.12
@@ -53,7 +53,7 @@ require (
 	github.com/caio/go-tdigest v3.1.0+incompatible // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/dgryski/go-metro v0.0.0-20250106013310-edb8663e5e33 // indirect
-	github.com/dlclark/regexp2/v2 v2.7.2 // indirect
+	github.com/dlclark/regexp2/v2 v2.8.0 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.4+incompatible // indirect
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/google/pprof v0.0.0-20260906184651-6331bc6350fe // indirect
@@ -69,9 +69,9 @@ require (
 	github.com/twmb/murmur3 v1.2.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/net v0.58.0 // indirect
-	golang.org/x/sync v0.22.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/text v0.41.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260904194346-d0f1323225a4 // indirect
+	golang.org/x/net v0.59.0 // indirect
+	golang.org/x/sync v0.23.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260908043556-f8649ddbbfe6 // indirect
 )
