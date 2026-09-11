@@ -3,7 +3,7 @@ package skiplist
 import "math/rand"
 
 type Interface interface {
-	Less(other interface{}) bool
+	Less(other any) bool
 }
 
 type SkipList struct {
@@ -77,7 +77,7 @@ func (sl *SkipList) Insert(v Interface) *Element {
 	}
 
 	x = newElement(level, v)
-	for i := 0; i < level; i++ {
+	for i := range level {
 		x.level[i].forward = sl.update[i].level[i].forward
 		sl.update[i].level[i].forward = x
 
@@ -115,7 +115,7 @@ func (sl *SkipList) deleteElement(e *Element, update []*Element) {
 
 // Remove removes e from sl if e is an element of skiplist sl.
 // It returns the element value e.Value.
-func (sl *SkipList) Remove(e *Element) interface{} {
+func (sl *SkipList) Remove(e *Element) any {
 	x := sl.find(e.Value)                 // x.Value >= e.Value
 	if x == e && !e.Value.Less(x.Value) { // e.Value >= x.Value
 		sl.deleteElement(x, sl.update)
@@ -126,7 +126,7 @@ func (sl *SkipList) Remove(e *Element) interface{} {
 }
 
 // Delete deletes an element e that e.Value == v, and returns e.Value or nil.
-func (sl *SkipList) Delete(v Interface) interface{} {
+func (sl *SkipList) Delete(v Interface) any {
 	x := sl.find(v)                   // x.Value >= v
 	if x != nil && !v.Less(x.Value) { // v >= x.Value
 		sl.deleteElement(x, sl.update)

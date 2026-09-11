@@ -136,7 +136,7 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 		}
 	}
 	query += " LIMIT $5"
-	params := []interface{}{stream.Mode, stream.Subject, stream.Subcontext, stream.Label, limit + 1}
+	params := []any{stream.Mode, stream.Subject, stream.Subcontext, stream.Label, limit + 1}
 	if incomingCursor != nil {
 		params = append(params, time.Unix(0, incomingCursor.CreateTime).UTC(), incomingCursor.Id)
 	}

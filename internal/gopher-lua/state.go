@@ -386,10 +386,9 @@ func (rg *registry) checkSize(requiredSize int) { // +inline-start
 } // +inline-end
 
 func (rg *registry) resize(requiredSize int) { // +inline-start
-	newSize := requiredSize + rg.growBy // give some padding
-	if newSize > rg.maxSize {
-		newSize = rg.maxSize
-	}
+	newSize := min(
+		// give some padding
+		requiredSize+rg.growBy, rg.maxSize)
 	if newSize < requiredSize {
 		rg.handler.registryOverflow()
 		return
@@ -480,7 +479,7 @@ func (rg *registry) CopyRange(regv, start, limit, n int) { // +inline-start
 	if limit == -1 || limit > rg.top {
 		limit = rg.top
 	}
-	for i := 0; i < n; i++ {
+	for i := range n {
 		srcIdx := start + i
 		if srcIdx >= limit || srcIdx < 0 {
 			rg.array[regv+i] = LNil
@@ -512,7 +511,7 @@ func (rg *registry) FillNil(regm, n int) { // +inline-start
 			rg.resize(requiredSize)
 		}
 	}
-	for i := 0; i < n; i++ {
+	for i := range n {
 		rg.array[regm+i] = LNil
 	}
 	// values beyond top don't need to be valid LValues, so setting them to nil is fine
@@ -677,7 +676,7 @@ func (ls *LState) closeAllUpvalues() { // +inline-start
 	}
 } // +inline-end
 
-func (ls *LState) raiseError(level int, format string, args ...interface{}) {
+func (ls *LState) raiseError(level int, format string, args ...any) {
 	if !ls.hasErrorFunc {
 		ls.closeAllUpvalues()
 	}
@@ -1037,13 +1036,10 @@ func (ls *LState) initCallFrame(cf *callFrame) { // +inline-start
 					   namedparam1 <- lbase
 					   namedparam2
 			*/
-			nvarargs := nargs - np
-			if nvarargs < 0 {
-				nvarargs = 0
-			}
+			nvarargs := max(nargs-np, 0)
 
 			ls.reg.SetTop(cf.LocalBase + nargs + np)
-			for i := 0; i < np; i++ {
+			for i := range np {
 				//ls.reg.Set(cf.LocalBase+nargs+i, ls.reg.Get(cf.LocalBase+i))
 				ls.reg.array[cf.LocalBase+nargs+i] = ls.reg.array[cf.LocalBase+i]
 				//ls.reg.Set(cf.LocalBase+i, LNil)
@@ -1149,13 +1145,10 @@ func (ls *LState) pushCallFrame(cf callFrame, fn LValue, meta bool) { // +inline
 						   namedparam1 <- lbase
 						   namedparam2
 				*/
-				nvarargs := nargs - np
-				if nvarargs < 0 {
-					nvarargs = 0
-				}
+				nvarargs := max(nargs-np, 0)
 
 				ls.reg.SetTop(cf.LocalBase + nargs + np)
-				for i := 0; i < np; i++ {
+				for i := range np {
 					//ls.reg.Set(cf.LocalBase+nargs+i, ls.reg.Get(cf.LocalBase+i))
 					ls.reg.array[cf.LocalBase+nargs+i] = ls.reg.array[cf.LocalBase+i]
 					//ls.reg.Set(cf.LocalBase+i, LNil)
@@ -1496,7 +1489,7 @@ func (ls *LState) Push(value LValue) {
 }
 
 func (ls *LState) Pop(n int) {
-	for i := 0; i < n; i++ {
+	for range n {
 		if ls.GetTop() == 0 {
 			ls.RaiseError("register underflow")
 		}
@@ -1667,7 +1660,7 @@ func (ls *LState) registryOverflow() {
 }
 
 // This function is equivalent to luaL_error( http://www.lua.org/manual/5.1/manual.html#luaL_error ).
-func (ls *LState) RaiseError(format string, args ...interface{}) {
+func (ls *LState) RaiseError(format string, args ...any) {
 	ls.raiseError(1, format, args...)
 }
 

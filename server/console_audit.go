@@ -648,7 +648,7 @@ FROM
 	console_audit_log`
 
 	var order string
-	params := make([]interface{}, 0, 10)
+	params := make([]any, 0, 10)
 
 	// Build the WHERE clause based on the cursor and filters
 	if incomingCursor != nil {

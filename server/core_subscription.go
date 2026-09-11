@@ -87,7 +87,7 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 		sortConf = "ASC"
 	}
 
-	params := make([]interface{}, 0, 6)
+	params := make([]any, 0, 6)
 	predicateConf := ""
 	if incomingCursor != nil {
 		if userID == "" {
@@ -1343,8 +1343,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 		case googleNotification.SubscriptionNotification != nil:
 			gSubscription, _, err := iap.GetSubscriptionV2Google(r.Context(), httpc, config.ClientEmail, config.PrivateKey, googleNotification.PackageName, googleNotification.SubscriptionNotification.PurchaseToken)
 			if err != nil {
-				var vErr *iap.ValidationError
-				if errors.As(err, &vErr) {
+				if vErr, ok := errors.AsType[*iap.ValidationError](err); ok {
 					loggerWithNotification.Error("Error validating Google receipt in notification callback", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
 				} else {
 					loggerWithNotification.Error("Error validating Google receipt in notification callback", zap.Error(err))
@@ -1470,8 +1469,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 				// This is a subscription related refund/voided notification.
 				gSubscription, _, err := iap.GetSubscriptionV2Google(r.Context(), httpc, config.ClientEmail, config.PrivateKey, googleNotification.PackageName, googleNotification.VoidedPurchaseNotification.PurchaseToken)
 				if err != nil {
-					var vErr *iap.ValidationError
-					if errors.As(err, &vErr) {
+					if vErr, ok := errors.AsType[*iap.ValidationError](err); ok {
 						loggerWithNotification.Error("Error validating Google receipt in notification callback", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
 					} else {
 						loggerWithNotification.Error("Error validating Google receipt in notification callback", zap.Error(err))
@@ -1580,8 +1578,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 				// This is a purchase related refund/voided notification.
 				gPurchase, err := iap.GetPurchaseV2Google(r.Context(), httpc, config.ClientEmail, config.PrivateKey, googleNotification.PackageName, googleNotification.VoidedPurchaseNotification.PurchaseToken)
 				if err != nil {
-					var vErr *iap.ValidationError
-					if errors.As(err, &vErr) {
+					if vErr, ok := errors.AsType[*iap.ValidationError](err); ok {
 						loggerWithNotification.Error("Error validating Google receipt in notification callback", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
 					} else {
 						loggerWithNotification.Error("Error validating Google receipt in notification callback", zap.Error(err))

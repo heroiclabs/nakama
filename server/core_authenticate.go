@@ -687,7 +687,7 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 		// Check if the display name or avatar received from Google have values but the DB does not.
 		if (dbDisplayName.String == "" && displayName != "") || (dbAvatarURL.String == "" && avatarURL != "") {
 			// At least one valid change found, update the DB to reflect changes.
-			params := make([]interface{}, 0, 3)
+			params := make([]any, 0, 3)
 			params = append(params, dbUserID)
 
 			// Ensure only changed values are applied.
@@ -1105,7 +1105,7 @@ AND EXISTS
 
 func sendFriendAddedNotification(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, messageRouter MessageRouter, userID uuid.UUID, username string, friendUserIDs []uuid.UUID) {
 	notifications := make(map[uuid.UUID][]*api.Notification, len(friendUserIDs))
-	content, _ := json.Marshal(map[string]interface{}{"username": username})
+	content, _ := json.Marshal(map[string]any{"username": username})
 	subject := "Your friend has just joined the game"
 	createTime := time.Now().UTC().Unix()
 	for _, friendUserID := range friendUserIDs {

@@ -228,7 +228,7 @@ func (ls *LState) assertString() (string, bool)       { return "", false }
 func (ls *LState) assertFunction() (*LFunction, bool) { return nil, false }
 
 type LUserData struct {
-	Value     interface{}
+	Value     any
 	Env       *LTable
 	Metatable LValue
 }

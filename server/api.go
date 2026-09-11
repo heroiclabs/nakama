@@ -28,6 +28,7 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -110,7 +111,7 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, p
 	serverOpts := []grpc.ServerOption{
 		grpc.StatsHandler(&MetricsGrpcHandler{MetricsFn: metrics.Api, Metrics: metrics}),
 		grpc.MaxRecvMsgSize(int(config.GetSocket().MaxRequestSizeBytes)),
-		grpc.UnaryInterceptor(func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+		grpc.UnaryInterceptor(func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 			ctx = context.WithValue(ctx, ctxTraceId{}, uuid.Must(uuid.NewV4()).String())
 			ctx, err := securityInterceptorFunc(logger, config, sessionCache, ctx, req, info)
 			if err != nil {
@@ -193,13 +194,9 @@ func StartApiServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.DB, p
 		}),
 		grpcgw.WithMarshalerOption(grpcgw.MIMEWildcard, &grpcgw.HTTPBodyMarshaler{
 			Marshaler: &grpcgw.JSONPb{
-				MarshalOptions: protojson.MarshalOptions{
-					UseProtoNames:  true,
-					UseEnumNumbers: true,
-				},
-				UnmarshalOptions: protojson.UnmarshalOptions{
-					DiscardUnknown: true,
-				},
+				UseProtoNames:  true,
+				UseEnumNumbers: true,
+				DiscardUnknown: true,
 			},
 		}),
 	)
@@ -361,7 +358,7 @@ func (s *ApiServer) Healthcheck(ctx context.Context, in *emptypb.Empty) (*emptyp
 	return &emptypb.Empty{}, nil
 }
 
-func securityInterceptorFunc(logger *zap.Logger, config Config, sessionCache SessionCache, ctx context.Context, req interface{}, info *grpc.UnaryServerInfo) (context.Context, error) {
+func securityInterceptorFunc(logger *zap.Logger, config Config, sessionCache SessionCache, ctx context.Context, req any, info *grpc.UnaryServerInfo) (context.Context, error) {
 	switch info.FullMethod {
 	case "/nakama.api.Nakama/Healthcheck":
 		// Healthcheck has no security.
@@ -509,11 +506,11 @@ func parseBasicAuth(auth string) (username, password string, ok bool) {
 		return
 	}
 	cs := string(c)
-	s := strings.IndexByte(cs, ':')
-	if s < 0 {
+	before, after, ok := strings.Cut(cs, ":")
+	if !ok {
 		return
 	}
-	return cs[:s], cs[s+1:], true
+	return before, after, true
 }
 
 func parseBearerAuth(hmacSecretByte []byte, auth string) (userID uuid.UUID, username string, vars map[string]string, exp int64, tokenId string, issuedAt int64, ok bool) {
@@ -528,7 +525,7 @@ func parseBearerAuth(hmacSecretByte []byte, auth string) (userID uuid.UUID, user
 }
 
 func parseToken(hmacSecretByte []byte, tokenString string) (userID uuid.UUID, username string, vars map[string]string, exp int64, tokenId string, issuedAt int64, ok bool) {
-	jwtToken, err := jwt.ParseWithClaims(tokenString, &SessionTokenClaims{}, func(token *jwt.Token) (interface{}, error) {
+	jwtToken, err := jwt.ParseWithClaims(tokenString, &SessionTokenClaims{}, func(token *jwt.Token) (any, error) {
 		return hmacSecretByte, nil
 	}, jwt.WithExpirationRequired(), jwt.WithValidMethods([]string{"HS256"}))
 	if err != nil {
@@ -568,7 +565,7 @@ func compressHandler(h http.Handler) http.Handler {
 		w.Header().Add("Vary", "Accept-Encoding")
 
 		var encoding string
-		for _, enc := range strings.Split(r.Header.Get("Accept-Encoding"), ",") {
+		for enc := range strings.SplitSeq(r.Header.Get("Accept-Encoding"), ",") {
 			enc = strings.TrimSpace(enc)
 			if enc == gzipEncoding || enc == flateEncoding {
 				encoding = enc
@@ -701,16 +698,16 @@ func extractClientAddressFromRequest(logger *zap.Logger, config Config, r *http.
 	return extractClientAddress(logger, config, candidateAddresses, r, "request")
 }
 
-func extractClientAddress(logger *zap.Logger, config Config, candidateAddresses []string, source interface{}, sourceType string) (string, string) {
+func extractClientAddress(logger *zap.Logger, config Config, candidateAddresses []string, source any, sourceType string) (string, string) {
 	var clientIP, clientPort string
 	var proxyCount int
 
-	for i := len(candidateAddresses) - 1; i >= 0; i-- {
+	for i, candidateAddresse := range slices.Backward(candidateAddresses) {
 		if clientIP != "" || clientPort != "" {
 			proxyCount++
 		}
 
-		candidateAddress := strings.TrimSpace(candidateAddresses[i])
+		candidateAddress := strings.TrimSpace(candidateAddresse)
 		if candidateAddress == "" {
 			// Skip empty candidate addresses, such as from trailing commas in headers.
 			continue
@@ -739,8 +736,7 @@ func extractClientAddress(logger *zap.Logger, config Config, candidateAddresses 
 		candidateHost, candidatePort, err := net.SplitHostPort(candidateAddress)
 		if err != nil {
 			var usable bool
-			var addrErr *net.AddrError
-			if errors.As(err, &addrErr) {
+			if addrErr, ok := errors.AsType[*net.AddrError](err); ok {
 				// If it's a *net.AddrError the value may still be usable depending on the error itself.
 				switch addrErr.Err {
 				case "missing port in address":
@@ -784,9 +780,11 @@ func extractClientAddress(logger *zap.Logger, config Config, candidateAddresses 
 
 	if clientIP == "" {
 		if r, isRequest := source.(*http.Request); isRequest {
-			source = map[string]interface{}{"headers": r.Header, "remote_addr": r.RemoteAddr}
+			sourceData := map[string]any{"x-forwarded-for": r.Header.Get("x-forwarded-for"), "remote_addr": r.RemoteAddr}
+			logger.Warn("cannot extract client address", zap.String("address_source_type", sourceType), zap.Any("address_source", sourceData))
+		} else {
+			logger.Warn("cannot extract client address", zap.String("address_source_type", sourceType))
 		}
-		logger.Warn("cannot extract client address", zap.String("address_source_type", sourceType), zap.Any("address_source", source))
 	}
 
 	return clientIP, clientPort
@@ -839,7 +837,6 @@ type wwwAuthenticateFixWriter struct {
 
 func (w *wwwAuthenticateFixWriter) WriteHeader(statusCode int) {
 	if statusCode == http.StatusUnauthorized {
-		w.ResponseWriter.Header().Del("WWW-Authenticate")
 		w.ResponseWriter.Header().Set("WWW-Authenticate", `Bearer realm="nakama"`)
 	}
 	w.ResponseWriter.WriteHeader(statusCode)

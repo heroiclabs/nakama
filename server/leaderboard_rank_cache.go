@@ -52,7 +52,7 @@ type RankAsc struct {
 	Subscore int64
 }
 
-func (r RankAsc) Less(other interface{}) bool {
+func (r RankAsc) Less(other any) bool {
 	ro, ok := other.(RankAsc)
 	if !ok {
 		return true
@@ -79,7 +79,7 @@ type RankDesc struct {
 	Subscore int64
 }
 
-func (r RankDesc) Less(other interface{}) bool {
+func (r RankDesc) Less(other any) bool {
 	ro, ok := other.(RankDesc)
 	if !ok {
 		return true
@@ -512,7 +512,7 @@ func leaderboardCacheInitWorker(
 			ranks := make(map[uuid.UUID]skiplist.Interface, batchSize)
 
 			query := "SELECT owner_id, score, subscore, num_score FROM leaderboard_record WHERE leaderboard_id = $1 AND expiry_time = $2"
-			params := []interface{}{leaderboard.Id, expiryTime}
+			params := []any{leaderboard.Id, expiryTime}
 			if ownerIDStr != "" {
 				query += " AND (leaderboard_id, expiry_time, score, subscore, owner_id) > ($1, $2, $3, $4, $5)"
 				params = append(params, score, subscore, ownerIDStr)

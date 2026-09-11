@@ -349,13 +349,13 @@ func (c *checker) Reset() {
 func (c *checker) span(src []byte, atEOF bool) (n int, err error) {
 	for n < len(src) {
 		e, sz := dpTrie.lookup(src[n:])
-		d := categoryTransitions[category(e&catMask)]
 		if sz == 0 {
 			if !atEOF {
 				return n, transform.ErrShortSrc
 			}
 			return n, errDisallowedRune
 		}
+		d := categoryTransitions[category(e&catMask)]
 		doLookAhead := false
 		if property(e) < c.p.class.validFrom {
 			if d.rule == nil {
@@ -389,6 +389,9 @@ func (c *checker) span(src []byte, atEOF bool) (n int, err error) {
 		n += sz
 	}
 	if m := c.beforeBits >> finalShift; c.beforeBits&m != m || c.termBits != 0 {
+		if !atEOF {
+			return n, transform.ErrShortSrc
+		}
 		err = errContext
 	}
 	return n, err
@@ -396,8 +399,9 @@ func (c *checker) span(src []byte, atEOF bool) (n int, err error) {
 
 // TODO: we may get rid of this transform if transform.Chain understands
 // something like a Spanner interface.
-func (c checker) Transform(dst, src []byte, atEOF bool) (nDst, nSrc int, err error) {
+func (c *checker) Transform(dst, src []byte, atEOF bool) (nDst, nSrc int, err error) {
 	short := false
+
 	if len(dst) < len(src) {
 		src = src[:len(dst)]
 		atEOF = false

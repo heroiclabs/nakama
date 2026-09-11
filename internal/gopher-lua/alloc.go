@@ -19,7 +19,7 @@ var _uv uintptr
 var preloads [int(preloadLimit)]LValue
 
 func init() {
-	for i := 0; i < int(preloadLimit); i++ {
+	for i := range int(preloadLimit) {
 		preloads[i] = LNumber(i)
 	}
 }

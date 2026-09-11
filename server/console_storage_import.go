@@ -35,12 +35,12 @@ import (
 )
 
 type importStorageObject struct {
-	Collection      string      `json:"collection" csv:"collection"`
-	Key             string      `json:"key" csv:"key"`
-	UserID          string      `json:"user_id" csv:"user_id"`
-	Value           interface{} `json:"value" csv:"value"`
-	PermissionRead  int         `json:"permission_read" csv:"permission_read"`
-	PermissionWrite int         `json:"permission_write" csv:"permission_write"`
+	Collection      string `json:"collection" csv:"collection"`
+	Key             string `json:"key" csv:"key"`
+	UserID          string `json:"user_id" csv:"user_id"`
+	Value           any    `json:"value" csv:"value"`
+	PermissionRead  int    `json:"permission_read" csv:"permission_read"`
+	PermissionWrite int    `json:"permission_write" csv:"permission_write"`
 }
 
 func (s *ConsoleServer) importStorage(w http.ResponseWriter, r *http.Request) {
@@ -172,7 +172,7 @@ func importStorageJSON(ctx context.Context, logger *zap.Logger, db *sql.DB, metr
 		}
 
 		switch d.Value.(type) {
-		case map[string]interface{}:
+		case map[string]any:
 			// Valid json object
 		default:
 			return errors.New("invalid storage object value. It must contain a valid json object")

@@ -72,7 +72,7 @@ type readOnly[K comparable, V any] struct {
 
 // expunged is an arbitrary pointer that marks entries which have been deleted
 // from the dirty map.
-var expunged = unsafe.Pointer(new(interface{}))
+var expunged = unsafe.Pointer(new(any))
 
 // An entry is a slot in the map corresponding to a particular key.
 type entry[V any] struct {

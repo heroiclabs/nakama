@@ -127,13 +127,13 @@ func (f *uint32Value) Set(s string) error {
 }
 
 // Getters for each of the types
-func (f *int8Value) Get() interface{}   { return int8(*f) }
-func (f *int16Value) Get() interface{}  { return int16(*f) }
-func (f *int32Value) Get() interface{}  { return int32(*f) }
-func (f *f32Value) Get() interface{}    { return float32(*f) }
-func (f *uint8Value) Get() interface{}  { return uint8(*f) }
-func (f *uint16Value) Get() interface{} { return uint16(*f) }
-func (f *uint32Value) Get() interface{} { return uint32(*f) }
+func (f *int8Value) Get() any   { return int8(*f) }
+func (f *int16Value) Get() any  { return int16(*f) }
+func (f *int32Value) Get() any  { return int32(*f) }
+func (f *f32Value) Get() any    { return float32(*f) }
+func (f *uint8Value) Get() any  { return uint8(*f) }
+func (f *uint16Value) Get() any { return uint16(*f) }
+func (f *uint32Value) Get() any { return uint32(*f) }
 
 // Stringers for each of the types
 func (f *int8Value) String() string   { return fmt.Sprintf("%v", *f) }
@@ -169,7 +169,7 @@ func (s *strSlice) Set(str string) error {
 	return nil
 }
 
-func (s *strSlice) Get() interface{} {
+func (s *strSlice) Get() any {
 	return []string(*s.s)
 }
 
@@ -203,7 +203,7 @@ func (is *intSlice) Set(str string) error {
 	return nil
 }
 
-func (is *intSlice) Get() interface{} {
+func (is *intSlice) Get() any {
 	return []int(*is.s)
 }
 
@@ -237,7 +237,7 @@ func (is *float64Slice) Set(str string) error {
 	return nil
 }
 
-func (is *float64Slice) Get() interface{} {
+func (is *float64Slice) Get() any {
 	return []float64(*is.s)
 }
 

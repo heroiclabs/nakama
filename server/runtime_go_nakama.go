@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -488,7 +489,7 @@ func (n *RuntimeGoNakamaModule) AccountsGetId(ctx context.Context, userIDs, devi
 // @param langTag(type=string) Lang tag to be updated. Use "" if it is not being updated.
 // @param avatarUrl(type=string) User's avatar URL. Use "" if it is not being updated.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) AccountUpdateId(ctx context.Context, userID, username string, metadata map[string]interface{}, displayName, timezone, location, langTag, avatarUrl string) error {
+func (n *RuntimeGoNakamaModule) AccountUpdateId(ctx context.Context, userID, username string, metadata map[string]any, displayName, timezone, location, langTag, avatarUrl string) error {
 	u, err := uuid.FromString(userID)
 	if err != nil {
 		return errors.New("expects user ID to be a valid identifier")
@@ -650,10 +651,8 @@ func (n *RuntimeGoNakamaModule) UsersGetUsername(ctx context.Context, usernames 
 		return make([]*api.User, 0), nil
 	}
 
-	for _, username := range usernames {
-		if username == "" {
-			return nil, errors.New("each username must be a string")
-		}
+	if slices.Contains(usernames, "") {
+		return nil, errors.New("each username must be a string")
 	}
 
 	users, err := GetUsers(ctx, n.logger, n.db, n.statusRegistry, nil, usernames, nil)
@@ -1584,7 +1583,7 @@ func (n *RuntimeGoNakamaModule) SessionLogout(userID, token, refreshToken string
 // @param params(type=map[string]interface{}) Any value to pass to the match init hook.
 // @return matchId(string) The match ID of the newly created match. Clients can immediately use this ID to join the match.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) MatchCreate(ctx context.Context, module string, params map[string]interface{}) (string, error) {
+func (n *RuntimeGoNakamaModule) MatchCreate(ctx context.Context, module string, params map[string]any) (string, error) {
 	if module == "" {
 		return "", errors.New("expects module name")
 	}
@@ -1662,7 +1661,7 @@ func (n *RuntimeGoNakamaModule) MatchSignal(ctx context.Context, id string, data
 // @param sender(type=string, optional=true) The sender of this notification. If left empty, it will be assumed that it is a system notification.
 // @param persistent(type=bool, default=false) Whether to record this in the database for later listing.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) NotificationSend(ctx context.Context, userID, subject string, content map[string]interface{}, code int, sender string, persistent bool) error {
+func (n *RuntimeGoNakamaModule) NotificationSend(ctx context.Context, userID, subject string, content map[string]any, code int, sender string, persistent bool) error {
 	uid, err := uuid.FromString(userID)
 	if err != nil {
 		return errors.New("expects userID to be a valid UUID")
@@ -1771,7 +1770,7 @@ func (n *RuntimeGoNakamaModule) NotificationsSend(ctx context.Context, notificat
 // @param code(type=int) Notification code to use. Must be greater than or equal to 0.
 // @param persistent(type=bool) Whether to record this in the database for later listing.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) NotificationSendAll(ctx context.Context, subject string, content map[string]interface{}, code int, persistent bool) error {
+func (n *RuntimeGoNakamaModule) NotificationSendAll(ctx context.Context, subject string, content map[string]any, code int, persistent bool) error {
 	if subject == "" {
 		return errors.New("expects subject to be a non-empty string")
 	}
@@ -1924,7 +1923,7 @@ func (n *RuntimeGoNakamaModule) NotificationsUpdate(ctx context.Context, updates
 // @return updatedValue(map) The updated wallet value.
 // @return previousValue(map) The previous wallet value.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) WalletUpdate(ctx context.Context, userID string, changeset map[string]int64, metadata map[string]interface{}, updateLedger bool) (map[string]int64, map[string]int64, error) {
+func (n *RuntimeGoNakamaModule) WalletUpdate(ctx context.Context, userID string, changeset map[string]int64, metadata map[string]any, updateLedger bool) (map[string]int64, map[string]int64, error) {
 	uid, err := uuid.FromString(userID)
 	if err != nil {
 		return nil, nil, errors.New("expects a valid user id")
@@ -2004,7 +2003,7 @@ func (n *RuntimeGoNakamaModule) WalletsUpdate(ctx context.Context, updates []*ru
 // @param metadata(type=map[string]interface{}) The new metadata to set on the wallet ledger item.
 // @return updateWalletLedger(runtime.WalletLedgerItem) The updated wallet ledger item.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) WalletLedgerUpdate(ctx context.Context, itemID string, metadata map[string]interface{}) (runtime.WalletLedgerItem, error) {
+func (n *RuntimeGoNakamaModule) WalletLedgerUpdate(ctx context.Context, itemID string, metadata map[string]any) (runtime.WalletLedgerItem, error) {
 	id, err := uuid.FromString(itemID)
 	if err != nil {
 		return nil, errors.New("expects a valid item id")
@@ -2541,7 +2540,7 @@ func (n *RuntimeGoNakamaModule) MultiUpdate(ctx context.Context, accountUpdates 
 // @param metadata(type=map[string]interface{}) The metadata you want associated to the leaderboard. Some good examples are weather conditions for a racing game.
 // @param enableRanks(type=bool) Whether to enable rank values for the leaderboard.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) LeaderboardCreate(ctx context.Context, leaderboardID string, authoritative bool, sortOrder, operator, resetSchedule string, metadata map[string]interface{}, enableRanks bool) error {
+func (n *RuntimeGoNakamaModule) LeaderboardCreate(ctx context.Context, leaderboardID string, authoritative bool, sortOrder, operator, resetSchedule string, metadata map[string]any, enableRanks bool) error {
 	if leaderboardID == "" {
 		return errors.New("expects a leaderboard ID string")
 	}
@@ -2764,7 +2763,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardRecordsListCursorFromRank(leaderboard
 // @param overrideOperator(type=*int) An override operator for the new record. The accepted values include: 0 (no override), 1 (best), 2 (set), 3 (incr), 4 (decr). Passing nil is the same as passing a pointer to 0 (no override), which uses the default leaderboard operator.
 // @return record(*api.LeaderboardRecord) The newly created leaderboard record.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) LeaderboardRecordWrite(ctx context.Context, id, ownerID, username string, score, subscore int64, metadata map[string]interface{}, overrideOperator *int) (*api.LeaderboardRecord, error) {
+func (n *RuntimeGoNakamaModule) LeaderboardRecordWrite(ctx context.Context, id, ownerID, username string, score, subscore int64, metadata map[string]any, overrideOperator *int) (*api.LeaderboardRecord, error) {
 	if id == "" {
 		return nil, errors.New("expects a leaderboard ID string")
 	}
@@ -2881,7 +2880,7 @@ func (n *RuntimeGoNakamaModule) LeaderboardsGetId(ctx context.Context, IDs []str
 // @param joinRequired(type=bool, default=false) Whether the tournament needs to be joined before a record write is allowed.
 // @param enableRanks(type=bool) Whether to enable rank values for the tournament.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) TournamentCreate(ctx context.Context, id string, authoritative bool, sortOrder, operator, resetSchedule string, metadata map[string]interface{}, title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired, enableRanks bool) error {
+func (n *RuntimeGoNakamaModule) TournamentCreate(ctx context.Context, id string, authoritative bool, sortOrder, operator, resetSchedule string, metadata map[string]any, title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired, enableRanks bool) error {
 	if id == "" {
 		return errors.New("expects a tournament ID string")
 	}
@@ -3138,7 +3137,7 @@ func (n *RuntimeGoNakamaModule) TournamentRecordsList(ctx context.Context, tourn
 // @param overrideOperator(type=*int) An override operator for the new record. The accepted values include: 0 (no override), 1 (best), 2 (set), 3 (incr), 4 (decr). Passing nil is the same as passing a pointer to 0 (no override), which uses the default leaderboard operator.
 // @return result(*api.LeaderboardRecord) The newly created leaderboard record.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) TournamentRecordWrite(ctx context.Context, id, ownerID, username string, score, subscore int64, metadata map[string]interface{}, overrideOperator *int) (*api.LeaderboardRecord, error) {
+func (n *RuntimeGoNakamaModule) TournamentRecordWrite(ctx context.Context, id, ownerID, username string, score, subscore int64, metadata map[string]any, overrideOperator *int) (*api.LeaderboardRecord, error) {
 	if id == "" {
 		return nil, errors.New("expects a tournament ID string")
 	}
@@ -3603,7 +3602,7 @@ func (n *RuntimeGoNakamaModule) GroupsGetId(ctx context.Context, groupIDs []stri
 // @param maxCount(type=int, default=100) Maximum number of members to have in the group.
 // @return createGroup(*api.Group) The groupId of the newly created group.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) GroupCreate(ctx context.Context, userID, name, creatorID, langTag, description, avatarUrl string, open bool, metadata map[string]interface{}, maxCount int) (*api.Group, error) {
+func (n *RuntimeGoNakamaModule) GroupCreate(ctx context.Context, userID, name, creatorID, langTag, description, avatarUrl string, open bool, metadata map[string]any, maxCount int) (*api.Group, error) {
 	uid, err := uuid.FromString(userID)
 	if err != nil {
 		return nil, errors.New("expects user ID to be a valid identifier")
@@ -3651,7 +3650,7 @@ func (n *RuntimeGoNakamaModule) GroupCreate(ctx context.Context, userID, name, c
 // @param metadata(type=map[string]interface{}) Custom information to store for this group. Use nil if field is not being updated.
 // @param maxCount(type=int) Maximum number of members to have in the group. Use 0, nil/null if field is not being updated.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) GroupUpdate(ctx context.Context, groupID, userID, name, creatorID, langTag, description, avatarUrl string, open bool, metadata map[string]interface{}, maxCount int) error {
+func (n *RuntimeGoNakamaModule) GroupUpdate(ctx context.Context, groupID, userID, name, creatorID, langTag, description, avatarUrl string, open bool, metadata map[string]any, maxCount int) error {
 	group, err := uuid.FromString(groupID)
 	if err != nil {
 		return errors.New("expects group ID to be a valid identifier")
@@ -4439,7 +4438,7 @@ func (n *RuntimeGoNakamaModule) FriendMetadataUpdate(ctx context.Context, userID
 // @param persist(type=bool) Whether to record this message in the channel history.
 // @return channelMessageSend(*rtapi.ChannelMessageAck) Message sent ack containing the following variables: 'channelId', 'contentStr', 'senderId', 'senderUsername', and 'persist'.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) ChannelMessageSend(ctx context.Context, channelId string, content map[string]interface{}, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error) {
+func (n *RuntimeGoNakamaModule) ChannelMessageSend(ctx context.Context, channelId string, content map[string]any, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error) {
 	channelIdToStreamResult, err := ChannelIdToStream(channelId)
 	if err != nil {
 		return nil, err
@@ -4468,7 +4467,7 @@ func (n *RuntimeGoNakamaModule) ChannelMessageSend(ctx context.Context, channelI
 // @param persist(type=bool) Whether to record this message in the channel history.
 // @return channelMessageUpdate(*rtapi.ChannelMessageAck) Message updated ack containing the following variables: 'channelId', 'contentStr', 'senderId', 'senderUsername', and 'persist'.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) ChannelMessageUpdate(ctx context.Context, channelId, messageId string, content map[string]interface{}, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error) {
+func (n *RuntimeGoNakamaModule) ChannelMessageUpdate(ctx context.Context, channelId, messageId string, content map[string]any, senderId, senderUsername string, persist bool) (*rtapi.ChannelMessageAck, error) {
 	channelIdToStreamResult, err := ChannelIdToStream(channelId)
 	if err != nil {
 		return nil, err

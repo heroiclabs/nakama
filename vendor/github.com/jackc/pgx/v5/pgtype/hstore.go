@@ -2,7 +2,6 @@ package pgtype
 
 import (
 	"database/sql/driver"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"strings"
@@ -180,29 +179,19 @@ func (HstoreCodec) PlanScan(m *Map, oid uint32, format int16, target any) ScanPl
 type scanPlanBinaryHstoreToHstoreScanner struct{}
 
 func (scanPlanBinaryHstoreToHstoreScanner) Scan(src []byte, dst any) error {
-	scanner := (dst).(HstoreScanner)
+	scanner := dst.(HstoreScanner)
 
 	if src == nil {
 		return scanner.ScanHstore(Hstore(nil))
 	}
 
-	rp := 0
+	r := pgio.NewReader(src)
 
-	const uint32Len = 4
-	if len(src[rp:]) < uint32Len {
-		return fmt.Errorf("hstore incomplete %v", src)
-	}
-	pairCount := int(int32(binary.BigEndian.Uint32(src[rp:])))
-	rp += uint32Len
-
-	if pairCount < 0 {
-		return fmt.Errorf("hstore invalid pair count: %d", pairCount)
-	}
-	// Each pair carries at minimum two int32 length headers (key, value), so pairCount cannot
-	// exceed the remaining bytes / 8. This bounds the up-front make() against a malicious server
-	// claiming a huge pair count in a small message.
-	if maxPairs := len(src[rp:]) / (2 * uint32Len); pairCount > maxPairs {
-		return fmt.Errorf("hstore invalid pair count %d for %d remaining bytes", pairCount, len(src[rp:]))
+	// Each pair carries at minimum two int32 length headers (key, value). This bounds the
+	// up-front make() against a malicious server claiming a huge pair count in a small message.
+	pairCount := r.Count(8)
+	if err := r.Err(); err != nil {
+		return fmt.Errorf("hstore: %w", err)
 	}
 
 	hstore := make(Hstore, pairCount)
@@ -210,47 +199,34 @@ func (scanPlanBinaryHstoreToHstoreScanner) Scan(src []byte, dst any) error {
 	valueStrings := make([]string, pairCount)
 
 	for i := range pairCount {
-		if len(src[rp:]) < uint32Len {
-			return fmt.Errorf("hstore incomplete %v", src)
+		keyBytes, keyNull := r.Value()
+		valueBytes, valueNull := r.Value()
+		if err := r.Err(); err != nil {
+			return fmt.Errorf("hstore pair %d: %w", i, err)
 		}
-		keyLen := int(int32(binary.BigEndian.Uint32(src[rp:])))
-		rp += uint32Len
-
-		if keyLen < 0 {
-			return fmt.Errorf("hstore invalid key length: %d", keyLen)
+		if keyNull {
+			return fmt.Errorf("hstore pair %d: key cannot be NULL", i)
 		}
-		if len(src[rp:]) < keyLen {
-			return fmt.Errorf("hstore incomplete %v", src)
-		}
-		key := string(src[rp : rp+keyLen])
-		rp += keyLen
 
-		if len(src[rp:]) < uint32Len {
-			return fmt.Errorf("hstore incomplete %v", src)
-		}
-		valueLen := int(int32(binary.BigEndian.Uint32(src[rp:])))
-		rp += 4
-
-		if valueLen >= 0 {
-			if len(src[rp:]) < valueLen {
-				return fmt.Errorf("hstore incomplete %v", src)
-			}
-			valueStrings[i] = string(src[rp : rp+valueLen])
-			rp += valueLen
-
-			hstore[key] = &valueStrings[i]
-		} else {
+		key := string(keyBytes)
+		if valueNull {
 			hstore[key] = nil
+		} else {
+			valueStrings[i] = string(valueBytes)
+			hstore[key] = &valueStrings[i]
 		}
 	}
 
+	if err := r.Finish(); err != nil {
+		return fmt.Errorf("hstore: %w", err)
+	}
 	return scanner.ScanHstore(hstore)
 }
 
 type scanPlanTextAnyToHstoreScanner struct{}
 
 func (s scanPlanTextAnyToHstoreScanner) Scan(src []byte, dst any) error {
-	scanner := (dst).(HstoreScanner)
+	scanner := dst.(HstoreScanner)
 
 	if src == nil {
 		return scanner.ScanHstore(Hstore(nil))
@@ -455,8 +431,13 @@ func parseHstore(s string) (Hstore, error) {
 	p := newHSP(s)
 
 	// This is an over-estimate of the number of key/value pairs. Use '>' because I am guessing it
-	// is less likely to occur in keys/values than '=' or ','.
+	// is less likely to occur in keys/values than '=' or ','. Clamp so an unvalidated
+	// separator count cannot pre-size a huge map from garbage input.
+	const maxHstorePairsEstimate = 1024
 	numPairsEstimate := strings.Count(s, ">")
+	if numPairsEstimate > maxHstorePairsEstimate {
+		numPairsEstimate = maxHstorePairsEstimate
+	}
 	// makes one allocation of strings for the entire Hstore, rather than one allocation per value.
 	valueStrings := make([]string, 0, numPairsEstimate)
 	result := make(Hstore, numPairsEstimate)

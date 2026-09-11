@@ -87,7 +87,7 @@ func copyReturnValues(L *LState, regv, start, n, b int) { // +inline-start
 					rg.resize(requiredSize)
 				}
 			}
-			for i := 0; i < n; i++ {
+			for i := range n {
 				rg.array[regm+i] = LNil
 			}
 			// values beyond top don't need to be valid LValues, so setting them to nil is fine
@@ -119,7 +119,7 @@ func copyReturnValues(L *LState, regv, start, n, b int) { // +inline-start
 			if limit == -1 || limit > rg.top {
 				limit = rg.top
 			}
-			for i := 0; i < n; i++ {
+			for i := range n {
 				srcIdx := start + i
 				if srcIdx >= limit || srcIdx < 0 {
 					rg.array[regv+i] = LNil
@@ -155,7 +155,7 @@ func copyReturnValues(L *LState, regv, start, n, b int) { // +inline-start
 						rg.resize(requiredSize)
 					}
 				}
-				for i := 0; i < n; i++ {
+				for i := range n {
 					rg.array[regm+i] = LNil
 				}
 				// values beyond top don't need to be valid LValues, so setting them to nil is fine
@@ -239,7 +239,7 @@ func callGFunction(L *LState, tailcall bool) bool {
 		if limit == -1 || limit > rg.top {
 			limit = rg.top
 		}
-		for i := 0; i < n; i++ {
+		for i := range n {
 			srcIdx := start + i
 			if srcIdx >= limit || srcIdx < 0 {
 				rg.array[regv+i] = LNil
@@ -320,7 +320,7 @@ func init() {
 			reg.Set(lbase+A, reg.Get(lbase+B))
 			code := cf.Fn.Proto.Code
 			pc := cf.Pc
-			for i := 0; i < C; i++ {
+			for range C {
 				inst = code[pc]
 				pc++
 				A = int(inst>>18) & 0xff //GETA
@@ -783,13 +783,10 @@ func init() {
 									   namedparam1 <- lbase
 									   namedparam2
 							*/
-							nvarargs := nargs - np
-							if nvarargs < 0 {
-								nvarargs = 0
-							}
+							nvarargs := max(nargs-np, 0)
 
 							ls.reg.SetTop(cf.LocalBase + nargs + np)
-							for i := 0; i < np; i++ {
+							for i := range np {
 								//ls.reg.Set(cf.LocalBase+nargs+i, ls.reg.Get(cf.LocalBase+i))
 								ls.reg.array[cf.LocalBase+nargs+i] = ls.reg.array[cf.LocalBase+i]
 								//ls.reg.Set(cf.LocalBase+i, LNil)
@@ -965,13 +962,10 @@ func init() {
 									   namedparam1 <- lbase
 									   namedparam2
 							*/
-							nvarargs := nargs - np
-							if nvarargs < 0 {
-								nvarargs = 0
-							}
+							nvarargs := max(nargs-np, 0)
 
 							ls.reg.SetTop(cf.LocalBase + nargs + np)
-							for i := 0; i < np; i++ {
+							for i := range np {
 								//ls.reg.Set(cf.LocalBase+nargs+i, ls.reg.Get(cf.LocalBase+i))
 								ls.reg.array[cf.LocalBase+nargs+i] = ls.reg.array[cf.LocalBase+i]
 								//ls.reg.Set(cf.LocalBase+i, LNil)
@@ -1018,7 +1012,7 @@ func init() {
 					if limit == -1 || limit > rg.top {
 						limit = rg.top
 					}
-					for i := 0; i < n; i++ {
+					for i := range n {
 						srcIdx := start + i
 						if srcIdx >= limit || srcIdx < 0 {
 							rg.array[regv+i] = LNil
@@ -1169,7 +1163,7 @@ func init() {
 										rg.resize(requiredSize)
 									}
 								}
-								for i := 0; i < n; i++ {
+								for i := range n {
 									rg.array[regm+i] = LNil
 								}
 								// values beyond top don't need to be valid LValues, so setting them to nil is fine
@@ -1279,7 +1273,7 @@ func init() {
 									rg.resize(requiredSize)
 								}
 							}
-							for i := 0; i < n; i++ {
+							for i := range n {
 								rg.array[regm+i] = LNil
 							}
 							// values beyond top don't need to be valid LValues, so setting them to nil is fine
@@ -1452,10 +1446,7 @@ func init() {
 			RA := lbase + A
 			B := int(inst & 0x1ff) //GETB
 			nparams := int(cf.Fn.Proto.NumParameters)
-			nvarargs := cf.NArgs - nparams
-			if nvarargs < 0 {
-				nvarargs = 0
-			}
+			nvarargs := max(cf.NArgs-nparams, 0)
 			nwant := B - 1
 			if B == 0 {
 				nwant = nvarargs
@@ -1480,7 +1471,7 @@ func init() {
 				if limit == -1 || limit > rg.top {
 					limit = rg.top
 				}
-				for i := 0; i < n; i++ {
+				for i := range n {
 					srcIdx := start + i
 					if srcIdx >= limit || srcIdx < 0 {
 						rg.array[regv+i] = LNil

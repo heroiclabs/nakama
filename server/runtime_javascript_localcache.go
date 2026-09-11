@@ -62,7 +62,7 @@ func NewRuntimeJavascriptLocalCache(ctx context.Context) *RuntimeJavascriptLocal
 	return lc
 }
 
-func (lc *RuntimeJavascriptLocalCache) Get(key string) (interface{}, bool) {
+func (lc *RuntimeJavascriptLocalCache) Get(key string) (any, bool) {
 	t := time.Now()
 
 	lc.RLock()
@@ -91,7 +91,7 @@ func (lc *RuntimeJavascriptLocalCache) Get(key string) (interface{}, bool) {
 	return nil, false
 }
 
-func (lc *RuntimeJavascriptLocalCache) Put(key string, value interface{}, ttl int64) {
+func (lc *RuntimeJavascriptLocalCache) Put(key string, value any, ttl int64) {
 	data := javascriptLocalCacheData{data: value}
 	if ttl > 0 {
 		data.expirationTime = time.Now().Add(time.Second * time.Duration(ttl))

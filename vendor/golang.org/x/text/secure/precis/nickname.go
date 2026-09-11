@@ -44,24 +44,25 @@ func (t *nickAdditionalMapping) Transform(dst, src []byte, atEOF bool) (nDst, nS
 	//         to a single ASCII space character (e.g., "St  Peter" is
 	//         mapped to "St Peter").
 	for nSrc < len(src) {
-		r, size := utf8.DecodeRune(src[nSrc:])
-		if size == 0 { // Incomplete UTF-8 encoding
-			if !atEOF {
-				return nDst, nSrc, transform.ErrShortSrc
-			}
-			size = 1
+		if !utf8.FullRune(src[nSrc:]) && !atEOF {
+			return nDst, nSrc, transform.ErrShortSrc
 		}
+		r, size := utf8.DecodeRune(src[nSrc:])
 		if unicode.Is(unicode.Zs, r) {
 			t.prevSpace = true
 		} else {
 			if t.prevSpace && t.notStart {
+				if nDst >= len(dst) {
+					return nDst, nSrc, transform.ErrShortDst
+				}
 				dst[nDst] = ' '
 				nDst += 1
+				t.prevSpace = false
 			}
-			if size != copy(dst[nDst:], src[nSrc:nSrc+size]) {
-				nDst += size
+			if len(dst)-nDst < size {
 				return nDst, nSrc, transform.ErrShortDst
 			}
+			copy(dst[nDst:], src[nSrc:nSrc+size])
 			nDst += size
 			t.prevSpace = false
 			t.notStart = true

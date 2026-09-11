@@ -135,6 +135,12 @@ CREATE UNIQUE INDEX CONCURRENTLY people_unique_id_idx ON people (id);
 DROP INDEX people_unique_id_idx;
 ```
 
+Because a `notransaction` migration runs outside of a transaction, it is **not atomic**: if it fails partway through, the statements that already ran remain applied and the migration is *not* recorded as complete.
+
+Each statement in a `notransaction` migration must be a single SQL command. Statements are sent using PostgreSQL's simple query protocol, which wraps a message containing multiple commands in an implicit transaction. Grouping several commands inside one `StatementBegin`/`StatementEnd` block therefore reintroduces a transaction.
+
+The `notransaction` option applies to the whole `Up` (or `Down`) section. A file may contain several `-- +migrate Up` sections, but if any of them sets `notransaction` then *all* of that migration's up statements run outside a transaction. You cannot mix transactional and non-transactional statements in one migration, so keep statements that must run outside a transaction in their own migration file.
+
 ## Embedding migrations with libraries that implement `http.FileSystem`
 
 You can also embed migrations with any library that implements `http.FileSystem`, like [`vfsgen`](https://github.com/shurcooL/vfsgen), [`parcello`](https://github.com/phogolabs/parcello), or [`go-resources`](https://github.com/omeid/go-resources).

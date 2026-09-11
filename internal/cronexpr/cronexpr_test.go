@@ -582,7 +582,7 @@ func BenchmarkParse(b *testing.B) {
 
 func BenchmarkNext(b *testing.B) {
 	exprs := make([]*Expression, benchmarkExpressionsLen)
-	for i := 0; i < benchmarkExpressionsLen; i++ {
+	for i := range benchmarkExpressionsLen {
 		exprs[i] = MustParse(benchmarkExpressions[i])
 	}
 	from := time.Now()

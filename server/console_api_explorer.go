@@ -70,7 +70,7 @@ func (s *ConsoleServer) CallApiEndpoint(ctx context.Context, in *console.CallApi
 	args[0] = reflect.ValueOf(s.api)
 	args[1] = reflect.ValueOf(callCtx)
 
-	if r.method.Type.In(2) == reflect.TypeOf(&emptypb.Empty{}) {
+	if r.method.Type.In(2) == reflect.TypeFor[*emptypb.Empty]() {
 		if in.Body != "" {
 			logger.Error("Body passed to an api call that doesn't accept any.", zap.String("method", in.Method))
 			return nil, status.Error(codes.InvalidArgument, "Api method doesn't accept a request body.")
@@ -186,8 +186,8 @@ func (s *ConsoleServer) ListApiEndpoints(ctx context.Context, _ *emptypb.Empty) 
 func (s *ConsoleServer) initRpcMethodCache() error {
 	endpoints := make(map[MethodName]*methodReflection)
 	apiType := reflect.TypeOf(s.api)
-	for i := 0; i < apiType.NumMethod(); i++ {
-		method := apiType.Method(i)
+	for method := range apiType.Methods() {
+		method := method
 		if method.Type.NumIn() != 3 || method.Type.NumOut() != 2 {
 			continue
 		}
@@ -202,7 +202,7 @@ func (s *ConsoleServer) initRpcMethodCache() error {
 
 		request := method.Type.In(2)
 
-		if request != reflect.TypeOf(&emptypb.Empty{}) {
+		if request != reflect.TypeFor[*emptypb.Empty]() {
 			if request.Kind() == reflect.Pointer {
 				request = request.Elem()
 			}
@@ -267,7 +267,7 @@ func reflectProtoMessageAsJsonTemplate(s reflect.Type) (string, error) {
 		case reflect.Int16:
 			m.Set(reflect.ValueOf(int16(0)))
 		case reflect.Int32:
-			if m.Type().AssignableTo(reflect.TypeOf(int32(0))) {
+			if m.Type().AssignableTo(reflect.TypeFor[int32]()) {
 				m.Set(reflect.ValueOf(int32(0)))
 			} else {
 				// Handle special Int32 case for proto defined Enums

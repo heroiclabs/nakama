@@ -62,7 +62,7 @@ func (s *ConsoleServer) ListGroups(ctx context.Context, in *console.ListGroupsRe
 		}
 	}
 
-	buildListGroupsQuery := func(cursor *consoleGroupCursor, filter string) (query string, params []interface{}, limit int) {
+	buildListGroupsQuery := func(cursor *consoleGroupCursor, filter string) (query string, params []any, limit int) {
 		// Check if we have a filter and it's a group ID.
 		var groupIDFilter *uuid.UUID
 		if filter != "" {
@@ -78,14 +78,14 @@ func (s *ConsoleServer) ListGroups(ctx context.Context, in *console.ListGroupsRe
 			// Filtering for a single exact group ID. Querying on primary key (id).
 			query = `SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
 FROM groups WHERE id = $1`
-			params = []interface{}{*groupIDFilter}
+			params = []any{*groupIDFilter}
 			limit = 0
 		// Pagination not possible.
 		case filter != "" && strings.Contains(filter, "%"):
 			// Filtering for a partial username. Querying and paginating on unique index (name).
 			query = `SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
 FROM groups WHERE name ILIKE $1`
-			params = []interface{}{filter}
+			params = []any{filter}
 			// Pagination is possible.
 			if cursor != nil {
 				query += " AND name > $2"
@@ -98,19 +98,19 @@ FROM groups WHERE name ILIKE $1`
 			// Filtering for an exact username. Querying on unique index (name).
 			query = `SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
 FROM groups WHERE name = $1`
-			params = []interface{}{filter}
+			params = []any{filter}
 			limit = 0
 		// Pagination not possible.
 		case cursor != nil:
 			// Non-filtered, but paginated query. Assume pagination on group ID. Querying and paginating on primary key (id).
 			query = `SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
 FROM groups WHERE id > $1 ORDER BY id ASC LIMIT $2`
-			params = []interface{}{cursor.ID, limit + 1}
+			params = []any{cursor.ID, limit + 1}
 		default:
 			// Non-filtered, non-paginated query. Querying and paginating on primary key (id).
 			query = `SELECT id, creator_id, name, description, avatar_url, state, edge_count, lang_tag, max_count, metadata, create_time, update_time
 FROM groups ORDER BY id ASC LIMIT $1`
-			params = []interface{}{limit + 1}
+			params = []any{limit + 1}
 		}
 
 		return query, params, limit

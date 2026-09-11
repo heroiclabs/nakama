@@ -212,7 +212,7 @@ func NewRuntimeLuaMatchCore(logger *zap.Logger, module string, db *sql.DB, proto
 	return core, nil
 }
 
-func (r *RuntimeLuaMatchCore) MatchInit(presenceList *MatchPresenceList, deferMessageFn RuntimeMatchDeferMessageFunction, params map[string]interface{}) (interface{}, int, error) {
+func (r *RuntimeLuaMatchCore) MatchInit(presenceList *MatchPresenceList, deferMessageFn RuntimeMatchDeferMessageFunction, params map[string]any) (any, int, error) {
 	// Run the match_init sequence.
 	r.vm.Push(LSentinel)
 	r.vm.Push(r.initFn)
@@ -288,7 +288,7 @@ func (r *RuntimeLuaMatchCore) MatchInit(presenceList *MatchPresenceList, deferMe
 	return state, rateInt, nil
 }
 
-func (r *RuntimeLuaMatchCore) MatchJoinAttempt(tick int64, state interface{}, userID, sessionID uuid.UUID, username string, sessionExpiry int64, vars map[string]string, clientIP, clientPort, node string, metadata map[string]string) (interface{}, bool, string, error) {
+func (r *RuntimeLuaMatchCore) MatchJoinAttempt(tick int64, state any, userID, sessionID uuid.UUID, username string, sessionExpiry int64, vars map[string]string, clientIP, clientPort, node string, metadata map[string]string) (any, bool, string, error) {
 	presence := r.vm.CreateTable(0, 4)
 	presence.RawSetString("user_id", lua.LString(userID.String()))
 	presence.RawSetString("session_id", lua.LString(sessionID.String()))
@@ -385,7 +385,7 @@ func (r *RuntimeLuaMatchCore) MatchJoinAttempt(tick int64, state interface{}, us
 	return newState, allow, reason, nil
 }
 
-func (r *RuntimeLuaMatchCore) MatchJoin(tick int64, state interface{}, joins []*MatchPresence) (interface{}, error) {
+func (r *RuntimeLuaMatchCore) MatchJoin(tick int64, state any, joins []*MatchPresence) (any, error) {
 	if r.joinFn == nil {
 		return state, nil
 	}
@@ -431,7 +431,7 @@ func (r *RuntimeLuaMatchCore) MatchJoin(tick int64, state interface{}, joins []*
 	return newState, nil
 }
 
-func (r *RuntimeLuaMatchCore) MatchLeave(tick int64, state interface{}, leaves []*MatchPresence) (interface{}, error) {
+func (r *RuntimeLuaMatchCore) MatchLeave(tick int64, state any, leaves []*MatchPresence) (any, error) {
 	presences := r.vm.CreateTable(len(leaves), 0)
 	for i, p := range leaves {
 		presence := r.vm.CreateTable(0, 5)
@@ -473,7 +473,7 @@ func (r *RuntimeLuaMatchCore) MatchLeave(tick int64, state interface{}, leaves [
 	return newState, nil
 }
 
-func (r *RuntimeLuaMatchCore) MatchLoop(tick int64, state interface{}, inputCh <-chan *MatchDataMessage) (interface{}, error) {
+func (r *RuntimeLuaMatchCore) MatchLoop(tick int64, state any, inputCh <-chan *MatchDataMessage) (any, error) {
 	// Drain the input queue into a Lua table.
 	size := len(inputCh)
 	input := r.vm.CreateTable(size, 0)
@@ -529,7 +529,7 @@ func (r *RuntimeLuaMatchCore) MatchLoop(tick int64, state interface{}, inputCh <
 	return newState, nil
 }
 
-func (r *RuntimeLuaMatchCore) MatchTerminate(tick int64, state interface{}, graceSeconds int) (interface{}, error) {
+func (r *RuntimeLuaMatchCore) MatchTerminate(tick int64, state any, graceSeconds int) (any, error) {
 	// Execute the match_terminate call.
 	r.vm.Push(LSentinel)
 	r.vm.Push(r.terminateFn)
@@ -559,7 +559,7 @@ func (r *RuntimeLuaMatchCore) MatchTerminate(tick int64, state interface{}, grac
 	return newState, nil
 }
 
-func (r *RuntimeLuaMatchCore) MatchSignal(tick int64, state interface{}, data string) (interface{}, string, error) {
+func (r *RuntimeLuaMatchCore) MatchSignal(tick int64, state any, data string) (any, string, error) {
 	// Execute the match_terminate call.
 	r.vm.Push(LSentinel)
 	r.vm.Push(r.signalFn)
@@ -598,7 +598,7 @@ func (r *RuntimeLuaMatchCore) MatchSignal(tick int64, state interface{}, data st
 	return newState, responseDataString, nil
 }
 
-func (r *RuntimeLuaMatchCore) GetState(state interface{}) (string, error) {
+func (r *RuntimeLuaMatchCore) GetState(state any) (string, error) {
 	stateBytes, err := json.Marshal(RuntimeLuaConvertLuaValue(state.(lua.LValue)))
 	if err != nil {
 		return "", err

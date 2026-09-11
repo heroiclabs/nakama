@@ -24,7 +24,7 @@ func generateJWTToken(signingKey string, claims jwt.Claims) (string, error) {
 }
 
 func parseJWTToken(signingKey, tokenString string, outClaims jwt.Claims) error {
-	token, err := jwt.ParseWithClaims(tokenString, outClaims, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(tokenString, outClaims, func(token *jwt.Token) (any, error) {
 		return []byte(signingKey), nil
 	}, jwt.WithExpirationRequired(), jwt.WithValidMethods([]string{"HS256"}))
 	if err != nil {

@@ -324,14 +324,14 @@ func (e RuntimeExecutionMode) String() string {
 }
 
 type RuntimeMatchCore interface {
-	MatchInit(presenceList *MatchPresenceList, deferMessageFn RuntimeMatchDeferMessageFunction, params map[string]interface{}) (interface{}, int, error)
-	MatchJoinAttempt(tick int64, state interface{}, userID, sessionID uuid.UUID, username string, sessionExpiry int64, vars map[string]string, clientIP, clientPort, node string, metadata map[string]string) (interface{}, bool, string, error)
-	MatchJoin(tick int64, state interface{}, joins []*MatchPresence) (interface{}, error)
-	MatchLeave(tick int64, state interface{}, leaves []*MatchPresence) (interface{}, error)
-	MatchLoop(tick int64, state interface{}, inputCh <-chan *MatchDataMessage) (interface{}, error)
-	MatchTerminate(tick int64, state interface{}, graceSeconds int) (interface{}, error)
-	MatchSignal(tick int64, state interface{}, data string) (interface{}, string, error)
-	GetState(state interface{}) (string, error)
+	MatchInit(presenceList *MatchPresenceList, deferMessageFn RuntimeMatchDeferMessageFunction, params map[string]any) (any, int, error)
+	MatchJoinAttempt(tick int64, state any, userID, sessionID uuid.UUID, username string, sessionExpiry int64, vars map[string]string, clientIP, clientPort, node string, metadata map[string]string) (any, bool, string, error)
+	MatchJoin(tick int64, state any, joins []*MatchPresence) (any, error)
+	MatchLeave(tick int64, state any, leaves []*MatchPresence) (any, error)
+	MatchLoop(tick int64, state any, inputCh <-chan *MatchDataMessage) (any, error)
+	MatchTerminate(tick int64, state any, graceSeconds int) (any, error)
+	MatchSignal(tick int64, state any, data string) (any, string, error)
+	GetState(state any) (string, error)
 	Label() string
 	TickRate() int
 	HandlerName() string

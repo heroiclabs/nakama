@@ -16,6 +16,7 @@ package server
 
 import (
 	"fmt"
+	"maps"
 	"runtime"
 	"strings"
 
@@ -25,12 +26,12 @@ import (
 
 type RuntimeGoLogger struct {
 	logger *zap.Logger
-	fields map[string]interface{}
+	fields map[string]any
 }
 
 func NewRuntimeGoLogger(logger *zap.Logger) nkruntime.Logger {
 	return &RuntimeGoLogger{
-		fields: make(map[string]interface{}),
+		fields: make(map[string]any),
 		logger: logger.WithOptions(zap.AddCallerSkip(1)).With(zap.String("runtime", "go")),
 	}
 }
@@ -47,44 +48,42 @@ func (l *RuntimeGoLogger) getFileLine() zap.Field {
 	return zap.String("source", fmt.Sprintf("%v:%v", filename, line))
 }
 
-func (l *RuntimeGoLogger) Debug(format string, v ...interface{}) {
+func (l *RuntimeGoLogger) Debug(format string, v ...any) {
 	if l.logger.Core().Enabled(zap.DebugLevel) {
 		msg := fmt.Sprintf(format, v...)
 		l.logger.Debug(msg)
 	}
 }
 
-func (l *RuntimeGoLogger) Info(format string, v ...interface{}) {
+func (l *RuntimeGoLogger) Info(format string, v ...any) {
 	if l.logger.Core().Enabled(zap.InfoLevel) {
 		msg := fmt.Sprintf(format, v...)
 		l.logger.Info(msg)
 	}
 }
 
-func (l *RuntimeGoLogger) Warn(format string, v ...interface{}) {
+func (l *RuntimeGoLogger) Warn(format string, v ...any) {
 	if l.logger.Core().Enabled(zap.WarnLevel) {
 		msg := fmt.Sprintf(format, v...)
 		l.logger.Warn(msg, l.getFileLine())
 	}
 }
 
-func (l *RuntimeGoLogger) Error(format string, v ...interface{}) {
+func (l *RuntimeGoLogger) Error(format string, v ...any) {
 	if l.logger.Core().Enabled(zap.ErrorLevel) {
 		msg := fmt.Sprintf(format, v...)
 		l.logger.Error(msg, l.getFileLine())
 	}
 }
 
-func (l *RuntimeGoLogger) WithField(key string, v interface{}) nkruntime.Logger {
-	return l.WithFields(map[string]interface{}{key: v})
+func (l *RuntimeGoLogger) WithField(key string, v any) nkruntime.Logger {
+	return l.WithFields(map[string]any{key: v})
 }
 
-func (l *RuntimeGoLogger) WithFields(fields map[string]interface{}) nkruntime.Logger {
+func (l *RuntimeGoLogger) WithFields(fields map[string]any) nkruntime.Logger {
 	f := make([]zap.Field, 0, len(fields)+len(l.fields))
-	newFields := make(map[string]interface{}, len(fields)+len(l.fields))
-	for k, v := range l.fields {
-		newFields[k] = v
-	}
+	newFields := make(map[string]any, len(fields)+len(l.fields))
+	maps.Copy(newFields, l.fields)
 	for k, v := range fields {
 		if k == "runtime" {
 			continue
@@ -99,6 +98,6 @@ func (l *RuntimeGoLogger) WithFields(fields map[string]interface{}) nkruntime.Lo
 	}
 }
 
-func (l *RuntimeGoLogger) Fields() map[string]interface{} {
+func (l *RuntimeGoLogger) Fields() map[string]any {
 	return l.fields
 }

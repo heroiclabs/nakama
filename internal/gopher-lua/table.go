@@ -1,5 +1,7 @@
 package lua
 
+import "slices"
+
 const defaultArrayCap = 32
 const defaultHashCap = 32
 
@@ -52,8 +54,8 @@ func (tb *LTable) Len() int {
 		return 0
 	}
 	var prev LValue = LNil
-	for i := len(tb.array) - 1; i >= 0; i-- {
-		v := tb.array[i]
+	for i, v := range slices.Backward(tb.array) {
+
 		if prev == LNil && v != LNil {
 			return i + 1
 		}
@@ -128,8 +130,8 @@ func (tb *LTable) MaxN() int {
 	if tb.array == nil {
 		return 0
 	}
-	for i := len(tb.array) - 1; i >= 0; i-- {
-		if tb.array[i] != LNil {
+	for i, v := range slices.Backward(tb.array) {
+		if v != LNil {
 			return i + 1
 		}
 	}

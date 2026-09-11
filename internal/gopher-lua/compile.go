@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"slices"
 
 	"github.com/heroiclabs/nakama/v3/internal/gopher-lua/ast"
 )
@@ -109,7 +110,7 @@ func savereg(ec *expcontext, reg int) int {
 	return ec.reg
 }
 
-func raiseCompileError(context *funcContext, line int, format string, args ...interface{}) {
+func raiseCompileError(context *funcContext, line int, format string, args ...any) {
 	msg := fmt.Sprintf(format, args...)
 	panic(&CompileError{context: context, Line: line, Message: msg})
 }
@@ -329,8 +330,8 @@ func (vp *varNamePool) LastIndex() int {
 }
 
 func (vp *varNamePool) Find(name string) int {
-	for i := len(vp.names) - 1; i >= 0; i-- {
-		if vp.names[i] == name {
+	for i, v := range slices.Backward(vp.names) {
+		if v == name {
 			return i + vp.offset
 		}
 	}

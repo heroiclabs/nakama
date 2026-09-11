@@ -203,7 +203,7 @@ func ListFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, statusRegi
 		}
 	}
 
-	params := make([]interface{}, 0, 4)
+	params := make([]any, 0, 4)
 	query := `
 SELECT id, username, display_name, avatar_url,
 	lang_tag, location, timezone, users.metadata,
@@ -510,7 +510,7 @@ func AddFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tra
 	}
 
 	notifications := make(map[uuid.UUID][]*api.Notification)
-	content, _ := json.Marshal(map[string]interface{}{"username": username})
+	content, _ := json.Marshal(map[string]any{"username": username})
 	for id, isFriendAccept := range notificationToSend {
 		uid := uuid.FromStringOrNil(id)
 		code := NotificationCodeFriendRequest
@@ -667,7 +667,7 @@ func DeleteFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker 
 	}
 
 	notifications := make(map[uuid.UUID][]*api.Notification)
-	content, _ := json.Marshal(map[string]interface{}{"username": username})
+	content, _ := json.Marshal(map[string]any{"username": username})
 	for id := range notificationToSend {
 		uid := uuid.FromStringOrNil(id)
 		notifications[uid] = []*api.Notification{{

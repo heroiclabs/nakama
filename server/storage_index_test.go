@@ -235,13 +235,13 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 		wg := sync.WaitGroup{}
 		wg.Add(2)
 		go func() {
-			for i := 0; i < 1_000; i++ {
+			for range 1_000 {
 				writeFn()
 			}
 			wg.Done()
 		}()
 		go func() {
-			for i := 0; i < 1_000; i++ {
+			for range 1_000 {
 				writeFn()
 			}
 			wg.Done()

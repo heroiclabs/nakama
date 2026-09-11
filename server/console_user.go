@@ -101,7 +101,7 @@ func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest)
 
 	inviterUsername := ctx.Value(ctxConsoleUsernameKey{}).(string)
 	inviterEmail := ctx.Value(ctxConsoleEmailKey{}).(string)
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"email":            in.Email,
 		"username":         in.Username,
 		"cookie":           s.cookie,
@@ -190,8 +190,7 @@ func (s *ConsoleServer) dbInsertConsoleUser(ctx context.Context, logger *zap.Log
 						RETURNING id, create_time, update_time, create_time != update_time AS updated, mfa_secret IS NOT NULL AS mfa_enabled`
 	err = s.db.QueryRowContext(ctx, query, id.String(), in.Username, in.Email, userAclJson, in.MfaRequired).Scan(&id, &createTime, &updateTime, &updated, &mfaEnabled)
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) {
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
 			if pgErr.Code == dbErrorUniqueViolation {
 				return nil, status.Error(codes.FailedPrecondition, "Username or Email already exists")
 			}

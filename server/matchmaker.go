@@ -17,6 +17,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"maps"
 	"sync"
 	"time"
 
@@ -65,11 +66,11 @@ func (p *MatchmakerPresence) GetReason() runtime.PresenceReason {
 }
 
 type MatchmakerEntry struct {
-	Ticket     string                 `json:"ticket"`
-	Presence   *MatchmakerPresence    `json:"presence"`
-	Properties map[string]interface{} `json:"properties"`
-	PartyId    string                 `json:"party_id"`
-	CreateTime int64                  `json:"create_time"`
+	Ticket     string              `json:"ticket"`
+	Presence   *MatchmakerPresence `json:"presence"`
+	Properties map[string]any      `json:"properties"`
+	PartyId    string              `json:"party_id"`
+	CreateTime int64               `json:"create_time"`
 
 	StringProperties  map[string]string  `json:"-"`
 	NumericProperties map[string]float64 `json:"-"`
@@ -81,7 +82,7 @@ func (m *MatchmakerEntry) GetPresence() runtime.Presence {
 func (m *MatchmakerEntry) GetTicket() string {
 	return m.Ticket
 }
-func (m *MatchmakerEntry) GetProperties() map[string]interface{} {
+func (m *MatchmakerEntry) GetProperties() map[string]any {
 	return m.Properties
 }
 func (m *MatchmakerEntry) GetPartyId() string {
@@ -92,12 +93,12 @@ func (m *MatchmakerEntry) GetCreateTime() int64 {
 }
 
 type MatchmakerIndex struct {
-	Ticket     string                 `json:"ticket"`
-	Properties map[string]interface{} `json:"properties"`
-	MinCount   int                    `json:"min_count"`
-	MaxCount   int                    `json:"max_count"`
-	PartyId    string                 `json:"party_id"`
-	CreatedAt  int64                  `json:"created_at"`
+	Ticket     string         `json:"ticket"`
+	Properties map[string]any `json:"properties"`
+	MinCount   int            `json:"min_count"`
+	MaxCount   int            `json:"max_count"`
+	PartyId    string         `json:"party_id"`
+	CreatedAt  int64          `json:"created_at"`
 
 	// Parameters used for correctly processing various matchmaker operations, but not indexed for searching.
 	Query             string              `json:"-"`
@@ -359,9 +360,7 @@ func (m *LocalMatchmaker) Process() {
 	indexCount = len(m.indexes)
 
 	activeIndexesCopy := make(map[string]*MatchmakerIndex, activeIndexCount)
-	for ticket, activeIndex := range m.activeIndexes {
-		activeIndexesCopy[ticket] = activeIndex
-	}
+	maps.Copy(activeIndexesCopy, m.activeIndexes)
 	var oldestTicketCreatedAt int64
 	indexesCopy := make(map[string]*MatchmakerIndex, indexCount)
 	for ticket, index := range m.indexes {
@@ -571,7 +570,7 @@ func (m *LocalMatchmaker) Add(ctx context.Context, presences []*MatchmakerPresen
 	}
 
 	// Merge incoming properties.
-	properties := make(map[string]interface{}, len(stringProperties)+len(numericProperties))
+	properties := make(map[string]any, len(stringProperties)+len(numericProperties))
 	for k, v := range stringProperties {
 		properties[k] = v
 	}
@@ -711,7 +710,7 @@ func (m *LocalMatchmaker) Insert(extracts []*MatchmakerExtract) error {
 			}
 		}
 
-		properties := make(map[string]interface{}, len(extract.StringProperties)+len(extract.NumericProperties))
+		properties := make(map[string]any, len(extract.StringProperties)+len(extract.NumericProperties))
 		for k, v := range extract.StringProperties {
 			properties[k] = v
 		}

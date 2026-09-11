@@ -440,7 +440,7 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 	// Filtered queries do not observe cursor or limit inputs, and do not return cursors.
 	if in.Filter != "" {
 		// Exact match based on username or social identifiers, if any.
-		params := []interface{}{in.Filter}
+		params := []any{in.Filter}
 		query := `
 			/*+
 			  NoSeqScan(users)
@@ -509,7 +509,7 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 		// Secondary query for fuzzy matching, if the filter is eligible.
 		// Executed separately due to cost of query - enables separate limits and potentially extended context deadline.
 		if strings.Contains(in.Filter, "%") && validTrigramFilterRegex.MatchString(in.Filter) {
-			params = []interface{}{in.Filter, limit - len(users)}
+			params = []any{in.Filter, limit - len(users)}
 			query = `
 		SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time
         FROM users
@@ -560,7 +560,7 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 		}, nil
 	}
 
-	var params []interface{}
+	var params []any
 	var query string
 
 	// Non-filtered query, pagination possible.
@@ -568,11 +568,11 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 	case cursor != nil:
 		// Non-filtered, but paginated query. Assume pagination on user ID. Querying and paginating on primary key (id).
 		query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users WHERE id > $1 ORDER BY id ASC LIMIT $2"
-		params = []interface{}{cursor.ID, limit + 1}
+		params = []any{cursor.ID, limit + 1}
 	default:
 		// Non-filtered, non-paginated query. Querying and paginating on primary key (id).
 		query = "SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time FROM users ORDER BY id ASC LIMIT $1"
-		params = []interface{}{limit + 1}
+		params = []any{limit + 1}
 	}
 
 	rows, err := s.db.QueryContext(ctx, query, params...)
@@ -643,7 +643,7 @@ func (s *ConsoleServer) UpdateAccount(ctx context.Context, in *console.UpdateAcc
 	}
 
 	statements := make([]string, 0)
-	params := []interface{}{userID}
+	params := []any{userID}
 
 	if v := in.Username; v != nil {
 		if len(v.Value) == 0 {
@@ -916,8 +916,7 @@ AND ((facebook_id IS NOT NULL
 
 		return nil
 	}); err != nil {
-		var se *statusError
-		if errors.As(err, &se) {
+		if se, ok := errors.AsType[*statusError](err); ok {
 			// Errors such as unlinking the last profile or username in use.
 			return nil, se.Status()
 		}
@@ -1028,7 +1027,7 @@ FROM users_notes AS un
 LEFT JOIN console_user AS cuc ON un.create_id = cuc.id
 LEFT JOIN console_user AS cuu ON un.update_id = cuu.id
 WHERE user_id = $1`
-	params := []interface{}{userID, in.Limit + 1}
+	params := []any{userID, in.Limit + 1}
 	if cursor != nil {
 		query += " AND (un.user_id, un.create_time, un.id) <= ($1, $3, $4)"
 		params = append(params, cursor.CreateTime, cursor.NoteID)

@@ -504,8 +504,7 @@ func ValidatePurchaseSamsung(ctx context.Context, logger *zap.Logger, db *sql.DB
 	orderResp, raw, err := iap.ValidateReceiptSamsung(ctx, httpc, packageName, purchaseId)
 	if err != nil {
 		if err != context.Canceled {
-			var vErr *iap.ValidationError
-			if errors.As(err, &vErr) {
+			if vErr, ok := errors.AsType[*iap.ValidationError](err); ok {
 				logger.Debug("Error validating Samsung receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
 				return nil, vErr
 			} else {
@@ -683,7 +682,7 @@ FROM
 	purchase`
 
 	var order string
-	params := make([]interface{}, 0, 7)
+	params := make([]any, 0, 7)
 
 	if incomingCursor != nil {
 		if incomingCursor.IsNext {

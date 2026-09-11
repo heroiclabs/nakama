@@ -93,16 +93,16 @@ func NewRuntimeJsInitContext(r *goja.Runtime, node, version string, env map[stri
 	return ctxObj
 }
 
-func RuntimeJsConvertJsValue(jv interface{}) interface{} {
+func RuntimeJsConvertJsValue(jv any) any {
 	switch v := jv.(type) {
-	case map[string]interface{}:
-		newMap := make(map[string]interface{}, len(v))
+	case map[string]any:
+		newMap := make(map[string]any, len(v))
 		for mapKey, mapValue := range v {
 			newMap[mapKey] = RuntimeJsConvertJsValue(mapValue)
 		}
 		return newMap
-	case []interface{}:
-		newSlice := make([]interface{}, len(v))
+	case []any:
+		newSlice := make([]any, len(v))
 		for i, sliceValue := range v {
 			newSlice[i] = RuntimeJsConvertJsValue(sliceValue)
 		}

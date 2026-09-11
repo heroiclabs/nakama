@@ -77,7 +77,7 @@ func CreateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uui
 		state = 0
 	}
 
-	params := []interface{}{uuid.Must(uuid.NewV4()), creatorID, name, desc, avatarURL, state}
+	params := []any{uuid.Must(uuid.NewV4()), creatorID, name, desc, avatarURL, state}
 	statements := []string{"$1", "$2", "$3", "$4", "$5", "$6"}
 
 	query := "INSERT INTO groups(id, creator_id, name, description, avatar_url, state"
@@ -161,7 +161,7 @@ func UpdateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uu
 	}
 
 	statements := make([]string, 0)
-	params := []interface{}{groupID}
+	params := []any{groupID}
 	index := 2
 
 	if name != nil {
@@ -818,7 +818,7 @@ func BanGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker 
 				continue
 			}
 
-			params := []interface{}{groupID, uid}
+			params := []any{groupID, uid}
 			query := ""
 			if myState == 0 {
 				// Ensure we aren't banning the last superadmin when deleting authoritatively.
@@ -1001,7 +1001,7 @@ func KickGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker
 				continue
 			}
 
-			params := []interface{}{groupID, uid}
+			params := []any{groupID, uid}
 			query := ""
 			if myState == 0 {
 				// Ensure we aren't removing the last superadmin when deleting authoritatively.
@@ -1402,7 +1402,7 @@ func ListGroupUsers(ctx context.Context, logger *zap.Logger, db *sql.DB, statusR
 		}
 	}
 
-	params := make([]interface{}, 0, 4)
+	params := make([]any, 0, 4)
 	query := `
 SELECT u.id, u.username, u.display_name, u.avatar_url,
 	u.lang_tag, u.location, u.timezone, u.metadata,
@@ -1544,7 +1544,7 @@ func ListUserGroups(ctx context.Context, logger *zap.Logger, db *sql.DB, userID 
 		}
 	}
 
-	params := make([]interface{}, 0, 4)
+	params := make([]any, 0, 4)
 	query := `
 SELECT g.id, g.creator_id, g.name, g.description, g.avatar_url,
 g.lang_tag, g.metadata, g.state, g.edge_count, g.max_count,
@@ -1709,7 +1709,7 @@ func ListGroups(ctx context.Context, logger *zap.Logger, db *sql.DB, name, langT
 	}
 
 	var query string
-	params := []interface{}{limit + 1}
+	params := []any{limit + 1}
 	switch {
 	case name != "":
 		// Filtering by name only.
@@ -1913,7 +1913,7 @@ func sqlMapper(row *groupSqlStruct) (*api.Group, *time.Time) {
 
 func convertToGroup(rows *sql.Rows) (*api.Group, *time.Time, error) {
 	s := groupSqlStruct{}
-	groupStruct, fields := &s, []interface{}{&s.id, &s.creatorID, &s.name, &s.description, &s.avatarURL, &s.state, &s.edgeCount, &s.lang,
+	groupStruct, fields := &s, []any{&s.id, &s.creatorID, &s.name, &s.description, &s.avatarURL, &s.state, &s.edgeCount, &s.lang,
 		&s.maxCount, &s.metadata, &s.createTime, &s.updateTime}
 	if err := rows.Scan(fields...); err != nil {
 		return nil, nil, err
@@ -2235,7 +2235,7 @@ func getGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uuid.
 	FROM groups WHERE id = $1`
 
 	s := groupSqlStruct{}
-	groupStruct, fields := &s, []interface{}{&s.id, &s.creatorID, &s.name, &s.description, &s.avatarURL, &s.state, &s.edgeCount, &s.lang,
+	groupStruct, fields := &s, []any{&s.id, &s.creatorID, &s.name, &s.description, &s.avatarURL, &s.state, &s.edgeCount, &s.lang,
 		&s.maxCount, &s.metadata, &s.createTime, &s.updateTime}
 
 	if err := db.QueryRowContext(ctx, query, groupID).Scan(fields...); err != nil {

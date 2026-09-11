@@ -941,7 +941,6 @@ func (self *_parser) parseSourceMap() *sourcemap.Consumer {
 		}
 
 		if err != nil {
-			self.error(file.Idx(0), "Could not load source map: %v", err)
 			return nil
 		}
 		if data == nil {
@@ -951,7 +950,7 @@ func (self *_parser) parseSourceMap() *sourcemap.Consumer {
 		if sm, err := sourcemap.Parse(self.file.Name(), data); err == nil {
 			return sm
 		} else {
-			self.error(file.Idx(0), "Could not parse source map: %v", err)
+			return nil
 		}
 	}
 	return nil

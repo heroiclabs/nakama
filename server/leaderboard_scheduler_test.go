@@ -123,14 +123,14 @@ func TestLeaderboardScheduler(t *testing.T) {
 
 	// Create a number of leaderboards and tournaments with the same endTime and/or expiryTime
 	const leaderboardCount = 3
-	for i := 0; i < leaderboardCount; i++ {
+	for range leaderboardCount {
 		err = nk.LeaderboardCreate(ctx, uuid.Must(uuid.NewV4()).String(), true, "desc", "best", "* * * * *", nil, false)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 	duration := int(time.Now().Add(time.Minute).Truncate(time.Minute).UTC().Unix())
-	for i := 0; i < leaderboardCount; i++ {
+	for range leaderboardCount {
 		err := nk.TournamentCreate(ctx, uuid.Must(uuid.NewV4()).String(), true, "desc", "best", "* * * * *", nil, "", "", 0, 0, 0, duration, 0, 0, false, false)
 		if err != nil {
 			t.Fatal(err)

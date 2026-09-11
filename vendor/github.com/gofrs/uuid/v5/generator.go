@@ -26,6 +26,7 @@ import (
 	"crypto/rand"
 	"crypto/sha1"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -35,6 +36,20 @@ import (
 // Difference in 100-nanosecond intervals between
 // UUID epoch (October 15, 1582) and Unix epoch (January 1, 1970).
 const epochStart = 122192928000000000
+
+// V7 carries its monotonic counter in rand_a, the 12 bits sitting between the
+// version nibble and the variant.
+const maxV7Counter = 0x0fff
+
+// V7 timestamps are an unsigned 48 bit count of milliseconds since the Unix
+// epoch, a range that runs from 1970 into the year 10889.
+const maxV7Timestamp = 1<<48 - 1
+
+// The counter is seeded with 11 random bits at the start of every timestamp
+// tick, as described by RFC 9562 section 6.2 under "Fixed Bit-Length Dedicated
+// Counter Seeding". The leading bit is left zero to act as a rollover guard, so
+// at least 2048 increments are always available within a tick.
+const v7CounterSeedMask = 0x07ff
 
 // EpochFunc is the function type used to provide the current time.
 type EpochFunc func() time.Time
@@ -86,16 +101,48 @@ func NewV6AtTime(atTime time.Time) (UUID, error) {
 
 // NewV7 returns a k-sortable UUID based on the current millisecond-precision
 // UNIX epoch and 74 bits of pseudorandom data. It supports single-node batch
-// generation (multiple UUIDs in the same timestamp) with a Monotonic Random counter.
+// generation (multiple UUIDs in the same timestamp) with a 12-bit monotonic
+// counter in rand_a, as described by RFC 9562 section 6.2, Method 1.
+//
+// UUIDs returned by a single generator are strictly increasing: each one sorts
+// above the one before it, even within a millisecond and even if the system
+// clock moves backwards. The counter is reseeded with each millisecond, leaving
+// room for at least 2048 UUIDs within that millisecond. Beyond that the
+// embedded timestamp is incremented ahead of the actual time, so generating
+// UUIDs faster than roughly two million per second trades timestamp accuracy
+// for ordering.
 func NewV7() (UUID, error) {
 	return DefaultGenerator.NewV7()
 }
 
-// NewV7 returns a k-sortable UUID based on the provided millisecond-precision
-// UNIX epoch and 74 bits of pseudorandom data. It supports single-node batch
-// generation (multiple UUIDs in the same timestamp) with a Monotonic Random counter.
+// NewV7AtTime returns a k-sortable UUID based on the provided
+// millisecond-precision UNIX epoch and 74 bits of pseudorandom data. It supports
+// single-node batch generation (multiple UUIDs in the same timestamp) with a
+// 12-bit monotonic counter in rand_a, as described by RFC 9562 section 6.2,
+// Method 1.
+//
+// The provided timestamp is used as the starting point for generation, so unlike
+// NewV7 the ordering guarantee only holds for timestamps that do not move
+// backwards. Timestamps that repeat or advance behave as they do for NewV7,
+// including the embedded timestamp being incremented once the counter is exhausted.
+// Providing a timestamp ahead of the clock therefore holds later NewV7 UUIDs at
+// that timestamp, since going back below it would break their ordering. Times
+// outside the range the 48-bit millisecond field can represent are pinned to the
+// nearest end of it.
 func NewV7AtTime(atTime time.Time) (UUID, error) {
 	return DefaultGenerator.NewV7AtTime(atTime)
+}
+
+// NewV8 returns a custom UUID based on user-provided data as specified in RFC 9562.
+// The UUID is constructed from three fields:
+//   - customA: exactly 6 bytes (48 bits) - occupies bits 0-47
+//   - customB: exactly 2 bytes (only lower 12 bits used) - occupies bits 52-63
+//   - customC: exactly 8 bytes (only lower 62 bits used) - occupies bits 66-127
+//
+// Version (4 bits) and variant (2 bits) are set automatically.
+// Returns ErrV8FieldLength if any field is not exactly the required length.
+func NewV8(customA []byte, customB []byte, customC []byte) (UUID, error) {
+	return DefaultGenerator.NewV8(customA, customB, customC)
 }
 
 // Generator provides an interface for generating UUIDs.
@@ -109,6 +156,7 @@ type Generator interface {
 	NewV6AtTime(time.Time) (UUID, error)
 	NewV7() (UUID, error)
 	NewV7AtTime(time.Time) (UUID, error)
+	NewV8([]byte, []byte, []byte) (UUID, error)
 }
 
 // Gen is a reference UUID generator based on the specifications laid out in
@@ -134,6 +182,14 @@ type Gen struct {
 	lastTime      uint64
 	clockSequence uint16
 	hardwareAddr  [6]byte
+
+	// V7 keeps its own counter state, separate from the V1/V6 clock sequence:
+	// the two measure time in different units and the counters have different
+	// usable widths.
+	v7LastRequestedMs uint64
+	v7LastMs          uint64
+	v7Counter         uint16
+	v7Seeded          bool
 }
 
 // GenOption is a function type that can be used to configure a Gen generator.
@@ -240,7 +296,7 @@ func (g *Gen) NewV1() (UUID, error) {
 func (g *Gen) NewV1AtTime(atTime time.Time) (UUID, error) {
 	u := UUID{}
 
-	timeNow, clockSeq, err := g.getClockSequence(false, atTime)
+	timeNow, clockSeq, err := g.getClockSequence(atTime)
 	if err != nil {
 		return Nil, err
 	}
@@ -324,7 +380,7 @@ func (g *Gen) NewV6AtTime(atTime time.Time) (UUID, error) {
 	   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ */
 	var u UUID
 
-	timeNow, _, err := g.getClockSequence(false, atTime)
+	timeNow, _, err := g.getClockSequence(atTime)
 	if err != nil {
 		return Nil, err
 	}
@@ -349,14 +405,27 @@ func (g *Gen) NewV6AtTime(atTime time.Time) (UUID, error) {
 }
 
 // NewV7 returns a k-sortable UUID based on the current millisecond-precision
-// UNIX epoch and 74 bits of pseudorandom data.
+// UNIX epoch and 74 bits of pseudorandom data. UUIDs returned by a single
+// generator are strictly increasing; see the package-level NewV7 for the
+// details of that guarantee.
 func (g *Gen) NewV7() (UUID, error) {
-	return g.NewV7AtTime(g.epochFunc())
+	return g.newV7(g.epochFunc(), true)
 }
 
-// NewV7 returns a k-sortable UUID based on the provided millisecond-precision
-// UNIX epoch and 74 bits of pseudorandom data.
+// NewV7AtTime returns a k-sortable UUID based on the provided
+// millisecond-precision UNIX epoch and 74 bits of pseudorandom data. See the
+// package-level NewV7AtTime for how the provided timestamp interacts with the
+// monotonic counter.
 func (g *Gen) NewV7AtTime(atTime time.Time) (UUID, error) {
+	return g.newV7(atTime, false)
+}
+
+// newV7 builds a V7 UUID for atTime. When clampBackwards is set, a timestamp
+// older than the last one seen is replaced by that last timestamp so a
+// backwards-moving clock cannot produce out-of-order UUIDs. Callers that pass a
+// timestamp explicitly leave it unset, so that a deliberately older timestamp is
+// encoded as given.
+func (g *Gen) newV7(atTime time.Time, clampBackwards bool) (UUID, error) {
 	var u UUID
 	/* https://datatracker.ietf.org/doc/html/rfc9562#name-uuid-version-7
 	    0                   1                   2                   3
@@ -371,7 +440,12 @@ func (g *Gen) NewV7AtTime(atTime time.Time) (UUID, error) {
 	   |                            rand_b                             |
 	   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ */
 
-	ms, clockSeq, err := g.getClockSequence(true, atTime)
+	// A time outside the range the timestamp field can hold has no
+	// representation, so the nearest end of that range stands in for it rather
+	// than the unrelated value the field would otherwise wrap to.
+	atMs := min(uint64(max(atTime.UnixMilli(), 0)), maxV7Timestamp)
+
+	ms, counter, err := g.nextV7Sequence(atMs, clampBackwards)
 	if err != nil {
 		return Nil, err
 	}
@@ -383,12 +457,11 @@ func (g *Gen) NewV7AtTime(atTime time.Time) (UUID, error) {
 	u[4] = byte(ms >> 8)
 	u[5] = byte(ms)
 
-	//Support batching by using a monotonic pseudo-random sequence,
+	//Support batching by using a dedicated counter in rand_a,
 	//as described in RFC 9562 section 6.2, Method 1.
-	//The 6th byte contains the version and partially rand_a data.
-	//We will lose the most significant bites from the clockSeq (with SetVersion), but it is ok,
-	//we need the least significant that contains the counter to ensure the monotonic property
-	binary.BigEndian.PutUint16(u[6:8], clockSeq) // set rand_a with clock seq which is random and monotonic
+	//The 6th byte contains the version and the top 4 bits of rand_a, so the
+	//counter is 12 bits wide and fits entirely below the version nibble.
+	binary.BigEndian.PutUint16(u[6:8], counter) // set rand_a with the monotonic counter
 
 	//override first 4bits of u[6].
 	u.SetVersion(V7)
@@ -403,13 +476,115 @@ func (g *Gen) NewV7AtTime(atTime time.Time) (UUID, error) {
 	return u, nil
 }
 
-// getClockSequence returns the epoch and clock sequence of the provided time,
-// used for generating V1,V6 and V7 UUIDs.
+// NewV8 returns a UUID based on user-provided data as specified in RFC 9562.
+// See the package-level NewV8 function for documentation.
+func (g *Gen) NewV8(customA []byte, customB []byte, customC []byte) (UUID, error) {
+	var u UUID
+	/* https://datatracker.ietf.org/doc/html/rfc9562#name-uuid-version-8
+	    0                   1                   2                   3
+	    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+	   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+	   |                          custom_a                            |
+	   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+	   |          custom_a             |  ver  |       custom_b        |
+	   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+	   |var|                        custom_c                          |
+	   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+	   |                          custom_c                            |
+	   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ */
+
+	// Validate input lengths
+	if len(customA) != 6 {
+		return Nil, fmt.Errorf("%w: customA must be exactly 6 bytes (48 bits), got %d", ErrV8FieldLength, len(customA))
+	}
+	if len(customB) != 2 {
+		return Nil, fmt.Errorf("%w: customB must be exactly 2 bytes (16 bits, where 12 bits are used per RFC9562), got %d", ErrV8FieldLength, len(customB))
+	}
+	if len(customC) != 8 {
+		return Nil, fmt.Errorf("%w: customC must be exactly 8 bytes (64 bits, where 62 bits are used per RFC9562), got %d", ErrV8FieldLength, len(customC))
+	}
+
+	// Copy customA (48 bits = 6 bytes) into u[0:6]
+	copy(u[0:6], customA)
+
+	// Copy customB (16 bits from 2 bytes) into u[6:8]
+	// the high 4 bits of u[6] will be overwritten by version
+	copy(u[6:8], customB)
+
+	// Copy customC (62 bits from 8 bytes) into u[8:16]
+	// The high 2 bits of u[8] will be overwritten by variant
+	copy(u[8:16], customC)
+
+	u.SetVersion(V8)
+	u.SetVariant(VariantRFC9562)
+
+	return u, nil
+}
+
+// nextV7Sequence returns the millisecond timestamp and the 12-bit counter to
+// encode into a V7 UUID. The pair strictly increases from one call to the next,
+// which is what makes the resulting UUIDs sortable in generation order.
 //
-// When useUnixTSMs is false, it uses the Coordinated Universal Time (UTC) as a count of
-// 100-nanosecond intervals since 00:00:00.00, 15 October 1582 (the date of Gregorian
-// reform to the Christian calendar).
-func (g *Gen) getClockSequence(useUnixTSMs bool, atTime time.Time) (uint64, uint16, error) {
+// The counter is reseeded whenever the timestamp ticks over and incremented
+// otherwise. Once it runs out of room within a tick, the timestamp is
+// incremented ahead of the actual time and the counter reseeded, one of the two
+// rollover strategies allowed by RFC 9562 section 6.2. The alternative, waiting
+// for the clock to catch up, is not open to us: the timestamp can be supplied by
+// the caller and is then under no obligation to advance.
+func (g *Gen) nextV7Sequence(ms uint64, clampBackwards bool) (uint64, uint16, error) {
+	g.storageMutex.Lock()
+	defer g.storageMutex.Unlock()
+
+	// The counter starts over on a new tick. A provided timestamp that predates
+	// the one provided last also starts it over, since that is a request for an
+	// older UUID rather than a clock to be corrected for. The comparison for a
+	// new tick is against the timestamp last encoded, which a rollover may have
+	// pushed ahead of the one last provided.
+	if !g.v7Seeded || ms > g.v7LastMs || (!clampBackwards && ms < g.v7LastRequestedMs) {
+		counter, err := g.seedV7Counter()
+		if err != nil {
+			return 0, 0, err
+		}
+		g.v7Seeded = true
+		g.v7LastMs, g.v7LastRequestedMs, g.v7Counter = ms, ms, counter
+
+		return ms, counter, nil
+	}
+
+	// Still within the tick last encoded, either because the timestamp repeats
+	// or because it moved backwards and is being held at the last value.
+	if g.v7Counter >= maxV7Counter {
+		counter, err := g.seedV7Counter()
+		if err != nil {
+			return 0, 0, err
+		}
+		g.v7LastMs, g.v7Counter = g.v7LastMs+1, counter
+	} else {
+		g.v7Counter++
+	}
+	g.v7LastRequestedMs = ms
+
+	return g.v7LastMs, g.v7Counter, nil
+}
+
+// seedV7Counter draws a fresh value for the start of a timestamp tick, leaving
+// the counter's leading bit clear as a rollover guard.
+func (g *Gen) seedV7Counter() (uint16, error) {
+	var buf [2]byte
+	if _, err := io.ReadFull(g.rand, buf[:]); err != nil {
+		return 0, err
+	}
+
+	return binary.BigEndian.Uint16(buf[:]) & v7CounterSeedMask, nil
+}
+
+// getClockSequence returns the epoch and clock sequence of the provided time,
+// used for generating V1 and V6 UUIDs.
+//
+// The epoch is the Coordinated Universal Time (UTC) as a count of 100-nanosecond
+// intervals since 00:00:00.00, 15 October 1582 (the date of Gregorian reform to
+// the Christian calendar).
+func (g *Gen) getClockSequence(atTime time.Time) (uint64, uint16, error) {
 	var err error
 	g.clockSequenceOnce.Do(func() {
 		buf := make([]byte, 2)
@@ -425,12 +600,7 @@ func (g *Gen) getClockSequence(useUnixTSMs bool, atTime time.Time) (uint64, uint
 	g.storageMutex.Lock()
 	defer g.storageMutex.Unlock()
 
-	var timeNow uint64
-	if useUnixTSMs {
-		timeNow = uint64(atTime.UnixMilli())
-	} else {
-		timeNow = g.getEpoch(atTime)
-	}
+	timeNow := g.getEpoch(atTime)
 	// Clock didn't change since last UUID generation.
 	// Should increase clock sequence.
 	if timeNow <= g.lastTime {

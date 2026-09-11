@@ -13,13 +13,13 @@ func positionString(level int) string {
 	return fmt.Sprintf("%v:%v:", filepath.Base(file), line)
 }
 
-func errorIfNotEqual(t *testing.T, v1, v2 interface{}) {
+func errorIfNotEqual(t *testing.T, v1, v2 any) {
 	if v1 != v2 {
 		t.Errorf("%v '%v' expected, but got '%v'", positionString(1), v1, v2)
 	}
 }
 
-func errorIfFalse(t *testing.T, cond bool, msg string, args ...interface{}) {
+func errorIfFalse(t *testing.T, cond bool, msg string, args ...any) {
 	if !cond {
 		if len(args) > 0 {
 			t.Errorf("%v %v", positionString(1), fmt.Sprintf(msg, args...))
@@ -29,13 +29,13 @@ func errorIfFalse(t *testing.T, cond bool, msg string, args ...interface{}) {
 	}
 }
 
-func errorIfNotNil(t *testing.T, v1 interface{}) {
+func errorIfNotNil(t *testing.T, v1 any) {
 	if fmt.Sprint(v1) != "<nil>" {
 		t.Errorf("%v nil expected, but got '%v'", positionString(1), v1)
 	}
 }
 
-func errorIfNil(t *testing.T, v1 interface{}) {
+func errorIfNil(t *testing.T, v1 any) {
 	if fmt.Sprint(v1) == "<nil>" {
 		t.Errorf("%v non-nil value expected, but got nil", positionString(1))
 	}
