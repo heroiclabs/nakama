@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Title</title>
+</head>
+<body>
+<script>
+  localStorage.setItem("SESSION_TOKENS", JSON.stringify({
+    accessToken: "{{token}}"
+  }));
+  window.location.replace("/")
+</script>
+</body>
+</html>
