@@ -25,6 +25,9 @@ import (
 var embedFS embed.FS
 var UIFS = &uiFS{}
 
+//go:embed ui/login.html
+var LoginHTML []byte
+
 type uiFS struct {
 	Nt bool
 }

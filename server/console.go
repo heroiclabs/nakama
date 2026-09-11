@@ -21,6 +21,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"html/template"
 	"io"
 	"math"
 	"net"
@@ -355,6 +356,28 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		// Allow GRPC Gateway to handle the request.
 		handlerWithMaxBody.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxTraceId{}, uuid.Must(uuid.NewV4()).String())))
 	})
+
+	grpcGatewayRouter.Path("/login").Methods("POST").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		token := r.PostFormValue("token")
+
+		session, err := s.Authenticate(r.Context(), &console.AuthenticateRequest{
+			Token: &token,
+		})
+		if err != nil {
+			logger.Error("Failed to authenticate.", zap.Error(err))
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		html := strings.ReplaceAll(string(console.LoginHTML), "{{token}}", template.JSEscapeString(session.Token))
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		_, _ = w.Write([]byte(html))
+	})
+
 	if err := registerDashboardHandlers(logger, grpcGatewayRouter); err != nil {
 		startupLogger.Fatal("Console dashboard registration failed", zap.Error(err))
 	}

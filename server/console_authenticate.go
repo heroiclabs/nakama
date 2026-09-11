@@ -17,6 +17,7 @@ package server
 import (
 	"context"
 	"crypto"
+	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
 	"errors"
@@ -95,6 +96,71 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 	ip, _ := extractClientAddressFromContext(logger, s.config, ctx)
 	if !s.loginAttemptCache.Allow(in.Username, ip) {
 		return nil, status.Error(codes.ResourceExhausted, "Try again later.")
+	}
+
+	if in.Token != nil && *in.Token != "" {
+		consoleConfig := s.config.GetConsole()
+		kumoTokenId, _, email, _, _, _, err := parseConsoleToken([]byte(consoleConfig.SigningKey), *in.Token)
+		if err != nil {
+			logger.Error("Failed to parse token console jwt token.", zap.Error(err))
+			return nil, err
+		}
+		if kumoTokenId != "" {
+			return nil, status.Error(codes.InvalidArgument, "Invalid user ID.")
+		}
+		userId, err := uuid.NewV4()
+		if err != nil {
+			return nil, err
+		}
+		var role acl.Permission
+		var dbDisableTime pgtype.Timestamptz
+		transaction := func(tx *sql.Tx) error {
+			err = s.db.QueryRowContext(ctx, "SELECT id, username, acl, disable_time FROM console_user WHERE email = $1", email).Scan(&userId, &role, &dbDisableTime)
+			userExist := true
+			if err != nil {
+				if errors.Is(err, context.Canceled) {
+					return err
+				}
+				if errors.Is(err, sql.ErrNoRows) {
+					userExist = false
+				}
+			}
+			if !userExist {
+				role = acl.Admin()
+				password := make([]byte, 32)
+				rand.Read(password)
+				hashedPassword, err := bcrypt.GenerateFromPassword(password, bcryptHashCost)
+				if err != nil {
+					logger.Error("Failed to hash the password for the user.", zap.Error(err))
+					return err
+				}
+				query := "INSERT INTO console_user (id,username,email, password, acl) VALUES ($1, $2, $3,$4,$5) RETURNING id"
+				if err = tx.QueryRowContext(ctx, query, userId.String(), email, email, hashedPassword, role).Scan(&userId); err != nil {
+					logger.Error("failed to create user", zap.Error(err))
+					return err
+				}
+			}
+			return nil
+		}
+		if err := ExecuteInTx(ctx, s.db, transaction); err != nil {
+			return nil, err
+		}
+		exp := time.Now().UTC().Add(time.Duration(s.config.GetConsole().TokenExpirySec) * time.Second).Unix()
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, &ConsoleTokenClaims{
+			ExpiresAt: exp,
+			ID:        userId.String(),
+			Username:  email,
+			Email:     email,
+			Acl:       role.String(),
+			Cookie:    s.cookie,
+		})
+		signedToken, err := token.SignedString([]byte(consoleConfig.SigningKey))
+		if err != nil {
+			logger.Error("Failed to sign the token", zap.Error(err))
+			return nil, status.Error(codes.Internal, "Failed to sign the token.")
+		}
+		s.consoleSessionCache.Add(userId, exp, signedToken, 0, "")
+		return &console.ConsoleSession{Token: signedToken}, nil
 	}
 
 	var email string

@@ -905,6 +905,8 @@ message AuthenticateRequest {
   string password = 2;
   // Multi-factor authentication code.
   string mfa = 3;
+  // Kumo token
+  optional string token=4;
 }
 
 // Request to change MFA.
