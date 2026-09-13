@@ -73,7 +73,7 @@ func NewSocketWsAcceptor(logger *zap.Logger, config Config, sessionRegistry Sess
 			return
 		}
 		userID, username, vars, expiry, tokenId, issuedAt, ok := parseToken([]byte(config.GetSession().EncryptionKey), token)
-		if !ok || !sessionCache.IsValidSession(userID, expiry, token) {
+		if !ok || !sessionCache.IsValidSession(userID, expiry, tokenId) {
 			http.Error(w, "Missing or invalid token", http.StatusUnauthorized)
 			return
 		}
