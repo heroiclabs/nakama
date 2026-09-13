@@ -296,6 +296,17 @@ func UserIDFromSession(session *api.Session) (uuid.UUID, error) {
 	return uuid.FromString(data["uid"].(string))
 }
 
+func TestRequestBodyTooLargeResponseUsesResourceExhaustedCode(t *testing.T) {
+	t.Parallel()
+
+	if !strings.Contains(string(requestBodyTooLargeBytes), `"code":8`) {
+		t.Fatalf("expected ResourceExhausted (8) in RPC body-too-large payload, got %q", string(requestBodyTooLargeBytes))
+	}
+	if !strings.Contains(string(requestBodyTooLargeBytes), "http: request body too large") {
+		t.Fatalf("expected body-too-large message in payload, got %q", string(requestBodyTooLargeBytes))
+	}
+}
+
 func TestWWWAuthenticateHeaderOnUnauthenticated(t *testing.T) {
 	t.Parallel()
 

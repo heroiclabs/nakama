@@ -41,7 +41,7 @@ var (
 	rpcFunctionNotFoundBytes = []byte(`{"error":"RPC function not found","message":"RPC function not found","code":5}`)
 	internalServerErrorBytes = []byte(`{"error":"Internal Server Error","message":"Internal Server Error","code":13}`)
 	badJSONBytes             = []byte(`{"error":"json: cannot unmarshal object into Go value of type string","message":"json: cannot unmarshal object into Go value of type string","code":3}`)
-	requestBodyTooLargeBytes = []byte(`{"code":3, "message":"http: request body too large"}`)
+	requestBodyTooLargeBytes = []byte(`{"code":8, "message":"http: request body too large"}`)
 )
 
 func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
