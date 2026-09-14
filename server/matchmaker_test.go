@@ -17,6 +17,7 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"os"
 	"testing"
@@ -2353,6 +2354,74 @@ func TestMatchmakerMaxSessionTracking(t *testing.T) {
 	err = createTicketFunc(sessionID1)
 	if !errors.Is(err, runtime.ErrMatchmakerTooManyTickets) {
 		t.Fatalf("exected error too many tickets, got: %v", err)
+	}
+}
+
+func TestMatchmakerCountMultipleLongestWaitingPriority(t *testing.T) {
+	consoleLogger := loggerForTest(t)
+	matchesSeen := make(map[string]*rtapi.MatchmakerMatched)
+	matchMaker, cleanup, err := createTestMatchmaker(t, consoleLogger, false, func(presences []*PresenceID, envelope *rtapi.Envelope) {
+		if len(presences) == 1 {
+			matchesSeen[presences[0].SessionID.String()] = envelope.GetMatchmakerMatched()
+		}
+	})
+	if err != nil {
+		t.Fatalf("error creating test matchmaker: %v", err)
+	}
+	defer cleanup()
+
+	// Add 5 players with strictly ascending CreatedAt timestamps.
+	// Player 0 (initiator) + 4 candidate players (Player 1..4).
+	// MinCount=4, MaxCount=5, CountMultiple=2.
+	// Total players gathered = 5 (matches MaxCount).
+	// Remainder = 5 % 2 = 1 player must be removed to satisfy CountMultiple=2.
+	// Player 1 (oldest candidate) waited longest, Player 4 (newest candidate) just joined.
+	// We want to KEEP the longest-waiting players (Player 0, 1, 2, 3) and REMOVE the newest (Player 4).
+	sessionIDs := make([]uuid.UUID, 5)
+	for i := 0; i < 5; i++ {
+		sessionID, _ := uuid.NewV4()
+		sessionIDs[i] = sessionID
+		_, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
+			{
+				UserId:    fmt.Sprintf("user_%d", i),
+				SessionId: sessionID.String(),
+				Username:  fmt.Sprintf("user_%d", i),
+				Node:      "node",
+				SessionID: sessionID,
+			},
+		}, sessionID.String(), "", "*", 4, 5, 2, map[string]string{}, map[string]float64{})
+		if err != nil {
+			t.Fatalf("error adding ticket %d: %v", i, err)
+		}
+		time.Sleep(10 * time.Millisecond) // Ensure distinct CreatedAt timestamps
+	}
+
+	// Make Player 0 the sole activeIndex to deterministically test the eviction of foundCombo candidates
+	matchMaker.Lock()
+	for k, v := range matchMaker.activeIndexes {
+		if v.SessionID != sessionIDs[0].String() {
+			delete(matchMaker.activeIndexes, k)
+		}
+	}
+	matchMaker.Unlock()
+
+	matchMaker.Process()
+
+	// Assert exactly 4 players were matched
+	if len(matchesSeen) != 4 {
+		t.Fatalf("expected 4 matched presences, got %d", len(matchesSeen))
+	}
+
+	// Player 0 (initiator) + Player 1, 2, 3 (oldest candidates) MUST be matched
+	for i := 0; i < 4; i++ {
+		if _, ok := matchesSeen[sessionIDs[i].String()]; !ok {
+			t.Fatalf("expected player %d (session %s) to be matched, but was evicted", i, sessionIDs[i].String())
+		}
+	}
+
+	// Player 4 (newest candidate) MUST have been evicted (remains in queue)
+	if _, ok := matchesSeen[sessionIDs[4].String()]; ok {
+		t.Fatalf("expected newest player 4 (session %s) to be evicted, but was matched", sessionIDs[4].String())
 	}
 }
 
