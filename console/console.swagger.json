@@ -3849,7 +3849,8 @@
         "HIRO_PROGRESSION",
         "HIRO_ECONOMY",
         "HIRO_STATS",
-        "HIRO_ENERGY"
+        "HIRO_ENERGY",
+        "HIRO_STREAKS"
       ],
       "default": "ACCOUNT",
       "description": "ATTENTION: Do not modify the order of this enum.\nNew resources should always be appended."
