@@ -2153,6 +2153,7 @@ enum AclResources {
   HIRO_ECONOMY = 27;
   HIRO_STATS = 28;
   HIRO_ENERGY = 29;
+  HIRO_STREAKS = 30;
 }
 
 enum AuditLogAction {
