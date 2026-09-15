@@ -100,7 +100,7 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 
 	if in.Token != nil && *in.Token != "" {
 		consoleConfig := s.config.GetConsole()
-		kumoTokenId, _, email, _, _, _, err := parseConsoleToken([]byte(consoleConfig.SigningKey), *in.Token)
+		kumoTokenId, _, email, userAcl, _, _, err := parseConsoleToken([]byte(consoleConfig.SigningKey), *in.Token)
 		if err != nil {
 			logger.Error("Failed to parse token console jwt token.", zap.Error(err))
 			return nil, err
@@ -126,7 +126,7 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 				}
 			}
 			if !userExist {
-				role = acl.Admin()
+				role = userAcl
 				password := make([]byte, 32)
 				rand.Read(password)
 				hashedPassword, err := bcrypt.GenerateFromPassword(password, bcryptHashCost)
@@ -134,8 +134,13 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 					logger.Error("Failed to hash the password for the user.", zap.Error(err))
 					return err
 				}
+				acl, err := role.ToJson()
+				if err != nil {
+					logger.Error("failed to json marshal acl", zap.Error(err))
+					return status.Error(codes.Internal, "Error creating console user.")
+				}
 				query := "INSERT INTO console_user (id,username,email, password, acl) VALUES ($1, $2, $3,$4,$5) RETURNING id"
-				if err = tx.QueryRowContext(ctx, query, userId.String(), email, email, hashedPassword, role).Scan(&userId); err != nil {
+				if err = tx.QueryRowContext(ctx, query, userId.String(), email, email, hashedPassword, acl).Scan(&userId); err != nil {
 					logger.Error("failed to create user", zap.Error(err))
 					return err
 				}
