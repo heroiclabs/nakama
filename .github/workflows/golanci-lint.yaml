@@ -2,6 +2,9 @@ name: golangci-lint
 on:
   workflow_dispatch:
   pull_request:
+  push:
+    branches:
+      - 'release-*'
 
 permissions:
   contents: read
