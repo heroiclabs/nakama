@@ -334,7 +334,7 @@ type Initializer interface {
 	RegisterRpc(id string, fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, payload string) (string, error)) error
 
 	/*
-		RegisterAuthenticateProvider registers an authentication provider with the given name. This name is used by server code through NakamaModule.AuthenticateProvider to select the provider when authenticating.
+		RegisterAuthenticateProvider registers an authentication provider with the given name. This name is used by server code through NakamaModule.Authenticate to select the provider when authenticating.
 
 		The provider should validate the payload before calling the provider server.
 	*/
@@ -1119,7 +1119,7 @@ type AuthenticateProviderResult interface {
 	GetProviderUserID() string
 	// GetUsername returns the user's username.
 	GetUsername() string
-	// GetVars returns and values to be associated with the user's session.
+	// GetVars returns any values to be associated with the user's session.
 	GetVars() map[string]string
 	// GetMetadata should contain any internal information for use in the rest of the provider chain, for example to get friends from the provider later.
 	GetMetadata() map[string]any
