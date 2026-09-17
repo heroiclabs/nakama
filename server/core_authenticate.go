@@ -27,6 +27,7 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/social"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -120,19 +121,19 @@ func AuthenticateApple(ctx context.Context, logger *zap.Logger, db *sql.DB, clie
 	return userID, username, true, nil
 }
 
-func Authenticate(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimeAuthenticateProviderRegistry, providerID string, payload map[string]any, userID, username string, create bool, traceID string) (string, string, bool, map[string]string, error) {
+func Authenticate(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, router MessageRouter, registry *RuntimeAuthenticateProviderRegistry, providerID string, payload map[string]any, userID, username string, create bool, traceID string) (string, string, bool, map[string]string, error) {
 	// Normalised here rather than by callers, because this is what gets stored against the identity.
 	providerID = strings.ToLower(providerID)
 
 	if registry == nil {
 		return "", "", false, nil, status.Error(codes.NotFound, "Authentication provider not found: "+providerID)
 	}
-	authProviderFn := registry.Get(providerID)
-	if authProviderFn == nil {
+	authProvider := registry.Get(providerID)
+	if authProvider == nil {
 		return "", "", false, nil, status.Error(codes.NotFound, "Authentication provider not found: "+providerID)
 	}
 
-	result, fnErr, code := authProviderFn(ctx, traceID, payload)
+	result, fnErr, code := authProvider.auth(ctx, traceID, payload)
 	if fnErr != nil {
 		return "", "", false, nil, status.Error(code, fnErr.Error())
 	}
@@ -186,6 +187,9 @@ WHERE ud.provider = $1 AND ud.id = $2 AND ud.user_id = u.id`
 			return "", "", false, nil, status.Error(codes.PermissionDenied, "User account banned.")
 		}
 
+		// Do not fail authentication for friend import errors.
+		_ = importProviderFriends(ctx, logger, db, tracker, router, authProvider.getFriends, traceID, payload, result, dbUserID, dbUsername, providerID)
+
 		return dbUserID, dbUsername, false, result.GetVars(), nil
 	}
 
@@ -237,6 +241,9 @@ WHERE ud.provider = $1 AND ud.id = $2 AND ud.user_id = u.id`
 		logger.Error("Cannot find or create user with provider ID.", zap.Error(err), zap.String("provider", providerID), zap.String("providerUserID", providerUserID), zap.String("username", username), zap.Bool("create", create))
 		return "", "", false, nil, status.Error(codes.Internal, "Error finding or creating user account.")
 	}
+
+	// Do not fail authentication for friend import errors.
+	_ = importProviderFriends(ctx, logger, db, tracker, router, authProvider.getFriends, traceID, payload, result, dbUserID, dbUsername, providerID)
 
 	return userID, username, true, result.GetVars(), nil
 }
@@ -1019,6 +1026,91 @@ func importSteamFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tra
 	if err != nil {
 		logger.Error("Error importing Steam friends.", zap.Error(err))
 		return status.Error(codes.Internal, "Error importing Steam friends.")
+	}
+
+	if len(friendUserIDs) != 0 {
+		sendFriendAddedNotification(ctx, logger, db, tracker, messageRouter, userID, username, friendUserIDs)
+	}
+
+	return nil
+}
+
+func importProviderFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, messageRouter MessageRouter, getFriendsFn RuntimeAuthenticateProviderGetFriendsFunction, traceID string, payload map[string]any, result runtime.AuthenticateProviderResult, userIDString, username, provider string) error {
+	if getFriendsFn == nil {
+		return nil
+	}
+
+	userID, err := uuid.FromString(userIDString)
+	if err != nil {
+		return err
+	}
+
+	logger = logger.With(zap.String("userID", userID.String()))
+
+	providerFriendIDs, reset, fnErr, _ := getFriendsFn(ctx, traceID, payload, result)
+	if fnErr != nil {
+		return fnErr
+	}
+
+	if len(providerFriendIDs) == 0 && !reset {
+		// No friends to import, and friend reset not requested - no work to do.
+		return nil
+	}
+
+	var friendUserIDs []uuid.UUID
+	err = ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
+		if reset {
+			if err := resetUserFriends(ctx, tx, userID); err != nil {
+				logger.Error("Could not reset user friends", zap.Error(err))
+				return err
+			}
+		}
+
+		params := make([]string, 0, len(providerFriendIDs))
+		for _, providerFriendID := range providerFriendIDs {
+			if providerFriendID == "" {
+				continue
+			}
+			params = append(params, providerFriendID)
+		}
+
+		// A reset was requested, but now there are no friend profiles to look for.
+		if len(params) == 0 {
+			return nil
+		}
+
+		query := "SELECT user_id FROM users WHERE id = ANY($1::text[]) AND provider = $2"
+		rows, err := tx.QueryContext(ctx, query, params, provider)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				// None of the friend profiles exist.
+				return nil
+			}
+			return err
+		}
+
+		var id string
+		possibleFriendIDs := make([]uuid.UUID, 0, len(params))
+		for rows.Next() {
+			err = rows.Scan(&id)
+			if err != nil {
+				// Error scanning the ID, try to skip this user and move on.
+				continue
+			}
+			friendID, err := uuid.FromString(id)
+			if err != nil {
+				continue
+			}
+			possibleFriendIDs = append(possibleFriendIDs, friendID)
+		}
+		_ = rows.Close()
+
+		friendUserIDs = importFriendsByUUID(ctx, logger, tx, userID, possibleFriendIDs, provider)
+		return nil
+	})
+	if err != nil {
+		logger.Error("Error importing provider friends.", zap.Error(err))
+		return status.Error(codes.Internal, "Error importing provider friends.")
 	}
 
 	if len(friendUserIDs) != 0 {

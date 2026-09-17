@@ -1884,7 +1884,7 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 		case RuntimeExecutionModeAuthenticateProvider:
 			if regErr := authProviderRegistry.Register(id, func(ctx context.Context, traceID string, payload map[string]any) (runtime.AuthenticateProviderResult, error, codes.Code) {
 				return runtimeProviderJS.Authenticate(ctx, id, traceID, payload)
-			}); regErr != nil {
+			}, nil); regErr != nil {
 				authProviderErr = regErr
 				return
 			}

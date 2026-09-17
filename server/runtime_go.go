@@ -167,7 +167,8 @@ func (ri *RuntimeGoInitializer) RegisterAuthenticateProvider(name string, provid
 	if !authenticationProviderNameRegex.MatchString(name) {
 		return errors.New("expects provider name to be valid, must be 1-128 bytes and contain only [a-zA-Z0-9_-]")
 	}
-	return ri.authProviderRegistry.Register(name, func(ctx context.Context, traceID string, payload map[string]any) (runtime.AuthenticateProviderResult, error, codes.Code) {
+
+	authFunc := func(ctx context.Context, traceID string, payload map[string]any) (runtime.AuthenticateProviderResult, error, codes.Code) {
 		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeAuthenticateProvider, nil, nil, traceID, 0, "", "", nil, "", "", "", "")
 		result, fnErr := provider.Authenticate(ctx, RuntimeLoggerWithTraceId(ctx, ri.logger.WithField("provider", name)), ri.db, ri.nk, payload)
 		if fnErr != nil {
@@ -183,7 +184,27 @@ func (ri *RuntimeGoInitializer) RegisterAuthenticateProvider(name string, provid
 			return result, fnErr, codes.Internal
 		}
 		return result, nil, codes.OK
-	})
+	}
+
+	getFriendsFunc := func(ctx context.Context, traceID string, payload map[string]any, result runtime.AuthenticateProviderResult) ([]string, bool, error, codes.Code) {
+		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeAuthenticateProvider, nil, nil, traceID, 0, "", "", nil, "", "", "", "")
+		ids, reset, fnErr := provider.GetFriends(ctx, RuntimeLoggerWithTraceId(ctx, ri.logger.WithField("provider", name)), ri.db, ri.nk, payload, result)
+		if fnErr != nil {
+			var runtimeErr *runtime.Error
+			if errors.As(fnErr, &runtimeErr) {
+				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
+					// If error is present but code is invalid then default to 13 (Internal) as the error code.
+					return ids, reset, runtimeErr, codes.Internal
+				}
+				return ids, reset, runtimeErr, codes.Code(runtimeErr.Code)
+			}
+			// Not a runtime error that contains a code.
+			return ids, reset, fnErr, codes.Internal
+		}
+		return ids, reset, nil, codes.OK
+	}
+
+	return ri.authProviderRegistry.Register(name, authFunc, getFriendsFunc)
 }
 
 // @group hooks

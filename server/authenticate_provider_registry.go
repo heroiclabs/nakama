@@ -23,20 +23,26 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-type RuntimeAuthenticateProviderFunction func(ctx context.Context, traceID string, payload map[string]any) (runtime.AuthenticateProviderResult, error, codes.Code)
+type RuntimeAuthenticateProviderFunction func(context.Context, string, map[string]any) (runtime.AuthenticateProviderResult, error, codes.Code)
+type RuntimeAuthenticateProviderGetFriendsFunction func(context.Context, string, map[string]any, runtime.AuthenticateProviderResult) ([]string, bool, error, codes.Code)
 
-type RuntimeAuthenticateProviderRegistry struct {
-	providers MapOf[string, RuntimeAuthenticateProviderFunction]
+type RuntimeAuthenticateProviderFunctions struct {
+	auth       RuntimeAuthenticateProviderFunction
+	getFriends RuntimeAuthenticateProviderGetFriendsFunction
 }
 
-func (r *RuntimeAuthenticateProviderRegistry) Register(name string, provider RuntimeAuthenticateProviderFunction) error {
-	if _, dup := r.providers.LoadOrStore(strings.ToLower(name), provider); dup {
+type RuntimeAuthenticateProviderRegistry struct {
+	providers MapOf[string, *RuntimeAuthenticateProviderFunctions]
+}
+
+func (r *RuntimeAuthenticateProviderRegistry) Register(name string, auth RuntimeAuthenticateProviderFunction, getFriends RuntimeAuthenticateProviderGetFriendsFunction) error {
+	if _, dup := r.providers.LoadOrStore(strings.ToLower(name), &RuntimeAuthenticateProviderFunctions{auth: auth, getFriends: getFriends}); dup {
 		return fmt.Errorf("authenticate provider already registered: %s", name)
 	}
 	return nil
 }
 
-func (r *RuntimeAuthenticateProviderRegistry) Get(name string) RuntimeAuthenticateProviderFunction {
+func (r *RuntimeAuthenticateProviderRegistry) Get(name string) *RuntimeAuthenticateProviderFunctions {
 	provider, found := r.providers.Load(strings.ToLower(name))
 	if !found {
 		return nil

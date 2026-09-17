@@ -739,7 +739,7 @@ func (s *ApiServer) Authenticate(ctx context.Context, in *api.AuthenticateReques
 		payload = in.Account.Payload.AsMap()
 	}
 
-	dbUserID, dbUsername, created, providerVars, err := Authenticate(ctx, logger, s.db, s.runtime.AuthenticateProviderRegistry(), in.Account.Provider, payload, "", username, create, traceID)
+	dbUserID, dbUsername, created, providerVars, err := Authenticate(ctx, logger, s.db, s.tracker, s.router, s.runtime.AuthenticateProviderRegistry(), in.Account.Provider, payload, "", username, create, traceID)
 	if err != nil {
 		return nil, err
 	}

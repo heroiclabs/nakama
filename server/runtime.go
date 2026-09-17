@@ -702,7 +702,7 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 
 	matchProvider := NewMatchProvider()
 
-	authProviderRegistry := &RuntimeAuthenticateProviderRegistry{providers: MapOf[string, RuntimeAuthenticateProviderFunction]{}}
+	authProviderRegistry := &RuntimeAuthenticateProviderRegistry{providers: MapOf[string, *RuntimeAuthenticateProviderFunctions]{}}
 
 	satoriClient := satori.NewSatoriClient(
 		ctx,
@@ -2915,7 +2915,7 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	for _, name := range luaAuthProviderIDs {
 		luaAuthProviderNames[name] = true
 	}
-	authProviderRegistry.providers.Range(func(name string, _ RuntimeAuthenticateProviderFunction) bool {
+	authProviderRegistry.providers.Range(func(name string, _ *RuntimeAuthenticateProviderFunctions) bool {
 		switch {
 		case jsAuthProviderNames[name]:
 			rInfo.JavaScriptAuthenticateProviders = append(rInfo.JavaScriptAuthenticateProviders, name)

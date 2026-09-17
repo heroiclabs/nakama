@@ -1929,7 +1929,7 @@ func (n *RuntimeJavascriptNakamaModule) authenticate(r *goja.Runtime) func(goja.
 			create = getJsBool(r, in)
 		}
 
-		dbUserID, dbUsername, created, _, err := Authenticate(n.ctx, n.logger, n.db, n.authProviderRegistry, provider, payload, userID, username, create, "")
+		dbUserID, dbUsername, created, _, err := Authenticate(n.ctx, n.logger, n.db, n.tracker, n.router, n.authProviderRegistry, provider, payload, userID, username, create, "")
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error authenticating: %v", err.Error())))
 		}
@@ -2606,17 +2606,22 @@ func (n *RuntimeJavascriptNakamaModule) link(r *goja.Runtime) func(goja.Function
 			panic(r.NewTypeError("invalid user id"))
 		}
 
-		provider := getJsString(r, f.Argument(1))
+		username := getJsString(r, f.Argument(1))
+		if username == "" {
+			panic(r.NewTypeError("expects username string"))
+		}
+
+		provider := getJsString(r, f.Argument(2))
 		if provider == "" {
 			panic(r.NewTypeError("expects provider string"))
 		}
 
 		var payload map[string]any
-		if in := f.Argument(2); in != goja.Undefined() && !goja.IsNull(in) {
+		if in := f.Argument(3); in != goja.Undefined() && !goja.IsNull(in) {
 			payload = getJsMap(r, in)
 		}
 
-		if err := Link(n.ctx, n.logger, n.db, n.authProviderRegistry, id, provider, payload, ""); err != nil {
+		if err := Link(n.ctx, n.logger, n.db, n.tracker, n.router, n.authProviderRegistry, id, username, provider, payload, ""); err != nil {
 			panic(r.NewGoError(fmt.Errorf("error linking: %v", err.Error())))
 		}
 

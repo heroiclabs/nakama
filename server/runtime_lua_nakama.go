@@ -2236,7 +2236,7 @@ func (n *RuntimeLuaNakamaModule) authenticate(l *lua.LState) int {
 
 	create := l.OptBool(5, true)
 
-	dbUserID, dbUsername, created, _, err := Authenticate(l.Context(), n.logger, n.db, n.authProviderRegistry, provider, payload, userID, username, create, "")
+	dbUserID, dbUsername, created, _, err := Authenticate(l.Context(), n.logger, n.db, n.tracker, n.router, n.authProviderRegistry, provider, payload, userID, username, create, "")
 	if err != nil {
 		l.RaiseError("error authenticating: %v", err.Error())
 		return 0
@@ -3327,19 +3327,25 @@ func (n *RuntimeLuaNakamaModule) link(l *lua.LState) int {
 		return 0
 	}
 
-	provider := l.CheckString(2)
-	if provider == "" {
-		l.ArgError(2, "expects provider string")
+	username := l.CheckString(2)
+	if username == "" {
+		l.ArgError(2, "expects username string")
 		return 0
 	}
 
-	payloadTable := l.OptTable(3, nil)
+	provider := l.CheckString(3)
+	if provider == "" {
+		l.ArgError(3, "expects provider string")
+		return 0
+	}
+
+	payloadTable := l.OptTable(4, nil)
 	var payload map[string]any
 	if payloadTable != nil {
 		payload = RuntimeLuaConvertLuaTable(payloadTable)
 	}
 
-	if err := Link(l.Context(), n.logger, n.db, n.authProviderRegistry, id, provider, payload, ""); err != nil {
+	if err := Link(l.Context(), n.logger, n.db, n.tracker, n.router, n.authProviderRegistry, id, username, provider, payload, ""); err != nil {
 		l.RaiseError("error linking: %v", err.Error())
 	}
 	return 0

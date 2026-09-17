@@ -117,6 +117,7 @@ func (s *ApiServer) LinkCustom(ctx context.Context, in *api.AccountCustom) (*emp
 
 func (s *ApiServer) Link(ctx context.Context, in *api.AccountProvider) (*emptypb.Empty, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+	username := ctx.Value(ctxUsernameKey{}).(string)
 	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 
 	// Before hook.
@@ -147,7 +148,7 @@ func (s *ApiServer) Link(ctx context.Context, in *api.AccountProvider) (*emptypb
 		payload = in.Payload.AsMap()
 	}
 
-	err := Link(ctx, logger, s.db, s.runtime.AuthenticateProviderRegistry(), userID, in.Provider, payload, traceID)
+	err := Link(ctx, logger, s.db, s.tracker, s.router, s.runtime.AuthenticateProviderRegistry(), userID, username, in.Provider, payload, traceID)
 	if err != nil {
 		return nil, err
 	}

@@ -405,7 +405,7 @@ func (n *RuntimeGoNakamaModule) Authenticate(ctx context.Context, provider strin
 		return "", "", false, errors.New("expects username to be valid, must be 1-128 bytes")
 	}
 
-	dbUserID, dbUsername, created, _, err := Authenticate(ctx, n.logger, n.db, n.authProviderRegistry, provider, payload, userID, username, create, "")
+	dbUserID, dbUsername, created, _, err := Authenticate(ctx, n.logger, n.db, n.tracker, n.router, n.authProviderRegistry, provider, payload, userID, username, create, "")
 	return dbUserID, dbUsername, created, err
 }
 
@@ -808,16 +808,17 @@ func (n *RuntimeGoNakamaModule) LinkApple(ctx context.Context, userID, token str
 // @summary Link a provider identity to a user ID.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param userID(type=string) The user ID to be linked.
+// @param username(type=string, optional=true) If left empty, one is generated.
 // @param provider(type=string) Name of the provider the identity belongs to. Case insensitive.
 // @param payload(type=map[string]any) Payload handed to the provider.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) Link(ctx context.Context, userID, provider string, payload map[string]any) error {
+func (n *RuntimeGoNakamaModule) Link(ctx context.Context, userID, username, provider string, payload map[string]any) error {
 	id, err := uuid.FromString(userID)
 	if err != nil {
 		return errors.New("user ID must be a valid identifier")
 	}
 
-	return Link(ctx, n.logger, n.db, n.authProviderRegistry, id, provider, payload, "")
+	return Link(ctx, n.logger, n.db, n.tracker, n.router, n.authProviderRegistry, id, username, provider, payload, "")
 }
 
 // @group authenticate

@@ -110,18 +110,18 @@ AND (NOT EXISTS
 	return nil
 }
 
-func Link(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimeAuthenticateProviderRegistry, userID uuid.UUID, providerID string, payload map[string]any, traceID string) error {
+func Link(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, router MessageRouter, registry *RuntimeAuthenticateProviderRegistry, userID uuid.UUID, username, providerID string, payload map[string]any, traceID string) error {
 	providerID = strings.ToLower(providerID)
 
 	if registry == nil {
 		return status.Error(codes.NotFound, "Authentication provider not found: "+providerID)
 	}
-	authProviderFn := registry.Get(providerID)
-	if authProviderFn == nil {
+	authProvider := registry.Get(providerID)
+	if authProvider == nil {
 		return status.Error(codes.NotFound, "Authentication provider not found: "+providerID)
 	}
 
-	result, fnErr, code := authProviderFn(ctx, traceID, payload)
+	result, fnErr, code := authProvider.auth(ctx, traceID, payload)
 	if fnErr != nil {
 		return status.Error(code, fnErr.Error())
 	}
@@ -171,6 +171,10 @@ WHERE user_device.user_id = EXCLUDED.user_id`,
 		logger.Error("Error in database transaction.", zap.Error(err))
 		return status.Error(codes.Internal, "Error while trying to link provider identity.")
 	}
+
+	// Do not fail link for friend import errors.
+	_ = importProviderFriends(ctx, logger, db, tracker, router, authProvider.getFriends, traceID, payload, result, userID.String(), username, providerID)
+
 	return nil
 }
 

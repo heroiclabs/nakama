@@ -88,8 +88,8 @@ func (a *authenticationProvider) Authenticate(ctx context.Context, logger runtim
 	}, nil
 }
 
-func (a *authenticationProvider) GetFriends(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload map[string]any, result runtime.AuthenticateProviderResult) ([]string, error) {
-	return []string{}, nil
+func (a *authenticationProvider) GetFriends(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload map[string]any, result runtime.AuthenticateProviderResult) ([]string, bool, error) {
+	return []string{}, false, nil
 }
 
 func rpcEcho(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
