@@ -615,6 +615,11 @@ VALUES (
 			}
 
 			for _, provider := range data.Account.Providers {
+				// Allow any providers (even unknown ones) as long as they're not empty. Unknown providers may be
+				// registered later or not present in all environments, but we want to preserve them on the player record.
+				if provider.Provider == "" {
+					continue
+				}
 				_, err := tx.ExecContext(ctx, "INSERT INTO user_device (id, user_id, provider) VALUES ($1, $2, $3)",
 					provider.ProviderUserId, data.Account.User.Id, strings.ToLower(provider.Provider))
 				if err != nil {
