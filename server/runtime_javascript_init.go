@@ -452,6 +452,9 @@ func (im *RuntimeJavascriptInitModule) registerAuthenticateProvider(r *goja.Runt
 		if key == "" || len(key) > 128 {
 			panic(r.NewTypeError("expects provider name to be valid, must be 1-128 bytes"))
 		}
+		if !authenticationProviderNameRegex.MatchString(key) {
+			panic(r.NewTypeError("expects provider name to be valid, must be 1-128 bytes and contain only [a-zA-Z0-9_-]"))
+		}
 
 		fn := f.Argument(1)
 		_, ok = goja.AssertFunction(fn)

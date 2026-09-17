@@ -359,6 +359,11 @@ func (n *RuntimeLuaNakamaModule) registerAuthenticateProvider(l *lua.LState) int
 
 	name = strings.ToLower(name)
 
+	if !authenticationProviderNameRegex.MatchString(name) {
+		l.ArgError(2, "expects provider name to be valid, must be 1-128 bytes and contain only [a-zA-Z0-9_-]")
+		return 0
+	}
+
 	if n.registerCallbackFn != nil {
 		n.registerCallbackFn(RuntimeExecutionModeAuthenticateProvider, name, fn)
 	}
