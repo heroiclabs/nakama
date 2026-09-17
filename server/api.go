@@ -365,6 +365,8 @@ func securityInterceptorFunc(logger *zap.Logger, config Config, sessionCache Ses
 		return ctx, nil
 	case "/nakama.api.Nakama/SessionRefresh":
 		fallthrough
+	case "/nakama.api.Nakama/Authenticate":
+		fallthrough
 	case "/nakama.api.Nakama/AuthenticateApple":
 		fallthrough
 	case "/nakama.api.Nakama/AuthenticateCustom":
@@ -380,8 +382,6 @@ func securityInterceptorFunc(logger *zap.Logger, config Config, sessionCache Ses
 	case "/nakama.api.Nakama/AuthenticateGameCenter":
 		fallthrough
 	case "/nakama.api.Nakama/AuthenticateGoogle":
-		fallthrough
-	case "/nakama.api.Nakama/AuthenticateProvider":
 		fallthrough
 	case "/nakama.api.Nakama/AuthenticateSteam":
 		// Session refresh and authentication functions only require server key.

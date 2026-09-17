@@ -558,10 +558,10 @@
         ]
       }
     },
-    "/v2/account/authenticate/provider": {
+    "/v2/account/authenticate": {
       "post": {
         "summary": "Authenticate a user with a runtime-registered provider against the server.",
-        "operationId": "Nakama_AuthenticateProvider",
+        "operationId": "Nakama_Authenticate",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -958,10 +958,10 @@
         ]
       }
     },
-    "/v2/account/link/provider": {
+    "/v2/account/link": {
       "post": {
         "summary": "Add an authentication provider identity to the current user's account.",
-        "operationId": "Nakama_LinkProvider",
+        "operationId": "Nakama_Link",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -1347,10 +1347,10 @@
         ]
       }
     },
-    "/v2/account/unlink/provider": {
+    "/v2/account/unlink": {
       "post": {
         "summary": "Remove an authentication provider identity from the current user's account.",
-        "operationId": "Nakama_UnlinkProvider",
+        "operationId": "Nakama_Unlink",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -4197,8 +4197,11 @@
           "description": "The name the provider was registered under during runtime initialization."
         },
         "payload": {
-          "type": "string",
-          "description": "Opaque JSON passed through to the registered provider function."
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Arbitrary JSON passed through to the registered provider function."
         },
         "vars": {
           "type": "object",

@@ -142,7 +142,12 @@ func (s *ApiServer) Link(ctx context.Context, in *api.AccountProvider) (*emptypb
 		}
 	}
 
-	err := Link(ctx, logger, s.db, s.runtime.AuthenticateProviderRegistry(), userID, in.Provider, in.Payload.AsMap(), traceID)
+	var payload map[string]any
+	if in.Payload != nil {
+		payload = in.Payload.AsMap()
+	}
+
+	err := Link(ctx, logger, s.db, s.runtime.AuthenticateProviderRegistry(), userID, in.Provider, payload, traceID)
 	if err != nil {
 		return nil, err
 	}
