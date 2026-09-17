@@ -120,7 +120,7 @@ func AuthenticateApple(ctx context.Context, logger *zap.Logger, db *sql.DB, clie
 	return userID, username, true, nil
 }
 
-func AuthenticateProvider(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimeAuthenticateProviderRegistry, providerID, payload, userID, username string, create bool, traceID string) (string, string, bool, map[string]string, error) {
+func Authenticate(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimeAuthenticateProviderRegistry, providerID string, payload map[string]any, userID, username string, create bool, traceID string) (string, string, bool, map[string]string, error) {
 	// Normalised here rather than by callers, because this is what gets stored against the identity.
 	providerID = strings.ToLower(providerID)
 
@@ -141,7 +141,7 @@ func AuthenticateProvider(ctx context.Context, logger *zap.Logger, db *sql.DB, r
 		return "", "", false, nil, status.Error(codes.Internal, "Error authenticating.")
 	}
 
-	providerUserID := result.ProviderUserID
+	providerUserID := result.GetProviderUserID()
 	if providerUserID == "" {
 		logger.Error("Authentication provider returned no provider user ID.", zap.String("provider", providerID))
 		return "", "", false, nil, status.Error(codes.Internal, "Error authenticating.")
@@ -150,12 +150,11 @@ func AuthenticateProvider(ctx context.Context, logger *zap.Logger, db *sql.DB, r
 		logger.Error("Authentication provider returned an invalid provider user ID.", zap.String("provider", providerID), zap.String("providerUserID", providerUserID))
 		return "", "", false, nil, status.Error(codes.Internal, "Error authenticating.")
 	}
-	if result.Username != "" {
-		if invalidUsernameRegex.MatchString(result.Username) || len(result.Username) > 128 {
-			logger.Error("Authentication provider returned an invalid username.", zap.String("provider", providerID), zap.String("providerUserID", providerUserID), zap.String("username", result.Username))
+	if username = result.GetUsername(); username != "" {
+		if invalidUsernameRegex.MatchString(username) || len(username) > 128 {
+			logger.Error("Authentication provider returned an invalid username.", zap.String("provider", providerID), zap.String("providerUserID", providerUserID), zap.String("username", username))
 			return "", "", false, nil, status.Error(codes.Internal, "Error authenticating.")
 		}
-		username = result.Username
 	}
 
 	found := true
@@ -163,14 +162,14 @@ func AuthenticateProvider(ctx context.Context, logger *zap.Logger, db *sql.DB, r
 	// Look for an existing account.
 	query := `
 SELECT u.id, u.username, u.disable_time
-FROM users u, user_provider up
-WHERE up.provider = $1 AND up.provider_user_id = $2 AND up.user_id = u.id`
+FROM users u, user_device ud
+WHERE ud.provider = $1 AND ud.id = $2 AND ud.user_id = u.id`
 	var dbUserID string
 	var dbUsername string
 	var dbDisableTime pgtype.Timestamptz
 	err := db.QueryRowContext(ctx, query, providerID, providerUserID).Scan(&dbUserID, &dbUsername, &dbDisableTime)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			found = false
 		} else {
 			logger.Error("Error looking up user by provider ID.", zap.Error(err), zap.String("provider", providerID), zap.String("providerUserID", providerUserID), zap.String("username", username), zap.Bool("create", create))
@@ -186,7 +185,7 @@ WHERE up.provider = $1 AND up.provider_user_id = $2 AND up.user_id = u.id`
 			return "", "", false, nil, status.Error(codes.PermissionDenied, "User account banned.")
 		}
 
-		return dbUserID, dbUsername, false, result.Vars, nil
+		return dbUserID, dbUsername, false, result.GetVars(), nil
 	}
 
 	if !create {
@@ -196,7 +195,11 @@ WHERE up.provider = $1 AND up.provider_user_id = $2 AND up.user_id = u.id`
 
 	// Create a new account and its provider link together, so a failure to link cannot leave an orphaned user.
 	if userID == "" {
-		userID = uuid.Must(uuid.NewV4()).String()
+		if _, err := uuid.FromString(providerUserID); err == nil {
+			userID = providerUserID
+		} else {
+			userID = uuid.Must(uuid.NewV4()).String()
+		}
 	}
 	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx, "INSERT INTO users (id, username, create_time, update_time) VALUES ($1, $2, now(), now())", userID, username)
@@ -207,7 +210,7 @@ WHERE up.provider = $1 AND up.provider_user_id = $2 AND up.user_id = u.id`
 			return errors.New("did not insert new user")
 		}
 
-		res, err = tx.ExecContext(ctx, "INSERT INTO user_provider (provider, provider_user_id, user_id) VALUES ($1, $2, $3)", providerID, providerUserID, userID)
+		res, err = tx.ExecContext(ctx, "INSERT INTO user_device (provider, id, user_id) VALUES ($1, $2, $3)", providerID, providerUserID, userID)
 		if err != nil {
 			return err
 		}
@@ -234,7 +237,7 @@ WHERE up.provider = $1 AND up.provider_user_id = $2 AND up.user_id = u.id`
 		return "", "", false, nil, status.Error(codes.Internal, "Error finding or creating user account.")
 	}
 
-	return userID, username, true, result.Vars, nil
+	return userID, username, true, result.GetVars(), nil
 }
 
 func AuthenticateCustom(ctx context.Context, logger *zap.Logger, db *sql.DB, customID, username string, create bool) (string, string, bool, error) {
@@ -247,7 +250,7 @@ func AuthenticateCustom(ctx context.Context, logger *zap.Logger, db *sql.DB, cus
 	var dbDisableTime pgtype.Timestamptz
 	err := db.QueryRowContext(ctx, query, customID).Scan(&dbUserID, &dbUsername, &dbDisableTime)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			found = false
 		} else {
 			logger.Error("Error looking up user by custom ID.", zap.Error(err), zap.String("customID", customID), zap.String("username", username), zap.Bool("create", create))
@@ -303,11 +306,11 @@ func AuthenticateDevice(ctx context.Context, logger *zap.Logger, db *sql.DB, dev
 	found := true
 
 	// Look for an existing account.
-	query := "SELECT user_id FROM user_device WHERE id = $1"
-	var dbUserID string
-	err := db.QueryRowContext(ctx, query, deviceID).Scan(&dbUserID)
+	query := "SELECT user_id, provider FROM user_device WHERE id = $1"
+	var dbUserID, dbProvider string
+	err := db.QueryRowContext(ctx, query, deviceID).Scan(&dbUserID, &dbProvider)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			found = false
 		} else {
 			logger.Error("Error looking up user by device ID.", zap.Error(err), zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
@@ -317,6 +320,10 @@ func AuthenticateDevice(ctx context.Context, logger *zap.Logger, db *sql.DB, dev
 
 	// Existing account found.
 	if found {
+		if dbProvider != "" {
+			return "", "", false, status.Error(codes.PermissionDenied, "User account uses provider-linked identifier.")
+		}
+
 		// Load its details.
 		query = "SELECT username, disable_time FROM users WHERE id = $1"
 		var dbUsername string
@@ -360,7 +367,7 @@ WHERE NOT EXISTS
 		if err != nil {
 			var pgErr *pgconn.PgError
 			ok := errors.As(err, &pgErr)
-			if err == sql.ErrNoRows || (ok && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "user_device_pkey")) {
+			if errors.Is(err, sql.ErrNoRows) || (ok && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "user_device_pkey")) {
 				// A concurrent write has inserted this device ID.
 				logger.Info("Did not insert new user as device ID already exists.", zap.Error(err), zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
 				return StatusError(codes.Internal, "Error finding or creating user account.", err)
@@ -391,7 +398,7 @@ WHERE NOT EXISTS
 		return nil
 	})
 	if err != nil {
-		if e, ok := err.(*statusError); ok {
+		if e, ok := errors.AsType[*statusError](err); ok {
 			return "", "", false, e.Status()
 		}
 		logger.Error("Error in database transaction.", zap.Error(err))
@@ -412,7 +419,7 @@ func AuthenticateEmail(ctx context.Context, logger *zap.Logger, db *sql.DB, emai
 	var dbDisableTime pgtype.Timestamptz
 	err := db.QueryRowContext(ctx, query, email).Scan(&dbUserID, &dbUsername, &dbPassword, &dbDisableTime)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			found = false
 		} else {
 			logger.Error("Error looking up user by email.", zap.Error(err), zap.String("email", email), zap.String("username", username), zap.Bool("create", create))
@@ -483,7 +490,7 @@ func AuthenticateUsername(ctx context.Context, logger *zap.Logger, db *sql.DB, u
 	var dbDisableTime pgtype.Timestamptz
 	err := db.QueryRowContext(ctx, query, username).Scan(&dbUserID, &dbPassword, &dbDisableTime)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			// Account not found and creation is never allowed for this type.
 			return "", status.Error(codes.NotFound, "User account not found.")
 		}
@@ -535,7 +542,7 @@ func AuthenticateFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, c
 	var dbDisableTime pgtype.Timestamptz
 	err = db.QueryRowContext(ctx, query, facebookProfile.ID).Scan(&dbUserID, &dbUsername, &dbDisableTime)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			found = false
 		} else {
 			logger.Error("Error looking up user by Facebook ID.", zap.Error(err), zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create))
@@ -616,7 +623,7 @@ func AuthenticateFacebookInstantGame(ctx context.Context, logger *zap.Logger, db
 	var dbDisableTime pgtype.Timestamptz
 	err = db.QueryRowContext(ctx, query, facebookInstantGameID).Scan(&dbUserID, &dbUsername, &dbDisableTime)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			found = false
 		} else {
 			logger.Error("Error looking up user by Facebook Instant Game ID.", zap.Error(err), zap.String("facebookInstantGameID", facebookInstantGameID), zap.String("username", username), zap.Bool("create", create))
@@ -761,14 +768,14 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 	var dbAvatarURL sql.NullString
 	err = db.QueryRowContext(ctx, query, googleProfile.GetGoogleId()).Scan(&dbUserID, &dbUsername, &dbDisableTime, &dbDisplayName, &dbAvatarURL)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			err = RemapGoogleId(ctx, logger, db, googleProfile)
 			if err == nil {
 				err = db.QueryRowContext(ctx, query, googleProfile.GetGoogleId()).Scan(&dbUserID, &dbUsername, &dbDisableTime, &dbDisplayName, &dbAvatarURL)
 			}
 		}
 
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			found = false
 		} else if err != nil {
 			logger.Error("Error looking up user by Google ID.", zap.Error(err),
@@ -892,7 +899,7 @@ func AuthenticateSteam(ctx context.Context, logger *zap.Logger, db *sql.DB, clie
 	var dbDisableTime pgtype.Timestamptz
 	err = db.QueryRowContext(ctx, query, steamID).Scan(&dbUserID, &dbUsername, &dbDisableTime)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			found = false
 		} else {
 			logger.Error("Error looking up user by Steam ID.", zap.Error(err), zap.String("steamID", steamID), zap.String("username", username), zap.Bool("create", create))
@@ -982,7 +989,7 @@ func importSteamFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tra
 		query := "SELECT id FROM users WHERE steam_id = ANY($1::text[])"
 		rows, err := tx.QueryContext(ctx, query, steamIDs)
 		if err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				// None of the friend profiles exist.
 				return nil
 			}
@@ -1056,7 +1063,7 @@ func importFacebookFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 		query := "SELECT id FROM users WHERE facebook_id = ANY($1::text[])"
 		rows, err := tx.QueryContext(ctx, query, params)
 		if err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				// None of the friend profiles exist.
 				return nil
 			}
@@ -1157,7 +1164,7 @@ func importFriendsByUUID(ctx context.Context, logger *zap.Logger, tx *sql.Tx, us
 
 		var state sql.NullInt64
 		err := tx.QueryRowContext(ctx, "SELECT state FROM user_edge WHERE source_id = $1 AND destination_id = $2 AND state = 3", userID, friendID).Scan(&state)
-		if err != nil && err != sql.ErrNoRows {
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			logger.Error("Error checking blocked status in friend import.", zap.Error(err))
 			continue
 		}

@@ -46,7 +46,7 @@ var File_apigrpc_proto protoreflect.FileDescriptor
 const file_apigrpc_proto_rawDesc = "" +
 	"\n" +
 	"\rapigrpc.proto\x12\n" +
-	"nakama.api\x1a\rapi/api.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a.protoc-gen-openapiv2/options/annotations.proto2\x84T\n" +
+	"nakama.api\x1a\rapi/api.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a.protoc-gen-openapiv2/options/annotations.proto2\xc9S\n" +
 	"\x06Nakama\x12W\n" +
 	"\n" +
 	"AddFriends\x12\x1d.nakama.api.AddFriendsRequest\x1a\x16.google.protobuf.Empty\"\x12\x82\xd3\xe4\x93\x02\f\"\n" +
@@ -79,10 +79,10 @@ const file_apigrpc_proto_rawDesc = "" +
 	"\tBasicAuth\x12\x00\x82\xd3\xe4\x93\x02.:\aaccount\"#/v2/account/authenticate/gamecenter\x12\x96\x01\n" +
 	"\x12AuthenticateGoogle\x12%.nakama.api.AuthenticateGoogleRequest\x1a\x13.nakama.api.Session\"D\x92A\x11b\x0f\n" +
 	"\r\n" +
-	"\tBasicAuth\x12\x00\x82\xd3\xe4\x93\x02*:\aaccount\"\x1f/v2/account/authenticate/google\x12\x9c\x01\n" +
-	"\x14AuthenticateProvider\x12'.nakama.api.AuthenticateProviderRequest\x1a\x13.nakama.api.Session\"F\x92A\x11b\x0f\n" +
+	"\tBasicAuth\x12\x00\x82\xd3\xe4\x93\x02*:\aaccount\"\x1f/v2/account/authenticate/google\x12\x83\x01\n" +
+	"\fAuthenticate\x12\x1f.nakama.api.AuthenticateRequest\x1a\x13.nakama.api.Session\"=\x92A\x11b\x0f\n" +
 	"\r\n" +
-	"\tBasicAuth\x12\x00\x82\xd3\xe4\x93\x02,:\aaccount\"!/v2/account/authenticate/provider\x12\x93\x01\n" +
+	"\tBasicAuth\x12\x00\x82\xd3\xe4\x93\x02#:\aaccount\"\x18/v2/account/authenticate\x12\x93\x01\n" +
 	"\x11AuthenticateSteam\x12$.nakama.api.AuthenticateSteamRequest\x1a\x13.nakama.api.Session\"C\x92A\x11b\x0f\n" +
 	"\r\n" +
 	"\tBasicAuth\x12\x00\x82\xd3\xe4\x93\x02):\aaccount\"\x1e/v2/account/authenticate/steam\x12k\n" +
@@ -114,8 +114,8 @@ const file_apigrpc_proto_rawDesc = "" +
 	"LeaveGroup\x12\x1d.nakama.api.LeaveGroupRequest\x1a\x16.google.protobuf.Empty\"\"\x82\xd3\xe4\x93\x02\x1c\"\x1a/v2/group/{group_id}/leave\x12`\n" +
 	"\tLinkApple\x12\x18.nakama.api.AccountApple\x1a\x16.google.protobuf.Empty\"!\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/v2/account/link/apple\x12c\n" +
 	"\n" +
-	"LinkCustom\x12\x19.nakama.api.AccountCustom\x1a\x16.google.protobuf.Empty\"\"\x82\xd3\xe4\x93\x02\x1c:\x01*\"\x17/v2/account/link/custom\x12i\n" +
-	"\fLinkProvider\x12\x1b.nakama.api.AccountProvider\x1a\x16.google.protobuf.Empty\"$\x82\xd3\xe4\x93\x02\x1e:\x01*\"\x19/v2/account/link/provider\x12c\n" +
+	"LinkCustom\x12\x19.nakama.api.AccountCustom\x1a\x16.google.protobuf.Empty\"\"\x82\xd3\xe4\x93\x02\x1c:\x01*\"\x17/v2/account/link/custom\x12X\n" +
+	"\x04Link\x12\x1b.nakama.api.AccountProvider\x1a\x16.google.protobuf.Empty\"\x1b\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/v2/account/link\x12c\n" +
 	"\n" +
 	"LinkDevice\x12\x19.nakama.api.AccountDevice\x1a\x16.google.protobuf.Empty\"\"\x82\xd3\xe4\x93\x02\x1c:\x01*\"\x17/v2/account/link/device\x12`\n" +
 	"\tLinkEmail\x12\x18.nakama.api.AccountEmail\x1a\x16.google.protobuf.Empty\"!\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/v2/account/link/email\x12s\n" +
@@ -152,8 +152,8 @@ const file_apigrpc_proto_rawDesc = "" +
 	"\x0f\n" +
 	"\vHttpKeyAuth\x12\x00\x82\xd3\xe4\x93\x02':\apayloadZ\x0e\x12\f/v2/rpc/{id}\"\f/v2/rpc/{id}\x12d\n" +
 	"\vUnlinkApple\x12\x18.nakama.api.AccountApple\x1a\x16.google.protobuf.Empty\"#\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v2/account/unlink/apple\x12g\n" +
-	"\fUnlinkCustom\x12\x19.nakama.api.AccountCustom\x1a\x16.google.protobuf.Empty\"$\x82\xd3\xe4\x93\x02\x1e:\x01*\"\x19/v2/account/unlink/custom\x12m\n" +
-	"\x0eUnlinkProvider\x12\x1b.nakama.api.AccountProvider\x1a\x16.google.protobuf.Empty\"&\x82\xd3\xe4\x93\x02 :\x01*\"\x1b/v2/account/unlink/provider\x12g\n" +
+	"\fUnlinkCustom\x12\x19.nakama.api.AccountCustom\x1a\x16.google.protobuf.Empty\"$\x82\xd3\xe4\x93\x02\x1e:\x01*\"\x19/v2/account/unlink/custom\x12\\\n" +
+	"\x06Unlink\x12\x1b.nakama.api.AccountProvider\x1a\x16.google.protobuf.Empty\"\x1d\x82\xd3\xe4\x93\x02\x17:\x01*\"\x12/v2/account/unlink\x12g\n" +
 	"\fUnlinkDevice\x12\x19.nakama.api.AccountDevice\x1a\x16.google.protobuf.Empty\"$\x82\xd3\xe4\x93\x02\x1e:\x01*\"\x19/v2/account/unlink/device\x12d\n" +
 	"\vUnlinkEmail\x12\x18.nakama.api.AccountEmail\x1a\x16.google.protobuf.Empty\"#\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v2/account/unlink/email\x12m\n" +
 	"\x0eUnlinkFacebook\x12\x1b.nakama.api.AccountFacebook\x1a\x16.google.protobuf.Empty\"&\x82\xd3\xe4\x93\x02 :\x01*\"\x1b/v2/account/unlink/facebook\x12\x8e\x01\n" +
@@ -199,7 +199,7 @@ var file_apigrpc_proto_goTypes = []any{
 	(*api.AuthenticateFacebookInstantGameRequest)(nil),   // 9: nakama.api.AuthenticateFacebookInstantGameRequest
 	(*api.AuthenticateGameCenterRequest)(nil),            // 10: nakama.api.AuthenticateGameCenterRequest
 	(*api.AuthenticateGoogleRequest)(nil),                // 11: nakama.api.AuthenticateGoogleRequest
-	(*api.AuthenticateProviderRequest)(nil),              // 12: nakama.api.AuthenticateProviderRequest
+	(*api.AuthenticateRequest)(nil),                      // 12: nakama.api.AuthenticateRequest
 	(*api.AuthenticateSteamRequest)(nil),                 // 13: nakama.api.AuthenticateSteamRequest
 	(*api.BanGroupUsersRequest)(nil),                     // 14: nakama.api.BanGroupUsersRequest
 	(*api.BlockFriendsRequest)(nil),                      // 15: nakama.api.BlockFriendsRequest
@@ -303,7 +303,7 @@ var file_apigrpc_proto_depIdxs = []int32{
 	9,   // 9: nakama.api.Nakama.AuthenticateFacebookInstantGame:input_type -> nakama.api.AuthenticateFacebookInstantGameRequest
 	10,  // 10: nakama.api.Nakama.AuthenticateGameCenter:input_type -> nakama.api.AuthenticateGameCenterRequest
 	11,  // 11: nakama.api.Nakama.AuthenticateGoogle:input_type -> nakama.api.AuthenticateGoogleRequest
-	12,  // 12: nakama.api.Nakama.AuthenticateProvider:input_type -> nakama.api.AuthenticateProviderRequest
+	12,  // 12: nakama.api.Nakama.Authenticate:input_type -> nakama.api.AuthenticateRequest
 	13,  // 13: nakama.api.Nakama.AuthenticateSteam:input_type -> nakama.api.AuthenticateSteamRequest
 	14,  // 14: nakama.api.Nakama.BanGroupUsers:input_type -> nakama.api.BanGroupUsersRequest
 	15,  // 15: nakama.api.Nakama.BlockFriends:input_type -> nakama.api.BlockFriendsRequest
@@ -329,7 +329,7 @@ var file_apigrpc_proto_depIdxs = []int32{
 	32,  // 35: nakama.api.Nakama.LeaveGroup:input_type -> nakama.api.LeaveGroupRequest
 	33,  // 36: nakama.api.Nakama.LinkApple:input_type -> nakama.api.AccountApple
 	34,  // 37: nakama.api.Nakama.LinkCustom:input_type -> nakama.api.AccountCustom
-	35,  // 38: nakama.api.Nakama.LinkProvider:input_type -> nakama.api.AccountProvider
+	35,  // 38: nakama.api.Nakama.Link:input_type -> nakama.api.AccountProvider
 	36,  // 39: nakama.api.Nakama.LinkDevice:input_type -> nakama.api.AccountDevice
 	37,  // 40: nakama.api.Nakama.LinkEmail:input_type -> nakama.api.AccountEmail
 	38,  // 41: nakama.api.Nakama.LinkFacebook:input_type -> nakama.api.LinkFacebookRequest
@@ -359,7 +359,7 @@ var file_apigrpc_proto_depIdxs = []int32{
 	62,  // 65: nakama.api.Nakama.RpcFunc:input_type -> nakama.api.Rpc
 	33,  // 66: nakama.api.Nakama.UnlinkApple:input_type -> nakama.api.AccountApple
 	34,  // 67: nakama.api.Nakama.UnlinkCustom:input_type -> nakama.api.AccountCustom
-	35,  // 68: nakama.api.Nakama.UnlinkProvider:input_type -> nakama.api.AccountProvider
+	35,  // 68: nakama.api.Nakama.Unlink:input_type -> nakama.api.AccountProvider
 	36,  // 69: nakama.api.Nakama.UnlinkDevice:input_type -> nakama.api.AccountDevice
 	37,  // 70: nakama.api.Nakama.UnlinkEmail:input_type -> nakama.api.AccountEmail
 	63,  // 71: nakama.api.Nakama.UnlinkFacebook:input_type -> nakama.api.AccountFacebook
@@ -391,7 +391,7 @@ var file_apigrpc_proto_depIdxs = []int32{
 	77,  // 97: nakama.api.Nakama.AuthenticateFacebookInstantGame:output_type -> nakama.api.Session
 	77,  // 98: nakama.api.Nakama.AuthenticateGameCenter:output_type -> nakama.api.Session
 	77,  // 99: nakama.api.Nakama.AuthenticateGoogle:output_type -> nakama.api.Session
-	77,  // 100: nakama.api.Nakama.AuthenticateProvider:output_type -> nakama.api.Session
+	77,  // 100: nakama.api.Nakama.Authenticate:output_type -> nakama.api.Session
 	77,  // 101: nakama.api.Nakama.AuthenticateSteam:output_type -> nakama.api.Session
 	17,  // 102: nakama.api.Nakama.BanGroupUsers:output_type -> google.protobuf.Empty
 	17,  // 103: nakama.api.Nakama.BlockFriends:output_type -> google.protobuf.Empty
@@ -417,7 +417,7 @@ var file_apigrpc_proto_depIdxs = []int32{
 	17,  // 123: nakama.api.Nakama.LeaveGroup:output_type -> google.protobuf.Empty
 	17,  // 124: nakama.api.Nakama.LinkApple:output_type -> google.protobuf.Empty
 	17,  // 125: nakama.api.Nakama.LinkCustom:output_type -> google.protobuf.Empty
-	17,  // 126: nakama.api.Nakama.LinkProvider:output_type -> google.protobuf.Empty
+	17,  // 126: nakama.api.Nakama.Link:output_type -> google.protobuf.Empty
 	17,  // 127: nakama.api.Nakama.LinkDevice:output_type -> google.protobuf.Empty
 	17,  // 128: nakama.api.Nakama.LinkEmail:output_type -> google.protobuf.Empty
 	17,  // 129: nakama.api.Nakama.LinkFacebook:output_type -> google.protobuf.Empty
@@ -447,7 +447,7 @@ var file_apigrpc_proto_depIdxs = []int32{
 	62,  // 153: nakama.api.Nakama.RpcFunc:output_type -> nakama.api.Rpc
 	17,  // 154: nakama.api.Nakama.UnlinkApple:output_type -> google.protobuf.Empty
 	17,  // 155: nakama.api.Nakama.UnlinkCustom:output_type -> google.protobuf.Empty
-	17,  // 156: nakama.api.Nakama.UnlinkProvider:output_type -> google.protobuf.Empty
+	17,  // 156: nakama.api.Nakama.Unlink:output_type -> google.protobuf.Empty
 	17,  // 157: nakama.api.Nakama.UnlinkDevice:output_type -> google.protobuf.Empty
 	17,  // 158: nakama.api.Nakama.UnlinkEmail:output_type -> google.protobuf.Empty
 	17,  // 159: nakama.api.Nakama.UnlinkFacebook:output_type -> google.protobuf.Empty

@@ -376,7 +376,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateGoogle(ctx context.Context, token, u
 // @summary Authenticate user and create a session token using an external provider identity.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param provider(type=string) Name of the provider the identity belongs to. Case insensitive.
-// @param payload(type=string) Payload handed to the provider.
+// @param payload(type=map[string]any) Payload handed to the provider.
 // @param userID(type=string, optional=true) The user ID to assign if an account is created. If left empty, one is generated.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
 // @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
@@ -384,7 +384,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateGoogle(ctx context.Context, token, u
 // @return username(string) The username of the authenticated user.
 // @return create(bool) Value indicating if this account was just created or already existed.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) AuthenticateProvider(ctx context.Context, provider, payload, userID, username string, create bool) (string, string, bool, error) {
+func (n *RuntimeGoNakamaModule) Authenticate(ctx context.Context, provider string, payload map[string]any, userID, username string, create bool) (string, string, bool, error) {
 	if provider == "" {
 		return "", "", false, errors.New("expects provider string")
 	} else if len(provider) > 128 {
@@ -405,7 +405,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateProvider(ctx context.Context, provid
 		return "", "", false, errors.New("expects username to be valid, must be 1-128 bytes")
 	}
 
-	dbUserID, dbUsername, created, _, err := AuthenticateProvider(ctx, n.logger, n.db, n.authProviderRegistry, provider, payload, userID, username, create, "")
+	dbUserID, dbUsername, created, _, err := Authenticate(ctx, n.logger, n.db, n.authProviderRegistry, provider, payload, userID, username, create, "")
 	return dbUserID, dbUsername, created, err
 }
 
@@ -809,15 +809,15 @@ func (n *RuntimeGoNakamaModule) LinkApple(ctx context.Context, userID, token str
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param userID(type=string) The user ID to be linked.
 // @param provider(type=string) Name of the provider the identity belongs to. Case insensitive.
-// @param payload(type=string) Payload handed to the provider.
+// @param payload(type=map[string]any) Payload handed to the provider.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) LinkProvider(ctx context.Context, userID, provider, payload string) error {
+func (n *RuntimeGoNakamaModule) Link(ctx context.Context, userID, provider string, payload map[string]any) error {
 	id, err := uuid.FromString(userID)
 	if err != nil {
 		return errors.New("user ID must be a valid identifier")
 	}
 
-	return LinkProvider(ctx, n.logger, n.db, n.authProviderRegistry, id, provider, payload, "")
+	return Link(ctx, n.logger, n.db, n.authProviderRegistry, id, provider, payload, "")
 }
 
 // @group authenticate
@@ -1018,13 +1018,13 @@ func (n *RuntimeGoNakamaModule) UnlinkApple(ctx context.Context, userID, token s
 // @param userID(type=string) The user ID to be unlinked.
 // @param provider(type=string) Name of the provider the identity belongs to. Case insensitive.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) UnlinkProvider(ctx context.Context, userID, provider string) error {
+func (n *RuntimeGoNakamaModule) Unlink(ctx context.Context, userID, provider string) error {
 	id, err := uuid.FromString(userID)
 	if err != nil {
 		return errors.New("user ID must be a valid identifier")
 	}
 
-	return UnlinkProvider(ctx, n.logger, n.db, id, provider)
+	return Unlink(ctx, n.logger, n.db, id, provider)
 }
 
 // @group authenticate

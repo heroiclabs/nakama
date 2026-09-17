@@ -110,7 +110,7 @@ AND (NOT EXISTS
 	return nil
 }
 
-func LinkProvider(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimeAuthenticateProviderRegistry, userID uuid.UUID, providerID, payload, traceID string) error {
+func Link(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimeAuthenticateProviderRegistry, userID uuid.UUID, providerID string, payload map[string]any, traceID string) error {
 	providerID = strings.ToLower(providerID)
 
 	if registry == nil {
@@ -125,11 +125,11 @@ func LinkProvider(ctx context.Context, logger *zap.Logger, db *sql.DB, registry 
 	if fnErr != nil {
 		return status.Error(code, fnErr.Error())
 	}
-	if result == nil || result.ProviderUserID == "" {
+	if result == nil || result.GetProviderUserID() == "" {
 		logger.Error("Authentication provider returned no provider user ID.", zap.String("provider", providerID))
 		return status.Error(codes.Internal, "Error linking provider.")
 	}
-	providerUserID := result.ProviderUserID
+	providerUserID := result.GetProviderUserID()
 	if invalidCharsRegex.MatchString(providerUserID) || len(providerUserID) > 128 {
 		logger.Error("Authentication provider returned an invalid provider user ID.", zap.String("provider", providerID), zap.String("providerUserID", providerUserID))
 		return status.Error(codes.Internal, "Error linking provider.")
@@ -137,11 +137,11 @@ func LinkProvider(ctx context.Context, logger *zap.Logger, db *sql.DB, registry 
 
 	err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx, `
-INSERT INTO user_provider (provider, provider_user_id, user_id)
+INSERT INTO user_device (provider, id, user_id)
 VALUES ($2, $3, $1)
-ON CONFLICT (provider, provider_user_id)
+ON CONFLICT (id)
 DO UPDATE SET user_id = EXCLUDED.user_id
-WHERE user_provider.user_id = EXCLUDED.user_id`,
+WHERE user_device.user_id = EXCLUDED.user_id`,
 			userID, providerID, providerUserID)
 		if err != nil {
 			var pgErr *pgconn.PgError

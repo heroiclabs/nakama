@@ -702,6 +702,47 @@
         ]
       }
     },
+    "/v2/console/account/{id}/unlink": {
+      "post": {
+        "summary": "Unlink an authentication provider identity from a user account.",
+        "operationId": "Unlink",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpc.Status"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "User ID to unlink from.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UnlinkBody"
+            }
+          }
+        ],
+        "tags": [
+          "Console"
+        ]
+      }
+    },
     "/v2/console/account/{id}/unlink/apple": {
       "post": {
         "summary": "Unlink the Apple ID from a user account.",
@@ -967,47 +1008,6 @@
             "in": "path",
             "required": true,
             "type": "string"
-          }
-        ],
-        "tags": [
-          "Console"
-        ]
-      }
-    },
-    "/v2/console/account/{id}/unlink/provider": {
-      "post": {
-        "summary": "Unlink an authentication provider identity from a user account.",
-        "operationId": "UnlinkProvider",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "type": "object",
-              "properties": {}
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpc.Status"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "id",
-            "description": "User ID to unlink from.",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          },
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/UnlinkProviderBody"
-            }
           }
         ],
         "tags": [
@@ -1471,7 +1471,7 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/AuthenticateRequest"
+              "$ref": "#/definitions/console.AuthenticateRequest"
             }
           }
         ],
@@ -4174,24 +4174,6 @@
       },
       "description": "Request to change a password."
     },
-    "AuthenticateRequest": {
-      "type": "object",
-      "properties": {
-        "username": {
-          "type": "string",
-          "description": "The username of the user."
-        },
-        "password": {
-          "type": "string",
-          "description": "The password of the user."
-        },
-        "mfa": {
-          "type": "string",
-          "description": "Multi-factor authentication code."
-        }
-      },
-      "description": "Authenticate a console user with username and password."
-    },
     "CallApiEndpointBody": {
       "type": "object",
       "properties": {
@@ -5707,6 +5689,16 @@
       },
       "description": "An template override."
     },
+    "UnlinkBody": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "description": "Name of the provider to unlink."
+        }
+      },
+      "description": "Unlink an authentication provider identity from a user account."
+    },
     "UnlinkDeviceBody": {
       "type": "object",
       "properties": {
@@ -5716,16 +5708,6 @@
         }
       },
       "description": "Unlink a particular device ID from a user's account."
-    },
-    "UnlinkProviderBody": {
-      "type": "object",
-      "properties": {
-        "provider": {
-          "type": "string",
-          "description": "Name of the provider to unlink."
-        }
-      },
-      "description": "Unlink an authentication provider identity from a user account."
     },
     "UpdateAccountBody": {
       "type": "object",
@@ -6330,6 +6312,24 @@
         }
       },
       "description": "Account information."
+    },
+    "console.AuthenticateRequest": {
+      "type": "object",
+      "properties": {
+        "username": {
+          "type": "string",
+          "description": "The username of the user."
+        },
+        "password": {
+          "type": "string",
+          "description": "The password of the user."
+        },
+        "mfa": {
+          "type": "string",
+          "description": "Multi-factor authentication code."
+        }
+      },
+      "description": "Authenticate a console user with username and password."
     },
     "console.GroupList": {
       "type": "object",

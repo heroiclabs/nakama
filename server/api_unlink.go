@@ -115,12 +115,12 @@ func (s *ApiServer) UnlinkCustom(ctx context.Context, in *api.AccountCustom) (*e
 	return &emptypb.Empty{}, nil
 }
 
-func (s *ApiServer) UnlinkProvider(ctx context.Context, in *api.AccountProvider) (*emptypb.Empty, error) {
+func (s *ApiServer) Unlink(ctx context.Context, in *api.AccountProvider) (*emptypb.Empty, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 
 	// Before hook.
-	if fn := s.runtime.BeforeUnlinkProvider(); fn != nil {
+	if fn := s.runtime.BeforeUnlink(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
 			result, err, code := fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
@@ -142,13 +142,13 @@ func (s *ApiServer) UnlinkProvider(ctx context.Context, in *api.AccountProvider)
 		}
 	}
 
-	err := UnlinkProvider(ctx, logger, s.db, userID, in.Provider)
+	err := Unlink(ctx, logger, s.db, userID, in.Provider)
 	if err != nil {
 		return nil, err
 	}
 
 	// After hook.
-	if fn := s.runtime.AfterUnlinkProvider(); fn != nil {
+	if fn := s.runtime.AfterUnlink(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
 			return fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		}

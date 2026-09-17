@@ -81,7 +81,7 @@ func GetAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, statusRegis
 	query := `
 SELECT u.username, u.display_name, u.avatar_url, u.lang_tag, u.location, u.timezone, u.metadata, u.wallet,
 	u.email, u.apple_id, u.facebook_id, u.facebook_instant_game_id, u.google_id, u.gamecenter_id, u.steam_id, u.custom_id, u.edge_count,
-	u.create_time, u.update_time, u.verify_time, u.disable_time, array(select ud.id from user_device ud where u.id = ud.user_id)
+	u.create_time, u.update_time, u.verify_time, u.disable_time, array(select concat_ws('|', ud.provider, ud.id) from user_device ud where u.id = ud.user_id)
 FROM users u
 WHERE u.id = $1`
 
@@ -94,30 +94,18 @@ WHERE u.id = $1`
 	}
 
 	devices := make([]*api.AccountDevice, 0, len(deviceIDs))
+	providers := make([]*api.AccountProviderIdentity, 0, len(deviceIDs))
 	for _, deviceID := range deviceIDs {
-		devices = append(devices, &api.AccountDevice{Id: deviceID})
-	}
-
-	rows, err := db.QueryContext(ctx, "SELECT provider, provider_user_id FROM user_provider WHERE user_id = $1", userID)
-	if err != nil {
-		logger.Error("Error retrieving user account providers.", zap.Error(err))
-		return nil, err
-	}
-	defer rows.Close()
-
-	providers := make([]*api.AccountProviderIdentity, 0, 1)
-	for rows.Next() {
-		var provider string
-		var providerUserID string
-		if err := rows.Scan(&provider, &providerUserID); err != nil {
-			logger.Error("Error retrieving user account providers.", zap.Error(err))
-			return nil, err
+		// Guaranteed to be at least 2 due to the concatenation done in the query.
+		split := strings.SplitN(deviceID, "|", 2)
+		if split[0] == "" {
+			devices = append(devices, &api.AccountDevice{Id: split[1]})
+		} else {
+			providers = append(providers, &api.AccountProviderIdentity{
+				Provider:       split[0],
+				ProviderUserId: split[1],
+			})
 		}
-		providers = append(providers, &api.AccountProviderIdentity{Provider: provider, ProviderUserId: providerUserID})
-	}
-	if err := rows.Err(); err != nil {
-		logger.Error("Error retrieving user account providers.", zap.Error(err))
-		return nil, err
 	}
 
 	var verifyTimestamp *timestamppb.Timestamp
@@ -173,7 +161,7 @@ func GetAccounts(ctx context.Context, logger *zap.Logger, db *sql.DB, statusRegi
 	query := `
 SELECT u.id, u.username, u.display_name, u.avatar_url, u.lang_tag, u.location, u.timezone, u.metadata, u.wallet,
 	u.email, u.apple_id, u.facebook_id, u.facebook_instant_game_id, u.google_id, u.gamecenter_id, u.steam_id, u.custom_id, u.edge_count,
-	u.create_time, u.update_time, u.verify_time, u.disable_time, array(select ud.id from user_device ud where u.id = ud.user_id)
+	u.create_time, u.update_time, u.verify_time, u.disable_time, array(select concat_ws('|', ud.provider, ud.id) from user_device ud where u.id = ud.user_id)
 FROM users u`
 	params := make([]any, 0, 2)
 	switch {
@@ -229,8 +217,18 @@ FROM users u`
 		}
 
 		devices := make([]*api.AccountDevice, 0, len(deviceIDs))
+		providers := make([]*api.AccountProviderIdentity, 0, len(deviceIDs))
 		for _, deviceID := range deviceIDs {
-			devices = append(devices, &api.AccountDevice{Id: deviceID})
+			// Guaranteed to be at least 2 due to the concatenation done in the query.
+			split := strings.SplitN(deviceID, "|", 2)
+			if split[0] == "" {
+				devices = append(devices, &api.AccountDevice{Id: split[1]})
+			} else {
+				providers = append(providers, &api.AccountProviderIdentity{
+					Provider:       split[0],
+					ProviderUserId: split[1],
+				})
+			}
 		}
 
 		var verifyTimestamp *timestamppb.Timestamp
@@ -266,43 +264,13 @@ FROM users u`
 			Wallet:      wallet.String,
 			Email:       email.String,
 			Devices:     devices,
+			Providers:   providers,
 			CustomId:    customID.String,
 			VerifyTime:  verifyTimestamp,
 			DisableTime: disableTimestamp,
 		})
 	}
 	_ = rows.Close()
-
-	// One batched lookup for every account's provider identities, rather than a query per account.
-	if len(accounts) > 0 {
-		ids := make([]string, 0, len(accounts))
-		for _, account := range accounts {
-			ids = append(ids, account.User.Id)
-		}
-		rows, err := db.QueryContext(ctx, "SELECT user_id, provider, provider_user_id FROM user_provider WHERE user_id = ANY($1)", ids)
-		if err != nil {
-			logger.Error("Error retrieving user account providers.", zap.Error(err))
-			return nil, err
-		}
-		byUser := make(map[string][]*api.AccountProviderIdentity, len(accounts))
-		for rows.Next() {
-			var userID, provider, providerUserID string
-			if err := rows.Scan(&userID, &provider, &providerUserID); err != nil {
-				_ = rows.Close()
-				logger.Error("Error retrieving user account providers.", zap.Error(err))
-				return nil, err
-			}
-			byUser[userID] = append(byUser[userID], &api.AccountProviderIdentity{Provider: provider, ProviderUserId: providerUserID})
-		}
-		_ = rows.Close()
-		if err := rows.Err(); err != nil {
-			logger.Error("Error retrieving user account providers.", zap.Error(err))
-			return nil, err
-		}
-		for _, account := range accounts {
-			account.Providers = byUser[account.User.Id]
-		}
-	}
 
 	if statusRegistry != nil {
 		statusRegistry.FillOnlineAccounts(accounts)
@@ -647,8 +615,8 @@ VALUES (
 			}
 
 			for _, provider := range data.Account.Providers {
-				_, err := tx.ExecContext(ctx, "INSERT INTO user_provider (provider, provider_user_id, user_id) VALUES ($1, $2, $3)",
-					strings.ToLower(provider.Provider), provider.ProviderUserId, data.Account.User.Id)
+				_, err := tx.ExecContext(ctx, "INSERT INTO user_device (id, user_id, provider) VALUES ($1, $2, $3)",
+					provider.ProviderUserId, data.Account.User.Id, strings.ToLower(provider.Provider))
 				if err != nil {
 					if errors.Is(err, context.Canceled) {
 						return err
@@ -753,7 +721,7 @@ VALUES (
 		query := `
 SELECT u.username, u.display_name, u.avatar_url, u.lang_tag, u.location, u.timezone, u.metadata, u.wallet,
 	u.email, u.apple_id, u.facebook_id, u.facebook_instant_game_id, u.google_id, u.gamecenter_id, u.steam_id, u.custom_id, u.edge_count,
-	u.create_time, u.update_time, u.verify_time, u.disable_time, array(select ud.id from user_device ud where u.id = ud.user_id)
+	u.create_time, u.update_time, u.verify_time, u.disable_time, array(select concat_ws('|', ud.provider, ud.id) from user_device ud where u.id = ud.user_id)
 FROM users u
 WHERE u.id = $1`
 
@@ -769,30 +737,18 @@ WHERE u.id = $1`
 		}
 
 		devices := make([]*api.AccountDevice, 0, len(deviceIDs))
+		providers := make([]*api.AccountProviderIdentity, 0, len(deviceIDs))
 		for _, deviceID := range deviceIDs {
-			devices = append(devices, &api.AccountDevice{Id: deviceID})
-		}
-
-		rows, err := tx.QueryContext(ctx, "SELECT provider, provider_user_id FROM user_provider WHERE user_id = $1", lookupUserID)
-		if err != nil {
-			logger.Error("Error retrieving user account providers during import", zap.Error(err), zap.String("user_id", userID.String()))
-			return err
-		}
-		defer rows.Close()
-
-		providers := make([]*api.AccountProviderIdentity, 0, 1)
-		for rows.Next() {
-			var provider string
-			var providerUserID string
-			if err := rows.Scan(&provider, &providerUserID); err != nil {
-				logger.Error("Error retrieving user account providers during import", zap.Error(err), zap.String("user_id", userID.String()))
-				return err
+			// Guaranteed to be at least 2 due to the concatenation done in the query.
+			split := strings.SplitN(deviceID, "|", 2)
+			if split[0] == "" {
+				devices = append(devices, &api.AccountDevice{Id: split[1]})
+			} else {
+				providers = append(providers, &api.AccountProviderIdentity{
+					Provider:       split[0],
+					ProviderUserId: split[1],
+				})
 			}
-			providers = append(providers, &api.AccountProviderIdentity{Provider: provider, ProviderUserId: providerUserID})
-		}
-		if err := rows.Err(); err != nil {
-			logger.Error("Error retrieving user account providers during import", zap.Error(err), zap.String("user_id", userID.String()))
-			return err
 		}
 
 		var verifyTimestamp *timestamppb.Timestamp

@@ -23,7 +23,7 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-type RuntimeAuthenticateProviderFunction func(ctx context.Context, traceID, payload string) (*runtime.AuthenticateProviderResult, error, codes.Code)
+type RuntimeAuthenticateProviderFunction func(ctx context.Context, traceID string, payload map[string]any) (runtime.AuthenticateProviderResult, error, codes.Code)
 
 type RuntimeAuthenticateProviderRegistry struct {
 	providers MapOf[string, RuntimeAuthenticateProviderFunction]

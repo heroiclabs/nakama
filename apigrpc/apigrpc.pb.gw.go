@@ -624,11 +624,11 @@ func local_request_Nakama_AuthenticateGoogle_0(ctx context.Context, marshaler ru
 }
 
 var (
-	filter_Nakama_AuthenticateProvider_0 = &utilities.DoubleArray{Encoding: map[string]int{"account": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
+	filter_Nakama_Authenticate_0 = &utilities.DoubleArray{Encoding: map[string]int{"account": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
 )
 
-func request_Nakama_AuthenticateProvider_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq api.AuthenticateProviderRequest
+func request_Nakama_Authenticate_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq api.AuthenticateRequest
 	var metadata runtime.ServerMetadata
 
 	newReader, berr := utilities.IOReaderFactory(req.Body)
@@ -642,17 +642,17 @@ func request_Nakama_AuthenticateProvider_0(ctx context.Context, marshaler runtim
 	if err := req.ParseForm(); err != nil {
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
-	if err := runtime.PopulateQueryParameters(&protoReq, req.Form, filter_Nakama_AuthenticateProvider_0); err != nil {
+	if err := runtime.PopulateQueryParameters(&protoReq, req.Form, filter_Nakama_Authenticate_0); err != nil {
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
-	msg, err := client.AuthenticateProvider(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	msg, err := client.Authenticate(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
 	return msg, metadata, err
 
 }
 
-func local_request_Nakama_AuthenticateProvider_0(ctx context.Context, marshaler runtime.Marshaler, server NakamaServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq api.AuthenticateProviderRequest
+func local_request_Nakama_Authenticate_0(ctx context.Context, marshaler runtime.Marshaler, server NakamaServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq api.AuthenticateRequest
 	var metadata runtime.ServerMetadata
 
 	newReader, berr := utilities.IOReaderFactory(req.Body)
@@ -666,11 +666,11 @@ func local_request_Nakama_AuthenticateProvider_0(ctx context.Context, marshaler 
 	if err := req.ParseForm(); err != nil {
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
-	if err := runtime.PopulateQueryParameters(&protoReq, req.Form, filter_Nakama_AuthenticateProvider_0); err != nil {
+	if err := runtime.PopulateQueryParameters(&protoReq, req.Form, filter_Nakama_Authenticate_0); err != nil {
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
-	msg, err := server.AuthenticateProvider(ctx, &protoReq)
+	msg, err := server.Authenticate(ctx, &protoReq)
 	return msg, metadata, err
 
 }
@@ -1721,7 +1721,7 @@ func local_request_Nakama_LinkCustom_0(ctx context.Context, marshaler runtime.Ma
 
 }
 
-func request_Nakama_LinkProvider_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+func request_Nakama_Link_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq api.AccountProvider
 	var metadata runtime.ServerMetadata
 
@@ -1733,12 +1733,12 @@ func request_Nakama_LinkProvider_0(ctx context.Context, marshaler runtime.Marsha
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
-	msg, err := client.LinkProvider(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	msg, err := client.Link(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
 	return msg, metadata, err
 
 }
 
-func local_request_Nakama_LinkProvider_0(ctx context.Context, marshaler runtime.Marshaler, server NakamaServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+func local_request_Nakama_Link_0(ctx context.Context, marshaler runtime.Marshaler, server NakamaServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq api.AccountProvider
 	var metadata runtime.ServerMetadata
 
@@ -1750,7 +1750,7 @@ func local_request_Nakama_LinkProvider_0(ctx context.Context, marshaler runtime.
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
-	msg, err := server.LinkProvider(ctx, &protoReq)
+	msg, err := server.Link(ctx, &protoReq)
 	return msg, metadata, err
 
 }
@@ -3385,7 +3385,7 @@ func local_request_Nakama_UnlinkCustom_0(ctx context.Context, marshaler runtime.
 
 }
 
-func request_Nakama_UnlinkProvider_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+func request_Nakama_Unlink_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq api.AccountProvider
 	var metadata runtime.ServerMetadata
 
@@ -3397,12 +3397,12 @@ func request_Nakama_UnlinkProvider_0(ctx context.Context, marshaler runtime.Mars
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
-	msg, err := client.UnlinkProvider(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	msg, err := client.Unlink(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
 	return msg, metadata, err
 
 }
 
-func local_request_Nakama_UnlinkProvider_0(ctx context.Context, marshaler runtime.Marshaler, server NakamaServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+func local_request_Nakama_Unlink_0(ctx context.Context, marshaler runtime.Marshaler, server NakamaServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq api.AccountProvider
 	var metadata runtime.ServerMetadata
 
@@ -3414,7 +3414,7 @@ func local_request_Nakama_UnlinkProvider_0(ctx context.Context, marshaler runtim
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
-	msg, err := server.UnlinkProvider(ctx, &protoReq)
+	msg, err := server.Unlink(ctx, &protoReq)
 	return msg, metadata, err
 
 }
@@ -4529,19 +4529,19 @@ func RegisterNakamaHandlerServer(ctx context.Context, mux *runtime.ServeMux, ser
 
 	})
 
-	mux.Handle("POST", pattern_Nakama_AuthenticateProvider_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle("POST", pattern_Nakama_Authenticate_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		var stream runtime.ServerTransportStream
 		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
-		ctx, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/nakama.api.Nakama/AuthenticateProvider", runtime.WithHTTPPathPattern("/v2/account/authenticate/provider"))
+		ctx, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/nakama.api.Nakama/Authenticate", runtime.WithHTTPPathPattern("/v2/account/authenticate"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := local_request_Nakama_AuthenticateProvider_0(ctx, inboundMarshaler, server, req, pathParams)
+		resp, md, err := local_request_Nakama_Authenticate_0(ctx, inboundMarshaler, server, req, pathParams)
 		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
 		ctx = runtime.NewServerMetadataContext(ctx, md)
 		if err != nil {
@@ -4549,7 +4549,7 @@ func RegisterNakamaHandlerServer(ctx context.Context, mux *runtime.ServeMux, ser
 			return
 		}
 
-		forward_Nakama_AuthenticateProvider_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_Nakama_Authenticate_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
@@ -5153,19 +5153,19 @@ func RegisterNakamaHandlerServer(ctx context.Context, mux *runtime.ServeMux, ser
 
 	})
 
-	mux.Handle("POST", pattern_Nakama_LinkProvider_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle("POST", pattern_Nakama_Link_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		var stream runtime.ServerTransportStream
 		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
-		ctx, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/nakama.api.Nakama/LinkProvider", runtime.WithHTTPPathPattern("/v2/account/link/provider"))
+		ctx, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/nakama.api.Nakama/Link", runtime.WithHTTPPathPattern("/v2/account/link"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := local_request_Nakama_LinkProvider_0(ctx, inboundMarshaler, server, req, pathParams)
+		resp, md, err := local_request_Nakama_Link_0(ctx, inboundMarshaler, server, req, pathParams)
 		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
 		ctx = runtime.NewServerMetadataContext(ctx, md)
 		if err != nil {
@@ -5173,7 +5173,7 @@ func RegisterNakamaHandlerServer(ctx context.Context, mux *runtime.ServeMux, ser
 			return
 		}
 
-		forward_Nakama_LinkProvider_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_Nakama_Link_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
@@ -5921,19 +5921,19 @@ func RegisterNakamaHandlerServer(ctx context.Context, mux *runtime.ServeMux, ser
 
 	})
 
-	mux.Handle("POST", pattern_Nakama_UnlinkProvider_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle("POST", pattern_Nakama_Unlink_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		var stream runtime.ServerTransportStream
 		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
-		ctx, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/nakama.api.Nakama/UnlinkProvider", runtime.WithHTTPPathPattern("/v2/account/unlink/provider"))
+		ctx, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/nakama.api.Nakama/Unlink", runtime.WithHTTPPathPattern("/v2/account/unlink"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := local_request_Nakama_UnlinkProvider_0(ctx, inboundMarshaler, server, req, pathParams)
+		resp, md, err := local_request_Nakama_Unlink_0(ctx, inboundMarshaler, server, req, pathParams)
 		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
 		ctx = runtime.NewServerMetadataContext(ctx, md)
 		if err != nil {
@@ -5941,7 +5941,7 @@ func RegisterNakamaHandlerServer(ctx context.Context, mux *runtime.ServeMux, ser
 			return
 		}
 
-		forward_Nakama_UnlinkProvider_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_Nakama_Unlink_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
@@ -6718,24 +6718,24 @@ func RegisterNakamaHandlerClient(ctx context.Context, mux *runtime.ServeMux, cli
 
 	})
 
-	mux.Handle("POST", pattern_Nakama_AuthenticateProvider_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle("POST", pattern_Nakama_Authenticate_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
-		ctx, err = runtime.AnnotateContext(ctx, mux, req, "/nakama.api.Nakama/AuthenticateProvider", runtime.WithHTTPPathPattern("/v2/account/authenticate/provider"))
+		ctx, err = runtime.AnnotateContext(ctx, mux, req, "/nakama.api.Nakama/Authenticate", runtime.WithHTTPPathPattern("/v2/account/authenticate"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := request_Nakama_AuthenticateProvider_0(ctx, inboundMarshaler, client, req, pathParams)
+		resp, md, err := request_Nakama_Authenticate_0(ctx, inboundMarshaler, client, req, pathParams)
 		ctx = runtime.NewServerMetadataContext(ctx, md)
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
 
-		forward_Nakama_AuthenticateProvider_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_Nakama_Authenticate_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
@@ -7264,24 +7264,24 @@ func RegisterNakamaHandlerClient(ctx context.Context, mux *runtime.ServeMux, cli
 
 	})
 
-	mux.Handle("POST", pattern_Nakama_LinkProvider_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle("POST", pattern_Nakama_Link_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
-		ctx, err = runtime.AnnotateContext(ctx, mux, req, "/nakama.api.Nakama/LinkProvider", runtime.WithHTTPPathPattern("/v2/account/link/provider"))
+		ctx, err = runtime.AnnotateContext(ctx, mux, req, "/nakama.api.Nakama/Link", runtime.WithHTTPPathPattern("/v2/account/link"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := request_Nakama_LinkProvider_0(ctx, inboundMarshaler, client, req, pathParams)
+		resp, md, err := request_Nakama_Link_0(ctx, inboundMarshaler, client, req, pathParams)
 		ctx = runtime.NewServerMetadataContext(ctx, md)
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
 
-		forward_Nakama_LinkProvider_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_Nakama_Link_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
@@ -7936,24 +7936,24 @@ func RegisterNakamaHandlerClient(ctx context.Context, mux *runtime.ServeMux, cli
 
 	})
 
-	mux.Handle("POST", pattern_Nakama_UnlinkProvider_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle("POST", pattern_Nakama_Unlink_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
-		ctx, err = runtime.AnnotateContext(ctx, mux, req, "/nakama.api.Nakama/UnlinkProvider", runtime.WithHTTPPathPattern("/v2/account/unlink/provider"))
+		ctx, err = runtime.AnnotateContext(ctx, mux, req, "/nakama.api.Nakama/Unlink", runtime.WithHTTPPathPattern("/v2/account/unlink"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := request_Nakama_UnlinkProvider_0(ctx, inboundMarshaler, client, req, pathParams)
+		resp, md, err := request_Nakama_Unlink_0(ctx, inboundMarshaler, client, req, pathParams)
 		ctx = runtime.NewServerMetadataContext(ctx, md)
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
 
-		forward_Nakama_UnlinkProvider_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_Nakama_Unlink_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
@@ -8405,7 +8405,7 @@ var (
 
 	pattern_Nakama_AuthenticateGoogle_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v2", "account", "authenticate", "google"}, ""))
 
-	pattern_Nakama_AuthenticateProvider_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v2", "account", "authenticate", "provider"}, ""))
+	pattern_Nakama_Authenticate_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v2", "account", "authenticate"}, ""))
 
 	pattern_Nakama_AuthenticateSteam_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v2", "account", "authenticate", "steam"}, ""))
 
@@ -8457,7 +8457,7 @@ var (
 
 	pattern_Nakama_LinkCustom_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v2", "account", "link", "custom"}, ""))
 
-	pattern_Nakama_LinkProvider_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v2", "account", "link", "provider"}, ""))
+	pattern_Nakama_Link_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v2", "account", "link"}, ""))
 
 	pattern_Nakama_LinkDevice_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v2", "account", "link", "device"}, ""))
 
@@ -8521,7 +8521,7 @@ var (
 
 	pattern_Nakama_UnlinkCustom_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v2", "account", "unlink", "custom"}, ""))
 
-	pattern_Nakama_UnlinkProvider_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v2", "account", "unlink", "provider"}, ""))
+	pattern_Nakama_Unlink_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v2", "account", "unlink"}, ""))
 
 	pattern_Nakama_UnlinkDevice_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v2", "account", "unlink", "device"}, ""))
 
@@ -8589,7 +8589,7 @@ var (
 
 	forward_Nakama_AuthenticateGoogle_0 = runtime.ForwardResponseMessage
 
-	forward_Nakama_AuthenticateProvider_0 = runtime.ForwardResponseMessage
+	forward_Nakama_Authenticate_0 = runtime.ForwardResponseMessage
 
 	forward_Nakama_AuthenticateSteam_0 = runtime.ForwardResponseMessage
 
@@ -8641,7 +8641,7 @@ var (
 
 	forward_Nakama_LinkCustom_0 = runtime.ForwardResponseMessage
 
-	forward_Nakama_LinkProvider_0 = runtime.ForwardResponseMessage
+	forward_Nakama_Link_0 = runtime.ForwardResponseMessage
 
 	forward_Nakama_LinkDevice_0 = runtime.ForwardResponseMessage
 
@@ -8705,7 +8705,7 @@ var (
 
 	forward_Nakama_UnlinkCustom_0 = runtime.ForwardResponseMessage
 
-	forward_Nakama_UnlinkProvider_0 = runtime.ForwardResponseMessage
+	forward_Nakama_Unlink_0 = runtime.ForwardResponseMessage
 
 	forward_Nakama_UnlinkDevice_0 = runtime.ForwardResponseMessage
 

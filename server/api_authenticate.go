@@ -694,10 +694,10 @@ func (s *ApiServer) AuthenticateGoogle(ctx context.Context, in *api.Authenticate
 	return session, nil
 }
 
-func (s *ApiServer) AuthenticateProvider(ctx context.Context, in *api.AuthenticateProviderRequest) (*api.Session, error) {
+func (s *ApiServer) Authenticate(ctx context.Context, in *api.AuthenticateRequest) (*api.Session, error) {
 	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 	// Before hook.
-	if fn := s.runtime.BeforeAuthenticateProvider(); fn != nil {
+	if fn := s.runtime.BeforeAuthenticate(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
 			result, err, code := fn(ctx, logger, traceID, "", "", nil, 0, clientIP, clientPort, in)
 			if err != nil {
@@ -734,7 +734,7 @@ func (s *ApiServer) AuthenticateProvider(ctx context.Context, in *api.Authentica
 
 	create := in.Create == nil || in.Create.Value
 
-	dbUserID, dbUsername, created, providerVars, err := AuthenticateProvider(ctx, logger, s.db, s.runtime.AuthenticateProviderRegistry(), in.Account.Provider, in.Account.Payload, "", username, create, traceID)
+	dbUserID, dbUsername, created, providerVars, err := Authenticate(ctx, logger, s.db, s.runtime.AuthenticateProviderRegistry(), in.Account.Provider, in.Account.Payload.AsMap(), "", username, create, traceID)
 	if err != nil {
 		return nil, err
 	}
@@ -764,7 +764,7 @@ func (s *ApiServer) AuthenticateProvider(ctx context.Context, in *api.Authentica
 	session := &api.Session{Created: created, Token: token, RefreshToken: refreshToken}
 
 	// After hook.
-	if fn := s.runtime.AfterAuthenticateProvider(); fn != nil {
+	if fn := s.runtime.AfterAuthenticate(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
 			ctx = populateCtx(ctx, uid, dbUsername, tokenID, vars, exp, tokenIssuedAt)
 			return fn(ctx, logger, traceID, dbUserID, dbUsername, vars, exp, clientIP, clientPort, session, in)

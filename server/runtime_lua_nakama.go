@@ -188,6 +188,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"rsa_sha256_hash":                    n.rsaSHA256Hash,
 		"bcrypt_hash":                        n.bcryptHash,
 		"bcrypt_compare":                     n.bcryptCompare,
+		"authenticate":                       n.authenticate,
 		"authenticate_apple":                 n.authenticateApple,
 		"authenticate_custom":                n.authenticateCustom,
 		"authenticate_device":                n.authenticateDevice,
@@ -196,7 +197,6 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"authenticate_facebook_instant_game": n.authenticateFacebookInstantGame,
 		"authenticate_game_center":           n.authenticateGameCenter,
 		"authenticate_google":                n.authenticateGoogle,
-		"authenticate_provider":              n.authenticateProvider,
 		"authenticate_steam":                 n.authenticateSteam,
 		"authenticate_token_generate":        n.authenticateTokenGenerate,
 		"logger_debug":                       n.loggerDebug,
@@ -215,9 +215,9 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"users_get_random":                   n.usersGetRandom,
 		"users_ban_id":                       n.usersBanId,
 		"users_unban_id":                     n.usersUnbanId,
+		"link":                               n.link,
 		"link_apple":                         n.linkApple,
 		"link_custom":                        n.linkCustom,
-		"link_provider":                      n.linkProvider,
 		"link_device":                        n.linkDevice,
 		"link_email":                         n.linkEmail,
 		"link_facebook":                      n.linkFacebook,
@@ -225,9 +225,9 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"link_gamecenter":                    n.linkGameCenter,
 		"link_google":                        n.linkGoogle,
 		"link_steam":                         n.linkSteam,
+		"unlink":                             n.unlink,
 		"unlink_apple":                       n.unlinkApple,
 		"unlink_custom":                      n.unlinkCustom,
-		"unlink_provider":                    n.unlinkProvider,
 		"unlink_device":                      n.unlinkDevice,
 		"unlink_email":                       n.unlinkEmail,
 		"unlink_facebook":                    n.unlinkFacebook,
@@ -2191,7 +2191,7 @@ func (n *RuntimeLuaNakamaModule) authenticateGoogle(l *lua.LState) int {
 // @group authenticate
 // @summary Authenticate user and create a session token using an external provider identity.
 // @param provider(type=string) Name of the provider the identity belongs to. Case insensitive.
-// @param payload(type=string, optional=true) Payload handed to the provider.
+// @param payload(type=map[string]any, optional=true) Payload handed to the provider.
 // @param userID(type=string, optional=true) The user ID to assign if an account is created. If left empty, one is generated.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
 // @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
@@ -2199,7 +2199,7 @@ func (n *RuntimeLuaNakamaModule) authenticateGoogle(l *lua.LState) int {
 // @return username(string) The username of the authenticated user.
 // @return create(bool) Value indicating if this account was just created or already existed.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeLuaNakamaModule) authenticateProvider(l *lua.LState) int {
+func (n *RuntimeLuaNakamaModule) authenticate(l *lua.LState) int {
 	provider := l.CheckString(1)
 	if provider == "" {
 		l.ArgError(1, "expects provider string")
@@ -2209,7 +2209,11 @@ func (n *RuntimeLuaNakamaModule) authenticateProvider(l *lua.LState) int {
 		return 0
 	}
 
-	payload := l.OptString(2, "")
+	payloadTable := l.OptTable(2, nil)
+	var payload map[string]any
+	if payloadTable != nil {
+		payload = RuntimeLuaConvertLuaTable(payloadTable)
+	}
 
 	userID := l.OptString(3, "")
 	if userID != "" {
@@ -2232,7 +2236,7 @@ func (n *RuntimeLuaNakamaModule) authenticateProvider(l *lua.LState) int {
 
 	create := l.OptBool(5, true)
 
-	dbUserID, dbUsername, created, _, err := AuthenticateProvider(l.Context(), n.logger, n.db, n.authProviderRegistry, provider, payload, userID, username, create, "")
+	dbUserID, dbUsername, created, _, err := Authenticate(l.Context(), n.logger, n.db, n.authProviderRegistry, provider, payload, userID, username, create, "")
 	if err != nil {
 		l.RaiseError("error authenticating: %v", err.Error())
 		return 0
@@ -3313,9 +3317,9 @@ func (n *RuntimeLuaNakamaModule) linkApple(l *lua.LState) int {
 // @summary Link a provider identity to a user ID.
 // @param userID(type=string) The user ID to be linked.
 // @param provider(type=string) Name of the provider the identity belongs to. Case insensitive.
-// @param payload(type=string, optional=true) Payload handed to the provider.
+// @param payload(type=map[string]any, optional=true) Payload handed to the provider.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeLuaNakamaModule) linkProvider(l *lua.LState) int {
+func (n *RuntimeLuaNakamaModule) link(l *lua.LState) int {
 	userID := l.CheckString(1)
 	id, err := uuid.FromString(userID)
 	if err != nil {
@@ -3328,9 +3332,14 @@ func (n *RuntimeLuaNakamaModule) linkProvider(l *lua.LState) int {
 		l.ArgError(2, "expects provider string")
 		return 0
 	}
-	payload := l.OptString(3, "")
 
-	if err := LinkProvider(l.Context(), n.logger, n.db, n.authProviderRegistry, id, provider, payload, ""); err != nil {
+	payloadTable := l.OptTable(3, nil)
+	var payload map[string]any
+	if payloadTable != nil {
+		payload = RuntimeLuaConvertLuaTable(payloadTable)
+	}
+
+	if err := Link(l.Context(), n.logger, n.db, n.authProviderRegistry, id, provider, payload, ""); err != nil {
 		l.RaiseError("error linking: %v", err.Error())
 	}
 	return 0
@@ -3341,7 +3350,7 @@ func (n *RuntimeLuaNakamaModule) linkProvider(l *lua.LState) int {
 // @param userID(type=string) The user ID to be unlinked.
 // @param provider(type=string) Name of the provider the identity belongs to. Case insensitive.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeLuaNakamaModule) unlinkProvider(l *lua.LState) int {
+func (n *RuntimeLuaNakamaModule) unlink(l *lua.LState) int {
 	userID := l.CheckString(1)
 	id, err := uuid.FromString(userID)
 	if err != nil {
@@ -3355,7 +3364,7 @@ func (n *RuntimeLuaNakamaModule) unlinkProvider(l *lua.LState) int {
 		return 0
 	}
 
-	if err := UnlinkProvider(l.Context(), n.logger, n.db, id, provider); err != nil {
+	if err := Unlink(l.Context(), n.logger, n.db, id, provider); err != nil {
 		l.RaiseError("error unlinking: %v", err.Error())
 	}
 	return 0

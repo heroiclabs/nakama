@@ -175,6 +175,7 @@ func (n *RuntimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"rsaSha256Hash":                        n.rsaSHA256Hash(r),
 		"bcryptHash":                           n.bcryptHash(r),
 		"bcryptCompare":                        n.bcryptCompare(r),
+		"authenticate":                         n.authenticate(r),
 		"authenticateApple":                    n.authenticateApple(r),
 		"authenticateCustom":                   n.authenticateCustom(r),
 		"authenticateDevice":                   n.authenticateDevice(r),
@@ -183,7 +184,6 @@ func (n *RuntimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"authenticateFacebookInstantGame":      n.authenticateFacebookInstantGame(r),
 		"authenticateGameCenter":               n.authenticateGameCenter(r),
 		"authenticateGoogle":                   n.authenticateGoogle(r),
-		"authenticateProvider":                 n.authenticateProvider(r),
 		"authenticateSteam":                    n.authenticateSteam(r),
 		"authenticateTokenGenerate":            n.authenticateTokenGenerate(r),
 		"accountGetId":                         n.accountGetId(r),
@@ -198,9 +198,9 @@ func (n *RuntimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"usersGetRandom":                       n.usersGetRandom(r),
 		"usersBanId":                           n.usersBanId(r),
 		"usersUnbanId":                         n.usersUnbanId(r),
+		"link":                                 n.link(r),
 		"linkApple":                            n.linkApple(r),
 		"linkCustom":                           n.linkCustom(r),
-		"linkProvider":                         n.linkProvider(r),
 		"linkDevice":                           n.linkDevice(r),
 		"linkEmail":                            n.linkEmail(r),
 		"linkFacebook":                         n.linkFacebook(r),
@@ -208,9 +208,9 @@ func (n *RuntimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"linkGameCenter":                       n.linkGameCenter(r),
 		"linkGoogle":                           n.linkGoogle(r),
 		"linkSteam":                            n.linkSteam(r),
+		"unlink":                               n.unlink(r),
 		"unlinkApple":                          n.unlinkApple(r),
 		"unlinkCustom":                         n.unlinkCustom(r),
-		"unlinkProvider":                       n.unlinkProvider(r),
 		"unlinkDevice":                         n.unlinkDevice(r),
 		"unlinkEmail":                          n.unlinkEmail(r),
 		"unlinkFacebook":                       n.unlinkFacebook(r),
@@ -1880,7 +1880,7 @@ func (n *RuntimeJavascriptNakamaModule) authenticateGoogle(r *goja.Runtime) func
 // @group authenticate
 // @summary Authenticate user and create a session token using an external provider identity.
 // @param provider(type=string) Name of the provider the identity belongs to. Case insensitive.
-// @param payload(type=string, optional=true) Payload handed to the provider.
+// @param payload(type=map[string]any, optional=true) Payload handed to the provider.
 // @param userID(type=string, optional=true) The user ID to assign if an account is created. If left empty, one is generated.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
 // @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
@@ -1888,7 +1888,7 @@ func (n *RuntimeJavascriptNakamaModule) authenticateGoogle(r *goja.Runtime) func
 // @return username(string) The username of the authenticated user.
 // @return create(bool) Value indicating if this account was just created or already existed.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeJavascriptNakamaModule) authenticateProvider(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+func (n *RuntimeJavascriptNakamaModule) authenticate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		provider := getJsString(r, f.Argument(0))
 		if provider == "" {
@@ -1897,9 +1897,9 @@ func (n *RuntimeJavascriptNakamaModule) authenticateProvider(r *goja.Runtime) fu
 			panic(r.NewTypeError("expects provider to be valid, must be 1-128 bytes"))
 		}
 
-		payload := ""
+		var payload map[string]any
 		if in := f.Argument(1); in != goja.Undefined() && !goja.IsNull(in) {
-			payload = getJsString(r, in)
+			payload = getJsMap(r, in)
 		}
 
 		userID := ""
@@ -1929,7 +1929,7 @@ func (n *RuntimeJavascriptNakamaModule) authenticateProvider(r *goja.Runtime) fu
 			create = getJsBool(r, in)
 		}
 
-		dbUserID, dbUsername, created, _, err := AuthenticateProvider(n.ctx, n.logger, n.db, n.authProviderRegistry, provider, payload, userID, username, create, "")
+		dbUserID, dbUsername, created, _, err := Authenticate(n.ctx, n.logger, n.db, n.authProviderRegistry, provider, payload, userID, username, create, "")
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error authenticating: %v", err.Error())))
 		}
@@ -2596,9 +2596,9 @@ func (n *RuntimeJavascriptNakamaModule) linkApple(r *goja.Runtime) func(goja.Fun
 // @summary Link a provider identity to a user ID.
 // @param userID(type=string) The user ID to be linked.
 // @param provider(type=string) Name of the provider the identity belongs to. Case insensitive.
-// @param payload(type=string, optional=true) Payload handed to the provider.
+// @param payload(type=map[string]any, optional=true) Payload handed to the provider.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeJavascriptNakamaModule) linkProvider(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+func (n *RuntimeJavascriptNakamaModule) link(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userID := getJsString(r, f.Argument(0))
 		id, err := uuid.FromString(userID)
@@ -2611,12 +2611,12 @@ func (n *RuntimeJavascriptNakamaModule) linkProvider(r *goja.Runtime) func(goja.
 			panic(r.NewTypeError("expects provider string"))
 		}
 
-		payload := ""
+		var payload map[string]any
 		if in := f.Argument(2); in != goja.Undefined() && !goja.IsNull(in) {
-			payload = getJsString(r, in)
+			payload = getJsMap(r, in)
 		}
 
-		if err := LinkProvider(n.ctx, n.logger, n.db, n.authProviderRegistry, id, provider, payload, ""); err != nil {
+		if err := Link(n.ctx, n.logger, n.db, n.authProviderRegistry, id, provider, payload, ""); err != nil {
 			panic(r.NewGoError(fmt.Errorf("error linking: %v", err.Error())))
 		}
 
@@ -2629,7 +2629,7 @@ func (n *RuntimeJavascriptNakamaModule) linkProvider(r *goja.Runtime) func(goja.
 // @param userID(type=string) The user ID to be unlinked.
 // @param provider(type=string) Name of the provider the identity belongs to. Case insensitive.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeJavascriptNakamaModule) unlinkProvider(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+func (n *RuntimeJavascriptNakamaModule) unlink(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		userID := getJsString(r, f.Argument(0))
 		id, err := uuid.FromString(userID)
@@ -2642,7 +2642,7 @@ func (n *RuntimeJavascriptNakamaModule) unlinkProvider(r *goja.Runtime) func(goj
 			panic(r.NewTypeError("expects provider string"))
 		}
 
-		if err := UnlinkProvider(n.ctx, n.logger, n.db, id, provider); err != nil {
+		if err := Unlink(n.ctx, n.logger, n.db, id, provider); err != nil {
 			panic(r.NewGoError(fmt.Errorf("error unlinking: %v", err.Error())))
 		}
 
@@ -10241,6 +10241,15 @@ func getJsString(r *goja.Runtime, v goja.Value) string {
 		panic(r.NewTypeError("expects string"))
 	}
 	return s
+}
+
+func getJsMap(r *goja.Runtime, v goja.Value) map[string]any {
+	m, ok := v.Export().(map[string]any)
+	if !ok {
+		panic(r.NewTypeError("expects object with string keys and values"))
+	}
+
+	return m
 }
 
 func getJsStringMap(r *goja.Runtime, v goja.Value) map[string]string {

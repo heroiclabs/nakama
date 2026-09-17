@@ -115,12 +115,12 @@ func (s *ApiServer) LinkCustom(ctx context.Context, in *api.AccountCustom) (*emp
 	return &emptypb.Empty{}, nil
 }
 
-func (s *ApiServer) LinkProvider(ctx context.Context, in *api.AccountProvider) (*emptypb.Empty, error) {
+func (s *ApiServer) Link(ctx context.Context, in *api.AccountProvider) (*emptypb.Empty, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 
 	// Before hook.
-	if fn := s.runtime.BeforeLinkProvider(); fn != nil {
+	if fn := s.runtime.BeforeLink(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
 			result, err, code := fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
@@ -142,13 +142,13 @@ func (s *ApiServer) LinkProvider(ctx context.Context, in *api.AccountProvider) (
 		}
 	}
 
-	err := LinkProvider(ctx, logger, s.db, s.runtime.AuthenticateProviderRegistry(), userID, in.Provider, in.Payload, traceID)
+	err := Link(ctx, logger, s.db, s.runtime.AuthenticateProviderRegistry(), userID, in.Provider, in.Payload.AsMap(), traceID)
 	if err != nil {
 		return nil, err
 	}
 
 	// After hook.
-	if fn := s.runtime.AfterLinkProvider(); fn != nil {
+	if fn := s.runtime.AfterLink(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
 			return fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 		}

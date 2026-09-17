@@ -5211,7 +5211,7 @@ func (x *UnlinkDeviceRequest) GetDeviceId() string {
 }
 
 // Unlink an authentication provider identity from a user account.
-type UnlinkProviderRequest struct {
+type UnlinkRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// User ID to unlink from.
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -5221,20 +5221,20 @@ type UnlinkProviderRequest struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *UnlinkProviderRequest) Reset() {
-	*x = UnlinkProviderRequest{}
+func (x *UnlinkRequest) Reset() {
+	*x = UnlinkRequest{}
 	mi := &file_console_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *UnlinkProviderRequest) String() string {
+func (x *UnlinkRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*UnlinkProviderRequest) ProtoMessage() {}
+func (*UnlinkRequest) ProtoMessage() {}
 
-func (x *UnlinkProviderRequest) ProtoReflect() protoreflect.Message {
+func (x *UnlinkRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_console_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -5246,19 +5246,19 @@ func (x *UnlinkProviderRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UnlinkProviderRequest.ProtoReflect.Descriptor instead.
-func (*UnlinkProviderRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use UnlinkRequest.ProtoReflect.Descriptor instead.
+func (*UnlinkRequest) Descriptor() ([]byte, []int) {
 	return file_console_proto_rawDescGZIP(), []int{73}
 }
 
-func (x *UnlinkProviderRequest) GetId() string {
+func (x *UnlinkRequest) GetId() string {
 	if x != nil {
 		return x.Id
 	}
 	return ""
 }
 
-func (x *UnlinkProviderRequest) GetProvider() string {
+func (x *UnlinkRequest) GetProvider() string {
 	if x != nil {
 		return x.Provider
 	}
@@ -10198,8 +10198,8 @@ const file_console_proto_rawDesc = "" +
 	"\vcollections\x18\x03 \x03(\tR\vcollections\"B\n" +
 	"\x13UnlinkDeviceRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
-	"\tdevice_id\x18\x02 \x01(\tR\bdeviceId\"C\n" +
-	"\x15UnlinkProviderRequest\x12\x0e\n" +
+	"\tdevice_id\x18\x02 \x01(\tR\bdeviceId\";\n" +
+	"\rUnlinkRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
 	"\bprovider\x18\x02 \x01(\tR\bprovider\"\xb6\x06\n" +
 	"\x14UpdateAccountRequest\x12\x0e\n" +
@@ -10629,7 +10629,7 @@ const file_console_proto_rawDesc = "" +
 	"\n" +
 	"\x06IMPORT\x10\x05\x12\n" +
 	"\n" +
-	"\x06EXPORT\x10\x062\xcdZ\n" +
+	"\x06EXPORT\x10\x062\xb3Z\n" +
 	"\aConsole\x12\x83\x01\n" +
 	"\fAuthenticate\x12#.nakama.console.AuthenticateRequest\x1a\x1e.nakama.console.ConsoleSession\".\x92A\bb\x06\n" +
 	"\x04\n" +
@@ -10717,8 +10717,8 @@ const file_console_proto_rawDesc = "" +
 	"\x0eRequireUserMfa\x12%.nakama.console.RequireUserMfaRequest\x1a\x16.google.protobuf.Empty\"2\x82\xd3\xe4\x93\x02,:\x01*\"'/v2/console/user/{username}/mfa/require\x12z\n" +
 	"\fResetUserMfa\x12#.nakama.console.ResetUserMfaRequest\x1a\x16.google.protobuf.Empty\"-\x82\xd3\xe4\x93\x02'\"%/v2/console/user/{username}/mfa/reset\x12i\n" +
 	"\fUnbanAccount\x12\x19.nakama.console.AccountId\x1a\x16.google.protobuf.Empty\"&\x82\xd3\xe4\x93\x02 \"\x1e/v2/console/account/{id}/unban\x12q\n" +
-	"\fUnlinkCustom\x12\x19.nakama.console.AccountId\x1a\x16.google.protobuf.Empty\".\x82\xd3\xe4\x93\x02(\"&/v2/console/account/{id}/unlink/custom\x12\x84\x01\n" +
-	"\x0eUnlinkProvider\x12%.nakama.console.UnlinkProviderRequest\x1a\x16.google.protobuf.Empty\"3\x82\xd3\xe4\x93\x02-:\x01*\"(/v2/console/account/{id}/unlink/provider\x12~\n" +
+	"\fUnlinkCustom\x12\x19.nakama.console.AccountId\x1a\x16.google.protobuf.Empty\".\x82\xd3\xe4\x93\x02(\"&/v2/console/account/{id}/unlink/custom\x12k\n" +
+	"\x06Unlink\x12\x1d.nakama.console.UnlinkRequest\x1a\x16.google.protobuf.Empty\"*\x82\xd3\xe4\x93\x02$:\x01*\"\x1f/v2/console/account/{id}/unlink\x12~\n" +
 	"\fUnlinkDevice\x12#.nakama.console.UnlinkDeviceRequest\x1a\x16.google.protobuf.Empty\"1\x82\xd3\xe4\x93\x02+:\x01*\"&/v2/console/account/{id}/unlink/device\x12o\n" +
 	"\vUnlinkEmail\x12\x19.nakama.console.AccountId\x1a\x16.google.protobuf.Empty\"-\x82\xd3\xe4\x93\x02'\"%/v2/console/account/{id}/unlink/email\x12o\n" +
 	"\vUnlinkApple\x12\x19.nakama.console.AccountId\x1a\x16.google.protobuf.Empty\"-\x82\xd3\xe4\x93\x02'\"%/v2/console/account/{id}/unlink/apple\x12u\n" +
@@ -10842,7 +10842,7 @@ var file_console_proto_goTypes = []any{
 	(*StorageIndex)(nil),                                    // 77: nakama.console.StorageIndex
 	(*StorageCollectionsList)(nil),                          // 78: nakama.console.StorageCollectionsList
 	(*UnlinkDeviceRequest)(nil),                             // 79: nakama.console.UnlinkDeviceRequest
-	(*UnlinkProviderRequest)(nil),                           // 80: nakama.console.UnlinkProviderRequest
+	(*UnlinkRequest)(nil),                                   // 80: nakama.console.UnlinkRequest
 	(*UpdateAccountRequest)(nil),                            // 81: nakama.console.UpdateAccountRequest
 	(*UpdateGroupRequest)(nil),                              // 82: nakama.console.UpdateGroupRequest
 	(*Username)(nil),                                        // 83: nakama.console.Username
@@ -11164,7 +11164,7 @@ var file_console_proto_depIdxs = []int32{
 	50,  // 217: nakama.console.Console.ResetUserMfa:input_type -> nakama.console.ResetUserMfaRequest
 	12,  // 218: nakama.console.Console.UnbanAccount:input_type -> nakama.console.AccountId
 	12,  // 219: nakama.console.Console.UnlinkCustom:input_type -> nakama.console.AccountId
-	80,  // 220: nakama.console.Console.UnlinkProvider:input_type -> nakama.console.UnlinkProviderRequest
+	80,  // 220: nakama.console.Console.Unlink:input_type -> nakama.console.UnlinkRequest
 	79,  // 221: nakama.console.Console.UnlinkDevice:input_type -> nakama.console.UnlinkDeviceRequest
 	12,  // 222: nakama.console.Console.UnlinkEmail:input_type -> nakama.console.AccountId
 	12,  // 223: nakama.console.Console.UnlinkApple:input_type -> nakama.console.AccountId
@@ -11258,7 +11258,7 @@ var file_console_proto_depIdxs = []int32{
 	167, // 311: nakama.console.Console.ResetUserMfa:output_type -> google.protobuf.Empty
 	167, // 312: nakama.console.Console.UnbanAccount:output_type -> google.protobuf.Empty
 	167, // 313: nakama.console.Console.UnlinkCustom:output_type -> google.protobuf.Empty
-	167, // 314: nakama.console.Console.UnlinkProvider:output_type -> google.protobuf.Empty
+	167, // 314: nakama.console.Console.Unlink:output_type -> google.protobuf.Empty
 	167, // 315: nakama.console.Console.UnlinkDevice:output_type -> google.protobuf.Empty
 	167, // 316: nakama.console.Console.UnlinkEmail:output_type -> google.protobuf.Empty
 	167, // 317: nakama.console.Console.UnlinkApple:output_type -> google.protobuf.Empty

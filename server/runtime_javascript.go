@@ -236,7 +236,7 @@ func (rp *RuntimeProviderJS) Rpc(ctx context.Context, id string, headers, queryP
 	return payload, nil, code
 }
 
-func (rp *RuntimeProviderJS) AuthenticateProvider(ctx context.Context, name, traceID, payload string) (*runtime.AuthenticateProviderResult, error, codes.Code) {
+func (rp *RuntimeProviderJS) Authenticate(ctx context.Context, name, traceID string, payload map[string]any) (runtime.AuthenticateProviderResult, error, codes.Code) {
 	r, err := rp.Get(ctx)
 	if err != nil {
 		return nil, err, codes.Internal
@@ -281,7 +281,7 @@ func (rp *RuntimeProviderJS) AuthenticateProvider(ctx context.Context, name, tra
 		return nil, errors.New(msg), codes.Internal
 	}
 
-	result := &runtime.AuthenticateProviderResult{}
+	result := &runtime.DefaultAuthenticateProviderResult{}
 
 	providerUserIDIn, ok := resultMap["providerUserId"]
 	if !ok {
@@ -945,13 +945,13 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 						}
 						return result.(*api.AuthenticateGoogleRequest), nil, 0
 					}
-				case "authenticateprovider":
-					beforeReqFunctions.beforeAuthenticateProviderFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AuthenticateProviderRequest) (*api.AuthenticateProviderRequest, error, codes.Code) {
+				case "authenticate":
+					beforeReqFunctions.beforeAuthenticateFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AuthenticateRequest) (*api.AuthenticateRequest, error, codes.Code) {
 						result, err, code := runtimeProviderJS.BeforeReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
-						return result.(*api.AuthenticateProviderRequest), nil, 0
+						return result.(*api.AuthenticateRequest), nil, 0
 					}
 				case "authenticatesteam":
 					beforeReqFunctions.beforeAuthenticateSteamFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AuthenticateSteamRequest) (*api.AuthenticateSteamRequest, error, codes.Code) {
@@ -1161,8 +1161,8 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 						}
 						return result.(*api.AccountCustom), nil, 0
 					}
-				case "linkprovider":
-					beforeReqFunctions.beforeLinkProviderFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountProvider) (*api.AccountProvider, error, codes.Code) {
+				case "link":
+					beforeReqFunctions.beforeLinkFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountProvider) (*api.AccountProvider, error, codes.Code) {
 						result, err, code := runtimeProviderJS.BeforeReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
@@ -1337,8 +1337,8 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 						}
 						return result.(*api.AccountCustom), nil, 0
 					}
-				case "unlinkprovider":
-					beforeReqFunctions.beforeUnlinkProviderFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountProvider) (*api.AccountProvider, error, codes.Code) {
+				case "unlink":
+					beforeReqFunctions.beforeUnlinkFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountProvider) (*api.AccountProvider, error, codes.Code) {
 						result, err, code := runtimeProviderJS.BeforeReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
@@ -1551,8 +1551,8 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 					afterReqFunctions.afterAuthenticateGoogleFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateGoogleRequest) error {
 						return runtimeProviderJS.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, out, in)
 					}
-				case "authenticateprovider":
-					afterReqFunctions.afterAuthenticateProviderFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateProviderRequest) error {
+				case "authenticate":
+					afterReqFunctions.afterAuthenticateFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateRequest) error {
 						return runtimeProviderJS.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, out, in)
 					}
 				case "authenticatesteam":
@@ -1659,8 +1659,8 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 					afterReqFunctions.afterLinkCustomFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) error {
 						return runtimeProviderJS.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, nil, in)
 					}
-				case "linkprovider":
-					afterReqFunctions.afterLinkProviderFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountProvider) error {
+				case "link":
+					afterReqFunctions.afterLinkFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountProvider) error {
 						return runtimeProviderJS.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, nil, in)
 					}
 				case "linkdevice":
@@ -1747,8 +1747,8 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 					afterReqFunctions.afterUnlinkCustomFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) error {
 						return runtimeProviderJS.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, nil, in)
 					}
-				case "unlinkprovider":
-					afterReqFunctions.afterUnlinkProviderFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountProvider) error {
+				case "unlink":
+					afterReqFunctions.afterUnlinkFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountProvider) error {
 						return runtimeProviderJS.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, nil, in)
 					}
 				case "unlinkdevice":
@@ -1882,8 +1882,8 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 				return runtimeProviderJS.StorageIndexFilter(ctx, id, write)
 			}
 		case RuntimeExecutionModeAuthenticateProvider:
-			if regErr := authProviderRegistry.Register(id, func(ctx context.Context, traceID, payload string) (*runtime.AuthenticateProviderResult, error, codes.Code) {
-				return runtimeProviderJS.AuthenticateProvider(ctx, id, traceID, payload)
+			if regErr := authProviderRegistry.Register(id, func(ctx context.Context, traceID string, payload map[string]any) (runtime.AuthenticateProviderResult, error, codes.Code) {
+				return runtimeProviderJS.Authenticate(ctx, id, traceID, payload)
 			}); regErr != nil {
 				authProviderErr = regErr
 				return

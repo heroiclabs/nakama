@@ -15,20 +15,7 @@
  */
 
 -- +migrate Up
-CREATE TABLE IF NOT EXISTS user_provider (
-    PRIMARY KEY (provider, provider_user_id),
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-
-    provider         VARCHAR(128) NOT NULL,
-    provider_user_id VARCHAR(128) NOT NULL,
-    user_id          UUID         NOT NULL,
-    create_time      TIMESTAMPTZ  NOT NULL DEFAULT now(),
-
-    UNIQUE (user_id, provider)
-);
-
-CREATE INDEX IF NOT EXISTS user_provider_provider_user_id_idx ON user_provider (provider_user_id);
+ALTER TABLE IF EXISTS user_device ADD COLUMN IF NOT EXISTS provider VARCHAR(128) NOT NULL DEFAULT '';
 
 -- +migrate Down
-DROP INDEX IF EXISTS user_provider_provider_user_id_idx;
-DROP TABLE IF EXISTS user_provider;
+ALTER TABLE IF EXISTS user_device DROP COLUMN IF EXISTS provider;

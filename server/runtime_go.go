@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"plugin"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -36,6 +37,8 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+var authenticationProviderNameRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,128}$`)
 
 // No need for a stateful RuntimeProviderGo here.
 
@@ -161,7 +164,10 @@ func (ri *RuntimeGoInitializer) RegisterAuthenticateProvider(name string, provid
 		return errors.New("expects provider name to be valid, must be 1-128 bytes")
 	}
 	name = strings.ToLower(name)
-	return ri.authProviderRegistry.Register(name, func(ctx context.Context, traceID, payload string) (*runtime.AuthenticateProviderResult, error, codes.Code) {
+	if !authenticationProviderNameRegex.MatchString(name) {
+		return errors.New("expects provider name to be valid, must be 1-128 bytes and contain only [a-zA-Z0-9_-]")
+	}
+	return ri.authProviderRegistry.Register(name, func(ctx context.Context, traceID string, payload map[string]any) (runtime.AuthenticateProviderResult, error, codes.Code) {
 		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeAuthenticateProvider, nil, nil, traceID, 0, "", "", nil, "", "", "", "")
 		result, fnErr := provider.Authenticate(ctx, RuntimeLoggerWithTraceId(ctx, ri.logger.WithField("provider", name)), ri.db, ri.nk, payload)
 		if fnErr != nil {
@@ -710,10 +716,10 @@ func (ri *RuntimeGoInitializer) RegisterAfterAuthenticateGoogle(fn func(ctx cont
 // @summary Register a function to perform pre-authentication checks. You can use this to process the input before it reaches the registered provider.
 // @param fn(type=function) The function to execute before the request is processed. It can modify the input or reject the request.
 // @return error(error) An optional error value if an error occurred.
-func (ri *RuntimeGoInitializer) RegisterBeforeAuthenticateProvider(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AuthenticateProviderRequest) (*api.AuthenticateProviderRequest, error)) error {
-	ri.beforeReq.beforeAuthenticateProviderFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AuthenticateProviderRequest) (*api.AuthenticateProviderRequest, error, codes.Code) {
+func (ri *RuntimeGoInitializer) RegisterBeforeAuthenticate(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AuthenticateRequest) (*api.AuthenticateRequest, error)) error {
+	ri.beforeReq.beforeAuthenticateFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AuthenticateRequest) (*api.AuthenticateRequest, error, codes.Code) {
 		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeBefore, nil, nil, traceID, expiry, userID, username, vars, "", clientIP, clientPort, "")
-		loggerFields := map[string]interface{}{"api_id": "authenticateprovider", "mode": RuntimeExecutionModeBefore.String()}
+		loggerFields := map[string]interface{}{"api_id": "authenticate", "mode": RuntimeExecutionModeBefore.String()}
 		result, fnErr := fn(ctx, RuntimeLoggerWithTraceId(ctx, ri.logger.WithFields(loggerFields)), ri.db, ri.nk, in)
 		if fnErr != nil {
 			var runtimeErr *runtime.Error
@@ -736,10 +742,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeAuthenticateProvider(fn func(ctx c
 // @summary Register a function to perform after successful authentication checks.
 // @param fn(type=function) The function to execute after the request is processed.
 // @return error(error) An optional error value if an error occurred.
-func (ri *RuntimeGoInitializer) RegisterAfterAuthenticateProvider(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.Session, in *api.AuthenticateProviderRequest) error) error {
-	ri.afterReq.afterAuthenticateProviderFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateProviderRequest) error {
+func (ri *RuntimeGoInitializer) RegisterAfterAuthenticate(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, out *api.Session, in *api.AuthenticateRequest) error) error {
+	ri.afterReq.afterAuthenticateFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.Session, in *api.AuthenticateRequest) error {
 		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeAfter, nil, nil, traceID, expiry, userID, username, vars, "", clientIP, clientPort, "")
-		loggerFields := map[string]interface{}{"api_id": "authenticateprovider", "mode": RuntimeExecutionModeAfter.String()}
+		loggerFields := map[string]interface{}{"api_id": "authenticate", "mode": RuntimeExecutionModeAfter.String()}
 		return fn(ctx, RuntimeLoggerWithTraceId(ctx, ri.logger.WithFields(loggerFields)), ri.db, ri.nk, out, in)
 	}
 	return nil
@@ -1838,10 +1844,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeLinkCustom(fn func(ctx context.Con
 // @summary Register a function to perform additional logic before linking a provider identity to an account.
 // @param fn(type=function) The function to execute before the request is processed. It can modify the input or reject the request.
 // @return error(error) An optional error value if an error occurred.
-func (ri *RuntimeGoInitializer) RegisterBeforeLinkProvider(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountProvider) (*api.AccountProvider, error)) error {
-	ri.beforeReq.beforeLinkProviderFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountProvider) (*api.AccountProvider, error, codes.Code) {
+func (ri *RuntimeGoInitializer) RegisterBeforeLink(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountProvider) (*api.AccountProvider, error)) error {
+	ri.beforeReq.beforeLinkFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountProvider) (*api.AccountProvider, error, codes.Code) {
 		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeBefore, nil, nil, traceID, expiry, userID, username, vars, "", clientIP, clientPort, "")
-		loggerFields := map[string]interface{}{"api_id": "linkprovider", "mode": RuntimeExecutionModeBefore.String()}
+		loggerFields := map[string]interface{}{"api_id": "link", "mode": RuntimeExecutionModeBefore.String()}
 		result, fnErr := fn(ctx, RuntimeLoggerWithTraceId(ctx, ri.logger.WithFields(loggerFields)), ri.db, ri.nk, in)
 		if fnErr != nil {
 			var runtimeErr *runtime.Error
@@ -1877,10 +1883,10 @@ func (ri *RuntimeGoInitializer) RegisterAfterLinkCustom(fn func(ctx context.Cont
 // @summary Register a function to perform additional logic after linking a provider identity to an account.
 // @param fn(type=function) The function to execute after the request is processed.
 // @return error(error) An optional error value if an error occurred.
-func (ri *RuntimeGoInitializer) RegisterAfterLinkProvider(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountProvider) error) error {
-	ri.afterReq.afterLinkProviderFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountProvider) error {
+func (ri *RuntimeGoInitializer) RegisterAfterLink(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountProvider) error) error {
+	ri.afterReq.afterLinkFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountProvider) error {
 		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeAfter, nil, nil, traceID, expiry, userID, username, vars, "", clientIP, clientPort, "")
-		loggerFields := map[string]interface{}{"api_id": "linkprovider", "mode": RuntimeExecutionModeAfter.String()}
+		loggerFields := map[string]interface{}{"api_id": "link", "mode": RuntimeExecutionModeAfter.String()}
 		return fn(ctx, RuntimeLoggerWithTraceId(ctx, ri.logger.WithFields(loggerFields)), ri.db, ri.nk, in)
 	}
 	return nil
@@ -2675,10 +2681,10 @@ func (ri *RuntimeGoInitializer) RegisterBeforeUnlinkCustom(fn func(ctx context.C
 // @summary Register a function to perform additional logic before a provider identity is unlinked from an account.
 // @param fn(type=function) The function to execute before the request is processed. It can modify the input or reject the request.
 // @return error(error) An optional error value if an error occurred.
-func (ri *RuntimeGoInitializer) RegisterBeforeUnlinkProvider(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountProvider) (*api.AccountProvider, error)) error {
-	ri.beforeReq.beforeUnlinkProviderFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountProvider) (*api.AccountProvider, error, codes.Code) {
+func (ri *RuntimeGoInitializer) RegisterBeforeUnlink(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountProvider) (*api.AccountProvider, error)) error {
+	ri.beforeReq.beforeUnlinkFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountProvider) (*api.AccountProvider, error, codes.Code) {
 		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeBefore, nil, nil, traceID, expiry, userID, username, vars, "", clientIP, clientPort, "")
-		loggerFields := map[string]interface{}{"api_id": "unlinkprovider", "mode": RuntimeExecutionModeBefore.String()}
+		loggerFields := map[string]interface{}{"api_id": "unlink", "mode": RuntimeExecutionModeBefore.String()}
 		result, fnErr := fn(ctx, RuntimeLoggerWithTraceId(ctx, ri.logger.WithFields(loggerFields)), ri.db, ri.nk, in)
 		if fnErr != nil {
 			var runtimeErr *runtime.Error
@@ -2714,10 +2720,10 @@ func (ri *RuntimeGoInitializer) RegisterAfterUnlinkCustom(fn func(ctx context.Co
 // @summary Register a function to perform additional logic after a provider identity is unlinked from an account.
 // @param fn(type=function) The function to execute after the request is processed.
 // @return error(error) An optional error value if an error occurred.
-func (ri *RuntimeGoInitializer) RegisterAfterUnlinkProvider(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountProvider) error) error {
-	ri.afterReq.afterUnlinkProviderFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountProvider) error {
+func (ri *RuntimeGoInitializer) RegisterAfterUnlink(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountProvider) error) error {
+	ri.afterReq.afterUnlinkFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountProvider) error {
 		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeAfter, nil, nil, traceID, expiry, userID, username, vars, "", clientIP, clientPort, "")
-		loggerFields := map[string]interface{}{"api_id": "unlinkprovider", "mode": RuntimeExecutionModeAfter.String()}
+		loggerFields := map[string]interface{}{"api_id": "unlink", "mode": RuntimeExecutionModeAfter.String()}
 		return fn(ctx, RuntimeLoggerWithTraceId(ctx, ri.logger.WithFields(loggerFields)), ri.db, ri.nk, in)
 	}
 	return nil

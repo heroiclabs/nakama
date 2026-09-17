@@ -19,6 +19,7 @@ syntax = "proto3";
 
 package nakama.api;
 
+import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/wrappers.proto";
 
@@ -149,7 +150,7 @@ message AccountProvider {
   // The name the provider was registered under during runtime initialization.
   string provider = 1;
   // Opaque JSON passed through to the registered provider function.
-  string payload = 2;
+  google.protobuf.Struct payload = 2;
   // Extra information that will be bundled in the session token.
   map<string, string> vars = 3;
 }
@@ -279,7 +280,7 @@ message AuthenticateGoogleRequest {
 }
 
 // Authenticate against the server with a runtime-registered provider.
-message AuthenticateProviderRequest {
+message AuthenticateRequest {
   // The provider account details.
   AccountProvider account = 1;
   // Register the account if the user does not already exist.

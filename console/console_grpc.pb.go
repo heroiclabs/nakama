@@ -169,7 +169,7 @@ type ConsoleClient interface {
 	// Unlink the custom ID from a user account.
 	UnlinkCustom(ctx context.Context, in *AccountId, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Unlink an authentication provider identity from a user account.
-	UnlinkProvider(ctx context.Context, in *UnlinkProviderRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	Unlink(ctx context.Context, in *UnlinkRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Unlink the device ID from a user account.
 	UnlinkDevice(ctx context.Context, in *UnlinkDeviceRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Unlink the email from a user account.
@@ -895,9 +895,9 @@ func (c *consoleClient) UnlinkCustom(ctx context.Context, in *AccountId, opts ..
 	return out, nil
 }
 
-func (c *consoleClient) UnlinkProvider(ctx context.Context, in *UnlinkProviderRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *consoleClient) Unlink(ctx context.Context, in *UnlinkRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, "/nakama.console.Console/UnlinkProvider", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/nakama.console.Console/Unlink", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1206,7 +1206,7 @@ type ConsoleServer interface {
 	// Unlink the custom ID from a user account.
 	UnlinkCustom(context.Context, *AccountId) (*emptypb.Empty, error)
 	// Unlink an authentication provider identity from a user account.
-	UnlinkProvider(context.Context, *UnlinkProviderRequest) (*emptypb.Empty, error)
+	Unlink(context.Context, *UnlinkRequest) (*emptypb.Empty, error)
 	// Unlink the device ID from a user account.
 	UnlinkDevice(context.Context, *UnlinkDeviceRequest) (*emptypb.Empty, error)
 	// Unlink the email from a user account.
@@ -1473,8 +1473,8 @@ func (UnimplementedConsoleServer) UnbanAccount(context.Context, *AccountId) (*em
 func (UnimplementedConsoleServer) UnlinkCustom(context.Context, *AccountId) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UnlinkCustom not implemented")
 }
-func (UnimplementedConsoleServer) UnlinkProvider(context.Context, *UnlinkProviderRequest) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UnlinkProvider not implemented")
+func (UnimplementedConsoleServer) Unlink(context.Context, *UnlinkRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Unlink not implemented")
 }
 func (UnimplementedConsoleServer) UnlinkDevice(context.Context, *UnlinkDeviceRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UnlinkDevice not implemented")
@@ -2908,20 +2908,20 @@ func _Console_UnlinkCustom_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Console_UnlinkProvider_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UnlinkProviderRequest)
+func _Console_Unlink_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnlinkRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ConsoleServer).UnlinkProvider(ctx, in)
+		return srv.(ConsoleServer).Unlink(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/nakama.console.Console/UnlinkProvider",
+		FullMethod: "/nakama.console.Console/Unlink",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConsoleServer).UnlinkProvider(ctx, req.(*UnlinkProviderRequest))
+		return srv.(ConsoleServer).Unlink(ctx, req.(*UnlinkRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -3544,8 +3544,8 @@ var Console_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Console_UnlinkCustom_Handler,
 		},
 		{
-			MethodName: "UnlinkProvider",
-			Handler:    _Console_UnlinkProvider_Handler,
+			MethodName: "Unlink",
+			Handler:    _Console_Unlink_Handler,
 		},
 		{
 			MethodName: "UnlinkDevice",
