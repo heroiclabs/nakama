@@ -150,11 +150,12 @@ func Authenticate(ctx context.Context, logger *zap.Logger, db *sql.DB, registry 
 		logger.Error("Authentication provider returned an invalid provider user ID.", zap.String("provider", providerID), zap.String("providerUserID", providerUserID))
 		return "", "", false, nil, status.Error(codes.Internal, "Error authenticating.")
 	}
-	if username = result.GetUsername(); username != "" {
-		if invalidUsernameRegex.MatchString(username) || len(username) > 128 {
-			logger.Error("Authentication provider returned an invalid username.", zap.String("provider", providerID), zap.String("providerUserID", providerUserID), zap.String("username", username))
+	if providerUsername := result.GetUsername(); providerUsername != "" {
+		if invalidUsernameRegex.MatchString(providerUsername) || len(providerUsername) > 128 {
+			logger.Error("Authentication provider returned an invalid username.", zap.String("provider", providerID), zap.String("providerUserID", providerUserID), zap.String("username", providerUsername))
 			return "", "", false, nil, status.Error(codes.Internal, "Error authenticating.")
 		}
+		username = providerUsername
 	}
 
 	found := true
