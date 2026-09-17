@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"sort"
@@ -1562,6 +1563,17 @@ func (rp *RuntimeProviderLua) Authenticate(ctx context.Context, name, traceID st
 			}
 			providerResult.Vars[k] = vStr
 		}
+	}
+
+	if metadataIn, found := resultMap["metadata"]; found && metadataIn != nil {
+		metadataMap, ok := metadataIn.(map[string]interface{})
+		if !ok {
+			msg := "Runtime authentication provider function returned invalid metadata - must be a table with any values."
+			logger.Error(msg, zap.String("provider", name))
+			return nil, errors.New(msg), codes.Internal
+		}
+		providerResult.Metadata = make(map[string]any, len(metadataMap))
+		maps.Copy(providerResult.Metadata, metadataMap)
 	}
 
 	return providerResult, nil, codes.OK

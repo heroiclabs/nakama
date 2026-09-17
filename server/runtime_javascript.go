@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -322,6 +323,17 @@ func (rp *RuntimeProviderJS) Authenticate(ctx context.Context, name, traceID str
 			}
 			result.Vars[k] = vStr
 		}
+	}
+
+	if metadataIn, found := resultMap["metadata"]; found && metadataIn != nil {
+		metadataMap, ok := metadataIn.(map[string]interface{})
+		if !ok {
+			msg := "Runtime authentication provider function returned invalid metadata - must be an object with any values."
+			logger.Error(msg, zap.String("provider", name))
+			return nil, errors.New(msg), codes.Internal
+		}
+		result.Metadata = make(map[string]any, len(metadataMap))
+		maps.Copy(result.Metadata, metadataMap)
 	}
 
 	return result, nil, codes.OK

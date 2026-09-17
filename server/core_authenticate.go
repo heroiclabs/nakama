@@ -243,7 +243,7 @@ WHERE ud.provider = $1 AND ud.id = $2 AND ud.user_id = u.id`
 	}
 
 	// Do not fail authentication for friend import errors.
-	_ = importProviderFriends(ctx, logger, db, tracker, router, authProvider.getFriends, traceID, payload, result, dbUserID, dbUsername, providerID)
+	_ = importProviderFriends(ctx, logger, db, tracker, router, authProvider.getFriends, traceID, payload, result, userID, username, providerID)
 
 	return userID, username, true, result.GetVars(), nil
 }
@@ -1079,7 +1079,7 @@ func importProviderFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 			return nil
 		}
 
-		query := "SELECT user_id FROM users WHERE id = ANY($1::text[]) AND provider = $2"
+		query := "SELECT user_id FROM user_device WHERE id = ANY($1::text[]) AND provider = $2"
 		rows, err := tx.QueryContext(ctx, query, params, provider)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
