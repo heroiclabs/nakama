@@ -16,6 +16,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add provider-agnostic authentication: register named authentication providers from the Go runtime, then authenticate, link and unlink those identities through the new `Authenticate`, `Link` and `Unlink` APIs, the matching Go, Lua and JavaScript module functions, and their before/after hooks. Identities are stored in the expanded `user_device` table and listed on the account.
 - Add console support for provider identities: search accounts by one, and unlink one from an account.
 
+### Fixed
+- Ensure linking a Google ID to an account does not overwrite any existing email.
+
 ## [3.40.0] - 2026-07-13
 ### Added
 - Add Samsung Galaxy Store purchase validation request type and `SAMSUNG_GALAXY_STORE` store provider enum.
