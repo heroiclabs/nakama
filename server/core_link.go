@@ -141,7 +141,7 @@ func Link(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, 
 	}
 	if len(providerUserID) > 128 {
 		logger.Error("Authentication provider returned an invalid provider user ID.", zap.String("provider", providerID), zap.String("providerUserID", providerUserID))
-		return status.Error(codes.InvalidArgument, "Provider ID invalid, must be 10-128 bytes.")
+		return status.Error(codes.InvalidArgument, "Provider ID invalid, must be up to 128 bytes.")
 	}
 
 	err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {

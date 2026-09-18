@@ -153,7 +153,7 @@ func Authenticate(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker T
 	}
 	if len(providerUserID) > 128 {
 		logger.Error("Authentication provider returned an invalid provider user ID.", zap.String("provider", providerID), zap.String("providerUserID", providerUserID))
-		return "", "", false, nil, status.Error(codes.InvalidArgument, "Provider ID invalid, must be 10-128 bytes.")
+		return "", "", false, nil, status.Error(codes.InvalidArgument, "Provider ID invalid, must be up to 128 bytes.")
 	}
 	if providerUsername := result.GetUsername(); providerUsername != "" {
 		if invalidUsernameRegex.MatchString(providerUsername) {
