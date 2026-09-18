@@ -152,7 +152,7 @@ func TestStorageWriteRuntimeGlobalSingleIfMatchNotExists(t *testing.T) {
 	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, ops)
 
 	assert.Nil(t, acks, "acks was not nil")
-	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
+	assert.Equal(t, codes.FailedPrecondition, code, "code did not match")
 	assert.NotNil(t, err, "err was nil")
 	assert.Equal(t, "Storage write rejected - version check failed.", err.Error(), "error message did not match")
 }
@@ -256,7 +256,7 @@ func TestStorageWriteRuntimeGlobalSingleIfMatchExistsFail(t *testing.T) {
 	acks, code, err = StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, ops)
 
 	assert.Nil(t, acks, "acks was not nil")
-	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
+	assert.Equal(t, codes.FailedPrecondition, code, "code did not match")
 	assert.NotNil(t, err, "err was nil")
 	assert.Equal(t, "Storage write rejected - version check failed.", err.Error(), "error message did not match")
 }
@@ -334,7 +334,7 @@ func TestStorageWriteRuntimeGlobalSingleIfNoneMatchExists(t *testing.T) {
 	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, ops)
 
 	assert.Nil(t, acks, "acks was not nil")
-	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
+	assert.Equal(t, codes.FailedPrecondition, code, "code did not match")
 	assert.NotNil(t, err, "err was nil")
 	assert.Equal(t, "Storage write rejected - version check failed.", err.Error(), "error message did not match")
 }
@@ -370,7 +370,7 @@ func TestStorageWriteRuntimeGlobalMultipleIfMatchNotExists(t *testing.T) {
 	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, ops)
 
 	assert.Nil(t, acks, "acks was not nil")
-	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
+	assert.Equal(t, codes.FailedPrecondition, code, "code did not match")
 	assert.NotNil(t, err, "err was nil")
 	assert.Equal(t, "Storage write rejected - version check failed.", err.Error(), "error message did not match")
 }
@@ -635,7 +635,7 @@ func TestStorageWritePipelineIfMatchNotExists(t *testing.T) {
 	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, false, ops)
 
 	assert.Nil(t, acks, "acks was not nil")
-	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
+	assert.Equal(t, codes.FailedPrecondition, code, "code did not match")
 	assert.NotNil(t, err, "err was nil")
 	assert.Equal(t, "Storage write rejected - version check failed.", err.Error(), "error message did not match")
 }
@@ -687,7 +687,7 @@ func TestStorageWritePipelineIfMatchExistsFail(t *testing.T) {
 	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, false, ops)
 
 	assert.Nil(t, acks, "acks was not nil")
-	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
+	assert.Equal(t, codes.FailedPrecondition, code, "code did not match")
 	assert.NotNil(t, err, "err was nil")
 	assert.Equal(t, "Storage write rejected - version check failed.", err.Error(), "error message did not match")
 }
@@ -828,7 +828,7 @@ func TestStorageWritePipelineIfNoneMatchExists(t *testing.T) {
 	acks, code, err := StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, false, ops)
 
 	assert.Nil(t, acks, "acks was not nil")
-	assert.Equal(t, codes.InvalidArgument, code, "code did not match")
+	assert.Equal(t, codes.FailedPrecondition, code, "code did not match")
 	assert.NotNil(t, err, "err was nil")
 	assert.Equal(t, "Storage write rejected - version check failed.", err.Error(), "error message did not match")
 }
@@ -2207,10 +2207,10 @@ func TestOCCNotExistsAuthoritative(t *testing.T) {
 
 	statesOutcomes := []writeTestDBState{
 		{0, "", codes.OK, nil, "did not exists"},
-		{1, v, codes.InvalidArgument, runtime.ErrStorageRejectedVersion, "existed and permission allows write, version match"},
-		{1, `{"a":1}`, codes.InvalidArgument, runtime.ErrStorageRejectedVersion, "existed and permission allows write, version does not match"},
-		{0, v, codes.InvalidArgument, runtime.ErrStorageRejectedVersion, "existed and permission reject, version match"},
-		{0, `{"a":1}`, codes.InvalidArgument, runtime.ErrStorageRejectedVersion, "existed and permission reject, version does not match"},
+		{1, v, codes.FailedPrecondition, runtime.ErrStorageRejectedVersion, "existed and permission allows write, version match"},
+		{1, `{"a":1}`, codes.FailedPrecondition, runtime.ErrStorageRejectedVersion, "existed and permission allows write, version does not match"},
+		{0, v, codes.FailedPrecondition, runtime.ErrStorageRejectedVersion, "existed and permission reject, version match"},
+		{0, `{"a":1}`, codes.FailedPrecondition, runtime.ErrStorageRejectedVersion, "existed and permission reject, version does not match"},
 	}
 	testWrite(t, `{"newV": true}`, "*", 1, true, statesOutcomes)
 }
@@ -2221,10 +2221,10 @@ func TestOCCNotExistsNonAuthoritative(t *testing.T) {
 
 	statesOutcomes := []writeTestDBState{
 		{0, "", codes.OK, nil, "did not exists"},
-		{1, v, codes.InvalidArgument, runtime.ErrStorageRejectedVersion, "existed and permission allows write, version match"},
-		{1, `{"a":1}`, codes.InvalidArgument, runtime.ErrStorageRejectedVersion, "existed and permission allows write, version does not match"},
-		{0, v, codes.InvalidArgument, runtime.ErrStorageRejectedVersion, "existed and permission reject, version match"},
-		{0, `{"a":1}`, codes.InvalidArgument, runtime.ErrStorageRejectedVersion, "existed and permission reject, version does not match"},
+		{1, v, codes.FailedPrecondition, runtime.ErrStorageRejectedVersion, "existed and permission allows write, version match"},
+		{1, `{"a":1}`, codes.FailedPrecondition, runtime.ErrStorageRejectedVersion, "existed and permission allows write, version does not match"},
+		{0, v, codes.FailedPrecondition, runtime.ErrStorageRejectedVersion, "existed and permission reject, version match"},
+		{0, `{"a":1}`, codes.FailedPrecondition, runtime.ErrStorageRejectedVersion, "existed and permission reject, version does not match"},
 	}
 	testWrite(t, `{"newV": true}`, "*", 1, false, statesOutcomes)
 }
@@ -2234,9 +2234,9 @@ func TestOCCWriteNonAuthoritative(t *testing.T) {
 	v := "{}"
 
 	statesOutcomes := []writeTestDBState{
-		{0, "", codes.InvalidArgument, runtime.ErrStorageRejectedVersion, "did not exists"},
+		{0, "", codes.FailedPrecondition, runtime.ErrStorageRejectedVersion, "did not exists"},
 		{1, v, codes.OK, nil, "existed and permission allows write, version match"},
-		{1, `{"a":1}`, codes.InvalidArgument, runtime.ErrStorageRejectedVersion, "existed and permission allows write, version does not match"},
+		{1, `{"a":1}`, codes.FailedPrecondition, runtime.ErrStorageRejectedVersion, "existed and permission allows write, version does not match"},
 		{0, v, codes.InvalidArgument, runtime.ErrStorageRejectedPermission, "existed and permission reject, version match"},
 		{0, `{"a":1}`, codes.InvalidArgument, runtime.ErrStorageRejectedPermission, "existed and permission reject, version does not match"},
 	}
@@ -2248,11 +2248,11 @@ func TestOCCWriteAuthoritative(t *testing.T) {
 	v := "{}"
 
 	statesOutcomes := []writeTestDBState{
-		{0, "", codes.InvalidArgument, runtime.ErrStorageRejectedVersion, "did not exists"},
+		{0, "", codes.FailedPrecondition, runtime.ErrStorageRejectedVersion, "did not exists"},
 		{1, v, codes.OK, nil, "existed and permission allows write, version match"},
-		{1, `{"a":1}`, codes.InvalidArgument, runtime.ErrStorageRejectedVersion, "existed and permission allows write, version does not match"},
+		{1, `{"a":1}`, codes.FailedPrecondition, runtime.ErrStorageRejectedVersion, "existed and permission allows write, version does not match"},
 		{0, v, codes.OK, nil, "existed and permission reject, version match"},
-		{0, `{"a":1}`, codes.InvalidArgument, runtime.ErrStorageRejectedVersion, "existed and permission reject, version does not match"},
+		{0, `{"a":1}`, codes.FailedPrecondition, runtime.ErrStorageRejectedVersion, "existed and permission reject, version does not match"},
 	}
 	testWrite(t, `{"newV": true}`, v, 1, true, statesOutcomes)
 }
