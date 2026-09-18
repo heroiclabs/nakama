@@ -81,7 +81,7 @@ func GetAccount(ctx context.Context, logger *zap.Logger, db *sql.DB, statusRegis
 	query := `
 SELECT u.username, u.display_name, u.avatar_url, u.lang_tag, u.location, u.timezone, u.metadata, u.wallet,
 	u.email, u.apple_id, u.facebook_id, u.facebook_instant_game_id, u.google_id, u.gamecenter_id, u.steam_id, u.custom_id, u.edge_count,
-	u.create_time, u.update_time, u.verify_time, u.disable_time, array(select ud.id from user_device ud where u.id = ud.user_id)
+	u.create_time, u.update_time, u.verify_time, u.disable_time, array(select concat_ws('|', ud.provider, ud.id) from user_device ud where u.id = ud.user_id)
 FROM users u
 WHERE u.id = $1`
 
@@ -94,8 +94,18 @@ WHERE u.id = $1`
 	}
 
 	devices := make([]*api.AccountDevice, 0, len(deviceIDs))
+	providers := make([]*api.AccountProviderIdentity, 0, len(deviceIDs))
 	for _, deviceID := range deviceIDs {
-		devices = append(devices, &api.AccountDevice{Id: deviceID})
+		// Guaranteed to be at least 2 due to the concatenation done in the query.
+		split := strings.SplitN(deviceID, "|", 2)
+		if split[0] == "" {
+			devices = append(devices, &api.AccountDevice{Id: split[1]})
+		} else {
+			providers = append(providers, &api.AccountProviderIdentity{
+				Provider:       split[0],
+				ProviderUserId: split[1],
+			})
+		}
 	}
 
 	var verifyTimestamp *timestamppb.Timestamp
@@ -139,6 +149,7 @@ WHERE u.id = $1`
 		CustomId:    customID.String,
 		VerifyTime:  verifyTimestamp,
 		DisableTime: disableTimestamp,
+		Providers:   providers,
 	}, nil
 }
 
@@ -150,7 +161,7 @@ func GetAccounts(ctx context.Context, logger *zap.Logger, db *sql.DB, statusRegi
 	query := `
 SELECT u.id, u.username, u.display_name, u.avatar_url, u.lang_tag, u.location, u.timezone, u.metadata, u.wallet,
 	u.email, u.apple_id, u.facebook_id, u.facebook_instant_game_id, u.google_id, u.gamecenter_id, u.steam_id, u.custom_id, u.edge_count,
-	u.create_time, u.update_time, u.verify_time, u.disable_time, array(select ud.id from user_device ud where u.id = ud.user_id)
+	u.create_time, u.update_time, u.verify_time, u.disable_time, array(select concat_ws('|', ud.provider, ud.id) from user_device ud where u.id = ud.user_id)
 FROM users u`
 	params := make([]any, 0, 2)
 	switch {
@@ -206,8 +217,18 @@ FROM users u`
 		}
 
 		devices := make([]*api.AccountDevice, 0, len(deviceIDs))
+		providers := make([]*api.AccountProviderIdentity, 0, len(deviceIDs))
 		for _, deviceID := range deviceIDs {
-			devices = append(devices, &api.AccountDevice{Id: deviceID})
+			// Guaranteed to be at least 2 due to the concatenation done in the query.
+			split := strings.SplitN(deviceID, "|", 2)
+			if split[0] == "" {
+				devices = append(devices, &api.AccountDevice{Id: split[1]})
+			} else {
+				providers = append(providers, &api.AccountProviderIdentity{
+					Provider:       split[0],
+					ProviderUserId: split[1],
+				})
+			}
 		}
 
 		var verifyTimestamp *timestamppb.Timestamp
@@ -243,6 +264,7 @@ FROM users u`
 			Wallet:      wallet.String,
 			Email:       email.String,
 			Devices:     devices,
+			Providers:   providers,
 			CustomId:    customID.String,
 			VerifyTime:  verifyTimestamp,
 			DisableTime: disableTimestamp,
@@ -591,6 +613,23 @@ VALUES (
 					return err
 				}
 			}
+
+			for _, provider := range data.Account.Providers {
+				// Allow any providers (even unknown ones) as long as they're not empty. Unknown providers may be
+				// registered later or not present in all environments, but we want to preserve them on the player record.
+				if provider.Provider == "" {
+					continue
+				}
+				_, err := tx.ExecContext(ctx, "INSERT INTO user_device (id, user_id, provider) VALUES ($1, $2, $3)",
+					provider.ProviderUserId, data.Account.User.Id, strings.ToLower(provider.Provider))
+				if err != nil {
+					if errors.Is(err, context.Canceled) {
+						return err
+					}
+					logger.Error("Error creating user provider identities during import", zap.Error(err), zap.String("user_id", userID.String()))
+					return err
+				}
+			}
 		} else {
 			query := "UPDATE users SET metadata = $1, wallet = $2 WHERE id = $3"
 			res, err := tx.ExecContext(ctx, query, data.Account.User.Metadata, data.Account.Wallet, userID.String())
@@ -687,7 +726,7 @@ VALUES (
 		query := `
 SELECT u.username, u.display_name, u.avatar_url, u.lang_tag, u.location, u.timezone, u.metadata, u.wallet,
 	u.email, u.apple_id, u.facebook_id, u.facebook_instant_game_id, u.google_id, u.gamecenter_id, u.steam_id, u.custom_id, u.edge_count,
-	u.create_time, u.update_time, u.verify_time, u.disable_time, array(select ud.id from user_device ud where u.id = ud.user_id)
+	u.create_time, u.update_time, u.verify_time, u.disable_time, array(select concat_ws('|', ud.provider, ud.id) from user_device ud where u.id = ud.user_id)
 FROM users u
 WHERE u.id = $1`
 
@@ -703,8 +742,18 @@ WHERE u.id = $1`
 		}
 
 		devices := make([]*api.AccountDevice, 0, len(deviceIDs))
+		providers := make([]*api.AccountProviderIdentity, 0, len(deviceIDs))
 		for _, deviceID := range deviceIDs {
-			devices = append(devices, &api.AccountDevice{Id: deviceID})
+			// Guaranteed to be at least 2 due to the concatenation done in the query.
+			split := strings.SplitN(deviceID, "|", 2)
+			if split[0] == "" {
+				devices = append(devices, &api.AccountDevice{Id: split[1]})
+			} else {
+				providers = append(providers, &api.AccountProviderIdentity{
+					Provider:       split[0],
+					ProviderUserId: split[1],
+				})
+			}
 		}
 
 		var verifyTimestamp *timestamppb.Timestamp
@@ -718,13 +767,14 @@ WHERE u.id = $1`
 
 		online := false
 		if statusRegistry != nil {
-			online = statusRegistry.IsOnline(userID)
+			online = statusRegistry.IsOnline(uuid.FromStringOrNil(lookupUserID))
 		}
 
 		account = &console.Account{
 			Account: &api.Account{
 				User: &api.User{
-					Id:                    userID.String(),
+					// Not userID: it is uuid.Nil when the import created a brand new account.
+					Id:                    lookupUserID,
 					Username:              username.String,
 					DisplayName:           displayName.String,
 					AvatarUrl:             avatarURL.String,
@@ -746,6 +796,7 @@ WHERE u.id = $1`
 				Wallet:      wallet.String,
 				Email:       email.String,
 				Devices:     devices,
+				Providers:   providers,
 				CustomId:    customID.String,
 				VerifyTime:  verifyTimestamp,
 				DisableTime: disableTimestamp,

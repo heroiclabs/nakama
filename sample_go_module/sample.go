@@ -17,6 +17,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"net/http"
 
 	"github.com/heroiclabs/nakama-common/api"
@@ -61,7 +62,34 @@ func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runti
 		return err
 	}
 
+	if err := initializer.RegisterAuthenticateProvider("foo-auth", &authenticationProvider{prefix: "foo-auth"}); err != nil {
+		return err
+	}
+	if err := initializer.RegisterAuthenticateProvider("bar-auth", &authenticationProvider{prefix: "bar-auth"}); err != nil {
+		return err
+	}
+	if err := initializer.RegisterAuthenticateProvider("baz-auth", &authenticationProvider{prefix: "baz-auth"}); err != nil {
+		return err
+	}
+
 	return nil
+}
+
+type authenticationProvider struct {
+	prefix string
+}
+
+func (a *authenticationProvider) Authenticate(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload map[string]any) (runtime.AuthenticateProviderResult, error) {
+	return &runtime.DefaultAuthenticateProviderResult{
+		ProviderUserID: fmt.Sprintf("%s:%s", a.prefix, payload["id"]),
+		Username:       fmt.Sprintf("%s:%s", a.prefix, payload["id"]),
+		Vars:           nil,
+		Metadata:       nil,
+	}, nil
+}
+
+func (a *authenticationProvider) GetFriends(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload map[string]any, result runtime.AuthenticateProviderResult) ([]string, bool, error) {
+	return []string{}, false, nil
 }
 
 func rpcEcho(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {

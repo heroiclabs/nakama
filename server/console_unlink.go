@@ -90,6 +90,20 @@ AND ((apple_id IS NOT NULL
 	return &emptypb.Empty{}, nil
 }
 
+func (s *ConsoleServer) Unlink(ctx context.Context, in *console.UnlinkRequest) (*emptypb.Empty, error) {
+	logger, _ := LoggerWithTraceId(ctx, s.logger)
+	userID, err := uuid.FromString(in.Id)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
+	}
+
+	if err := Unlink(ctx, logger, s.db, userID, in.Provider); err != nil {
+		return nil, err
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
 func (s *ConsoleServer) UnlinkDevice(ctx context.Context, in *console.UnlinkDeviceRequest) (*emptypb.Empty, error) {
 	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	userID, err := uuid.FromString(in.Id)
@@ -101,7 +115,7 @@ func (s *ConsoleServer) UnlinkDevice(ctx context.Context, in *console.UnlinkDevi
 	}
 
 	err = ExecuteInTx(ctx, s.db, func(tx *sql.Tx) error {
-		query := `DELETE FROM user_device WHERE id = $2 AND user_id = $1
+		query := `DELETE FROM user_device WHERE id = $2 AND user_id = $1 AND provider = ''
 AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
     (apple_id IS NOT NULL
      OR facebook_id IS NOT NULL

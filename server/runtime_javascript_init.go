@@ -65,6 +65,7 @@ type RuntimeJavascriptCallbacks struct {
 	Before                         map[string]string
 	After                          map[string]string
 	StorageIndexFilter             map[string]string
+	AuthenticateProvider           map[string]string
 	Matchmaker                     string
 	TournamentEnd                  string
 	TournamentReset                string
@@ -102,6 +103,7 @@ func (im *RuntimeJavascriptInitModule) mappings(r *goja.Runtime) map[string]func
 	return map[string]func(goja.FunctionCall) goja.Value{
 		"getConfig":                                       im.getConfig(r),
 		"registerRpc":                                     im.registerRpc(r),
+		"registerAuthenticateProvider":                    im.registerAuthenticateProvider(r),
 		"registerRtBefore":                                im.registerRtBefore(r),
 		"registerRtAfter":                                 im.registerRtAfter(r),
 		"registerMatchmakerMatched":                       im.registerMatchmakerMatched(r),
@@ -138,6 +140,8 @@ func (im *RuntimeJavascriptInitModule) mappings(r *goja.Runtime) map[string]func
 		"registerAfterAuthenticateGameCenter":             im.registerAfterAuthenticateGameCenter(r),
 		"registerBeforeAuthenticateGoogle":                im.registerBeforeAuthenticateGoogle(r),
 		"registerAfterAuthenticateGoogle":                 im.registerAfterAuthenticateGoogle(r),
+		"registerBeforeAuthenticate":                      im.registerBeforeAuthenticate(r),
+		"registerAfterAuthenticate":                       im.registerAfterAuthenticate(r),
 		"registerBeforeAuthenticateSteam":                 im.registerBeforeAuthenticateSteam(r),
 		"registerAfterAuthenticateSteam":                  im.registerAfterAuthenticateSteam(r),
 		"registerBeforeSessionRefresh":                    im.registerBeforeSessionRefresh(r),
@@ -198,6 +202,8 @@ func (im *RuntimeJavascriptInitModule) mappings(r *goja.Runtime) map[string]func
 		"registerAfterLinkApple":                          im.registerAfterLinkApple(r),
 		"registerBeforeLinkCustom":                        im.registerBeforeLinkCustom(r),
 		"registerAfterLinkCustom":                         im.registerAfterLinkCustom(r),
+		"registerBeforeLink":                              im.registerBeforeLink(r),
+		"registerAfterLink":                               im.registerAfterLink(r),
 		"registerBeforeLinkDevice":                        im.registerBeforeLinkDevice(r),
 		"registerAfterLinkDevice":                         im.registerAfterLinkDevice(r),
 		"registerBeforeLinkEmail":                         im.registerBeforeLinkEmail(r),
@@ -240,6 +246,8 @@ func (im *RuntimeJavascriptInitModule) mappings(r *goja.Runtime) map[string]func
 		"registerAfterUnlinkApple":                        im.registerAfterUnlinkApple(r),
 		"registerBeforeUnlinkCustom":                      im.registerBeforeUnlinkCustom(r),
 		"registerAfterUnlinkCustom":                       im.registerAfterUnlinkCustom(r),
+		"registerBeforeUnlink":                            im.registerBeforeUnlink(r),
+		"registerAfterUnlink":                             im.registerAfterUnlink(r),
 		"registerBeforeUnlinkDevice":                      im.registerBeforeUnlinkDevice(r),
 		"registerAfterUnlinkDevice":                       im.registerAfterUnlinkDevice(r),
 		"registerBeforeUnlinkEmail":                       im.registerBeforeUnlinkEmail(r),
@@ -431,6 +439,42 @@ func (im *RuntimeJavascriptInitModule) registerRpc(r *goja.Runtime) func(goja.Fu
 	}
 }
 
+func (im *RuntimeJavascriptInitModule) registerAuthenticateProvider(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		fName := f.Argument(0)
+		if goja.IsNull(fName) || goja.IsUndefined(fName) {
+			panic(r.NewTypeError("expects a non empty string"))
+		}
+		key, ok := fName.Export().(string)
+		if !ok {
+			panic(r.NewTypeError("expects a non empty string"))
+		}
+		if key == "" || len(key) > 128 {
+			panic(r.NewTypeError("expects provider name to be valid, must be 1-128 bytes"))
+		}
+		if !authenticationProviderNameRegex.MatchString(key) {
+			panic(r.NewTypeError("expects provider name to be valid, must be 1-128 bytes and contain only [a-zA-Z0-9_-]"))
+		}
+
+		fn := f.Argument(1)
+		_, ok = goja.AssertFunction(fn)
+		if !ok {
+			panic(r.NewTypeError("expects a function"))
+		}
+
+		fnKey, err := im.extractAuthenticateProviderFn(r, key)
+		if err != nil {
+			panic(r.NewGoError(err))
+		}
+
+		lKey := strings.ToLower(key)
+		im.registerCallbackFn(RuntimeExecutionModeAuthenticateProvider, lKey, fnKey)
+		im.announceCallbackFn(RuntimeExecutionModeAuthenticateProvider, lKey)
+
+		return goja.Undefined()
+	}
+}
+
 func (im *RuntimeJavascriptInitModule) extractRpcFn(r *goja.Runtime, rpcFnName string) (string, error) {
 	bs, initFnVarName, err := im.getInitModuleFn()
 	if err != nil {
@@ -454,6 +498,20 @@ func (im *RuntimeJavascriptInitModule) extractStorageIndexFilterFn(r *goja.Runti
 	globalFnId, err := im.getRegisteredFnIdentifier(r, bs, initFnVarName, indexName, "registerStorageIndexFilter")
 	if err != nil {
 		return "", fmt.Errorf("js %s function key could not be extracted: %s", indexName, err.Error())
+	}
+
+	return globalFnId, nil
+}
+
+func (im *RuntimeJavascriptInitModule) extractAuthenticateProviderFn(r *goja.Runtime, providerName string) (string, error) {
+	bs, initFnVarName, err := im.getInitModuleFn()
+	if err != nil {
+		return "", err
+	}
+
+	globalFnId, err := im.getRegisteredFnIdentifier(r, bs, initFnVarName, providerName, "registerAuthenticateProvider")
+	if err != nil {
+		return "", fmt.Errorf("js %s function key could not be extracted: %s", providerName, err.Error())
 	}
 
 	return globalFnId, nil
@@ -600,6 +658,14 @@ func (im *RuntimeJavascriptInitModule) registerBeforeAuthenticateGoogle(r *goja.
 
 func (im *RuntimeJavascriptInitModule) registerAfterAuthenticateGoogle(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterAuthenticateGoogle", "authenticategoogle")
+}
+
+func (im *RuntimeJavascriptInitModule) registerBeforeAuthenticate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeAuthenticate", "authenticate")
+}
+
+func (im *RuntimeJavascriptInitModule) registerAfterAuthenticate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterAuthenticate", "authenticate")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeAuthenticateSteam(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -838,8 +904,16 @@ func (im *RuntimeJavascriptInitModule) registerBeforeLinkCustom(r *goja.Runtime)
 	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeLinkCustom", "linkcustom")
 }
 
+func (im *RuntimeJavascriptInitModule) registerBeforeLink(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeLink", "link")
+}
+
 func (im *RuntimeJavascriptInitModule) registerAfterLinkCustom(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterLinkCustom", "linkcustom")
+}
+
+func (im *RuntimeJavascriptInitModule) registerAfterLink(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterLink", "link")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeLinkDevice(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -1006,8 +1080,16 @@ func (im *RuntimeJavascriptInitModule) registerBeforeUnlinkCustom(r *goja.Runtim
 	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeUnlinkCustom", "unlinkcustom")
 }
 
+func (im *RuntimeJavascriptInitModule) registerBeforeUnlink(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeUnlink", "unlink")
+}
+
 func (im *RuntimeJavascriptInitModule) registerAfterUnlinkCustom(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterUnlinkCustom", "unlinkcustom")
+}
+
+func (im *RuntimeJavascriptInitModule) registerAfterUnlink(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterUnlink", "unlink")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeUnlinkDevice(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -1946,5 +2028,7 @@ func (im *RuntimeJavascriptInitModule) registerCallbackFn(mode RuntimeExecutionM
 		im.Callbacks.SubscriptionNotificationGoogle = fn
 	case RuntimeExecutionModeStorageIndexFilter:
 		im.Callbacks.StorageIndexFilter[key] = fn
+	case RuntimeExecutionModeAuthenticateProvider:
+		im.Callbacks.AuthenticateProvider[key] = fn
 	}
 }

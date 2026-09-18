@@ -18,6 +18,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 type MethodName string
@@ -241,6 +242,18 @@ func (s *ConsoleServer) initRpcMethodCache() error {
 func reflectProtoMessageAsJsonTemplate(s reflect.Type) (string, error) {
 	var populate func(m reflect.Value) reflect.Value
 	populate = func(m reflect.Value) reflect.Value {
+		if m.Type() == reflect.TypeFor[*structpb.Struct]() {
+			// Create a placeholder map to serve as a visual JSON template.
+			placeholderMap := map[string]any{
+				"<string>": "<any>",
+			}
+			pbStruct, err := structpb.NewStruct(placeholderMap)
+			if err == nil {
+				m.Set(reflect.ValueOf(pbStruct))
+				return m
+			}
+		}
+
 		switch m.Kind() {
 		case reflect.Pointer:
 			if m.IsNil() {
@@ -270,7 +283,7 @@ func reflectProtoMessageAsJsonTemplate(s reflect.Type) (string, error) {
 			if m.Type().AssignableTo(reflect.TypeFor[int32]()) {
 				m.Set(reflect.ValueOf(int32(0)))
 			} else {
-				// Handle special Int32 case for proto defined Enums
+				// Handle special Int32 case for proto defined Enums.
 				m.Set(m.Convert(m.Type()))
 			}
 		case reflect.Int64:
@@ -293,7 +306,12 @@ func reflectProtoMessageAsJsonTemplate(s reflect.Type) (string, error) {
 			for i := 0; i < m.NumField(); i++ {
 				field := m.Field(i)
 				fieldName := m.Type().Field(i).Name
+				// This also catches unexported fields safely via field name case.
 				if fieldName[0] == strings.ToLower(fieldName)[0] {
+					continue
+				}
+				// Explicitly ignore internal runtime fields that can't be set.
+				if !field.CanSet() {
 					continue
 				}
 				populate(field)

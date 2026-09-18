@@ -110,6 +110,83 @@ AND (NOT EXISTS
 	return nil
 }
 
+func Link(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, router MessageRouter, registry *RuntimeAuthenticateProviderRegistry, userID uuid.UUID, username, providerID string, payload map[string]any, traceID string) error {
+	providerID = strings.ToLower(providerID)
+
+	if registry == nil {
+		return status.Error(codes.NotFound, "Authentication provider not found: "+providerID)
+	}
+	authProvider := registry.Get(providerID)
+	if authProvider == nil {
+		return status.Error(codes.NotFound, "Authentication provider not found: "+providerID)
+	}
+
+	result, fnErr, code := authProvider.auth(ctx, traceID, payload)
+	if fnErr != nil {
+		return status.Error(code, fnErr.Error())
+	}
+	if result == nil {
+		logger.Error("Authentication provider returned no result.", zap.String("provider", providerID))
+		return status.Error(codes.Internal, "Error linking provider.")
+	}
+
+	providerUserID := result.GetProviderUserID()
+	if providerUserID == "" {
+		logger.Error("Authentication provider returned no provider user ID.", zap.String("provider", providerID))
+		return status.Error(codes.InvalidArgument, "Provider ID is required.")
+	}
+	if invalidCharsRegex.MatchString(providerUserID) {
+		logger.Error("Authentication provider returned an invalid provider user ID.", zap.String("provider", providerID), zap.String("providerUserID", providerUserID))
+		return status.Error(codes.InvalidArgument, "Provider ID invalid, no spaces or control characters allowed.")
+	}
+	if len(providerUserID) > 128 {
+		logger.Error("Authentication provider returned an invalid provider user ID.", zap.String("provider", providerID), zap.String("providerUserID", providerUserID))
+		return status.Error(codes.InvalidArgument, "Provider ID invalid, must be up to 128 bytes.")
+	}
+
+	err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx, `
+INSERT INTO user_device (provider, id, user_id)
+VALUES ($2, $3, $1)
+ON CONFLICT (id)
+DO UPDATE SET user_id = EXCLUDED.user_id
+WHERE user_device.user_id = EXCLUDED.user_id`,
+			userID, providerID, providerUserID)
+		if err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
+				// this account is linked to the provider under a different identity.
+				return StatusError(codes.AlreadyExists, "Account is already linked to this provider.", err)
+			}
+			logger.Debug("Cannot link provider identity.", zap.Error(err), zap.Any("input", providerID))
+			return err
+		}
+		if count, _ := res.RowsAffected(); count == 0 {
+			return StatusError(codes.AlreadyExists, "Provider identity is already in use.", ErrRowsAffectedCount)
+		}
+
+		_, err = tx.ExecContext(ctx, "UPDATE users SET update_time = now() WHERE id = $1", userID)
+		if err != nil {
+			logger.Debug("Cannot update users table while linking.", zap.Error(err), zap.Any("input", providerID))
+			return err
+		}
+		return nil
+	})
+
+	if err != nil {
+		if e, ok := err.(*statusError); ok {
+			return e.Status()
+		}
+		logger.Error("Error in database transaction.", zap.Error(err))
+		return status.Error(codes.Internal, "Error while trying to link provider identity.")
+	}
+
+	// Do not fail link for friend import errors.
+	_ = importProviderFriends(ctx, logger, db, tracker, router, authProvider.getFriends, traceID, payload, result, userID.String(), username, providerID)
+
+	return nil
+}
+
 func LinkDevice(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, deviceID string) error {
 	if deviceID == "" {
 		return status.Error(codes.InvalidArgument, "Device ID is required.")
@@ -377,7 +454,7 @@ AND (NOT EXISTS
 
 	// Import email address, if it exists.
 	if googleProfile.GetEmail() != "" {
-		_, err = db.ExecContext(ctx, "UPDATE users SET email = $1 WHERE id = $2", googleProfile.GetEmail(), userID)
+		_, err = db.ExecContext(ctx, "UPDATE users SET email = $1 WHERE id = $2 AND NULLIF(email, '') IS NULL", googleProfile.GetEmail(), userID)
 		if err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_email_key") {

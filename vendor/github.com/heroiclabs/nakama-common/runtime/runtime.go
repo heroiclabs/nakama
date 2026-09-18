@@ -334,6 +334,13 @@ type Initializer interface {
 	RegisterRpc(id string, fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, payload string) (string, error)) error
 
 	/*
+		RegisterAuthenticateProvider registers an authentication provider with the given name. This name is used by server code through NakamaModule.Authenticate to select the provider when authenticating.
+
+		The provider should validate the payload before calling the provider server.
+	*/
+	RegisterAuthenticateProvider(name string, provider AuthenticateProvider) error
+
+	/*
 		RegisterBeforeRt registers a function with for a message. Any function may be registered to intercept a message received from a client and operate on it (or reject it) based on custom logic.
 		This is useful to enforce specific rules on top of the standard features in the server.
 
@@ -463,6 +470,13 @@ type Initializer interface {
 
 	// RegisterAfterAuthenticateGoogle can be used to perform after successful authentication checks.
 	RegisterAfterAuthenticateGoogle(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.Session, in *api.AuthenticateGoogleRequest) error) error
+
+	// RegisterBeforeAuthenticate can be used to perform pre-authentication checks.
+	// You can use this to process the input before it reaches the registered provider.
+	RegisterBeforeAuthenticate(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AuthenticateRequest) (*api.AuthenticateRequest, error)) error
+
+	// RegisterAfterAuthenticate can be used to perform after successful authentication checks.
+	RegisterAfterAuthenticate(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.Session, in *api.AuthenticateRequest) error) error
 
 	// RegisterBeforeAuthenticateSteam can be used to perform pre-authentication checks.
 	RegisterBeforeAuthenticateSteam(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AuthenticateSteamRequest) (*api.AuthenticateSteamRequest, error)) error
@@ -637,6 +651,12 @@ type Initializer interface {
 
 	// RegisterAfterLinkCustom can be used to perform additional logic after linking custom ID to an account.
 	RegisterAfterLinkCustom(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AccountCustom) error) error
+
+	// RegisterBeforeLink can be used to perform additional logic before linking a provider identity to an account.
+	RegisterBeforeLink(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AccountProvider) (*api.AccountProvider, error)) error
+
+	// RegisterAfterLink can be used to perform additional logic after linking a provider identity to an account.
+	RegisterAfterLink(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AccountProvider) error) error
 
 	// RegisterBeforeLinkDevice can be used to perform additional logic before linking device ID to an account.
 	RegisterBeforeLinkDevice(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AccountDevice) (*api.AccountDevice, error)) error
@@ -823,6 +843,12 @@ type Initializer interface {
 
 	// RegisterAfterUnlinkCustom can be used to perform additional logic after custom ID is unlinked from an account.
 	RegisterAfterUnlinkCustom(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AccountCustom) error) error
+
+	// RegisterBeforeUnlink can be used to perform additional logic before a provider identity is unlinked from an account.
+	RegisterBeforeUnlink(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AccountProvider) (*api.AccountProvider, error)) error
+
+	// RegisterAfterUnlink can be used to perform additional logic after a provider identity is unlinked from an account.
+	RegisterAfterUnlink(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AccountProvider) error) error
 
 	// RegisterBeforeUnlinkDevice can be used to perform additional logic before device ID is unlinked from an account.
 	RegisterBeforeUnlinkDevice(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AccountDevice) (*api.AccountDevice, error)) error
@@ -1074,7 +1100,57 @@ const (
 	Group
 )
 
+/*
+AuthenticateProvider is a named authentication backend registered through Initializer.RegisterAuthenticateProvider.
+
+Authenticate receives the opaque JSON payload supplied by the caller that must be validated by the implementer of this interface.
+
+GetFriends is used to import friend relationships from the external provider, if available. Also returns a boolean flag
+indicating if the user's existing friends list must be reset and completely replaced.
+*/
+type AuthenticateProvider interface {
+	Authenticate(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, payload map[string]any) (AuthenticateProviderResult, error)
+	GetFriends(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, payload map[string]any, result AuthenticateProviderResult) ([]string, bool, error)
+}
+
+var _ AuthenticateProviderResult = (*DefaultAuthenticateProviderResult)(nil)
+
+type AuthenticateProviderResult interface {
+	// GetProviderUserID returns the user's ID in the external provider system.
+	GetProviderUserID() string
+	// GetUsername returns the user's username.
+	GetUsername() string
+	// GetVars returns any values to be associated with the user's session.
+	GetVars() map[string]string
+	// GetMetadata should contain any internal information for use in the rest of the provider chain, for example to get friends from the provider later.
+	GetMetadata() map[string]any
+}
+
+type DefaultAuthenticateProviderResult struct {
+	ProviderUserID string            `json:"provider_user_id"`
+	Username       string            `json:"username,omitempty"`
+	Vars           map[string]string `json:"vars,omitempty"`
+	Metadata       map[string]any    `json:"metadata,omitempty"`
+}
+
+func (d *DefaultAuthenticateProviderResult) GetProviderUserID() string {
+	return d.ProviderUserID
+}
+
+func (d *DefaultAuthenticateProviderResult) GetUsername() string {
+	return d.Username
+}
+
+func (d *DefaultAuthenticateProviderResult) GetVars() map[string]string {
+	return d.Vars
+}
+
+func (d *DefaultAuthenticateProviderResult) GetMetadata() map[string]any {
+	return d.Metadata
+}
+
 type NakamaModule interface {
+	Authenticate(ctx context.Context, provider string, payload map[string]any, userID, username string, create bool) (string, string, bool, error)
 	AuthenticateApple(ctx context.Context, token, username string, create bool) (string, string, bool, error)
 	AuthenticateCustom(ctx context.Context, id, username string, create bool) (string, string, bool, error)
 	AuthenticateDevice(ctx context.Context, id, username string, create bool) (string, string, bool, error)
@@ -1102,6 +1178,7 @@ type NakamaModule interface {
 	UsersBanId(ctx context.Context, userIDs []string) error
 	UsersUnbanId(ctx context.Context, userIDs []string) error
 
+	Link(ctx context.Context, userID, username, provider string, payload map[string]any) error
 	LinkApple(ctx context.Context, userID, token string) error
 	LinkCustom(ctx context.Context, userID, customID string) error
 	LinkDevice(ctx context.Context, userID, deviceID string) error
@@ -1116,6 +1193,7 @@ type NakamaModule interface {
 	CronNext(expression string, timestamp int64) (int64, error)
 	ReadFile(path string) (*os.File, error)
 
+	Unlink(ctx context.Context, userID, provider string) error
 	UnlinkApple(ctx context.Context, userID, token string) error
 	UnlinkCustom(ctx context.Context, userID, customID string) error
 	UnlinkDevice(ctx context.Context, userID, deviceID string) error

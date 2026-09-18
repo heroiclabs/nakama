@@ -9,6 +9,15 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add Console UI to list and query registered Storage Search indices.
 - Add support for namespaced multi fleet manager registration.
 - Expose websocket connection upgrade http headers to session context.
+- Add `Authenticate` module function to authenticate through a registered provider from Go, Lua and JavaScript runtime code. Provider identities are stored in the expanded `user_device` table.
+- Add `RegisterBeforeAuthenticate` and `RegisterAfterAuthenticate` hooks.
+- Add `RegisterBeforeLink` and `RegisterAfterLink` hooks.
+- Add `RegisterBeforeUnlink` and `RegisterAfterUnlink` hooks.
+- Add provider-agnostic authentication: register named authentication providers from the Go runtime, then authenticate, link and unlink those identities through the new `Authenticate`, `Link` and `Unlink` APIs, the matching Go, Lua and JavaScript module functions, and their before/after hooks. Identities are stored in the expanded `user_device` table and listed on the account.
+- Add console support for provider identities: search accounts by one, and unlink one from an account.
+
+### Fixed
+- Ensure linking a Google ID to an account does not overwrite any existing email.
 
 ## [3.40.0] - 2026-07-13
 ### Added

@@ -94,6 +94,52 @@ func UnlinkCustom(ctx context.Context, logger *zap.Logger, db *sql.DB, id uuid.U
 	return nil
 }
 
+func Unlink(ctx context.Context, logger *zap.Logger, db *sql.DB, id uuid.UUID, providerID string) error {
+	if providerID == "" {
+		return status.Error(codes.InvalidArgument, "A provider name must be supplied.")
+	}
+	providerID = strings.ToLower(providerID)
+
+	err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx, `
+DELETE FROM user_device WHERE provider = $2 AND user_id = $1
+AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
+    (apple_id IS NOT NULL
+     OR facebook_id IS NOT NULL
+     OR facebook_instant_game_id IS NOT NULL
+     OR google_id IS NOT NULL
+     OR gamecenter_id IS NOT NULL
+     OR steam_id IS NOT NULL
+     OR email IS NOT NULL
+     OR custom_id IS NOT NULL))
+   OR EXISTS (SELECT id FROM user_device WHERE user_id = $1 AND provider <> $2 LIMIT 1))`,
+			id, providerID)
+		if err != nil {
+			logger.Debug("Cannot unlink provider identity.", zap.Error(err), zap.Any("input", providerID))
+			return err
+		}
+		if count, _ := res.RowsAffected(); count == 0 {
+			return StatusError(codes.PermissionDenied, "Cannot unlink last account identifier. Check profile exists and is not last link.", ErrRowsAffectedCount)
+		}
+
+		_, err = tx.ExecContext(ctx, "UPDATE users SET update_time = now() WHERE id = $1", id)
+		if err != nil {
+			logger.Debug("Cannot update users table while unlinking.", zap.Error(err), zap.Any("input", providerID))
+			return err
+		}
+		return nil
+	})
+
+	if err != nil {
+		if e, ok := err.(*statusError); ok {
+			return e.Status()
+		}
+		logger.Error("Error in database transaction.", zap.Error(err))
+		return status.Error(codes.Internal, "Error while trying to unlink provider identity.")
+	}
+	return nil
+}
+
 func UnlinkDevice(ctx context.Context, logger *zap.Logger, db *sql.DB, id uuid.UUID, deviceID string) error {
 	if deviceID == "" {
 		return status.Error(codes.InvalidArgument, "A device ID must be supplied.")

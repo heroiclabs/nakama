@@ -27,6 +27,7 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/social"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -120,6 +121,141 @@ func AuthenticateApple(ctx context.Context, logger *zap.Logger, db *sql.DB, clie
 	return userID, username, true, nil
 }
 
+func Authenticate(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, router MessageRouter, registry *RuntimeAuthenticateProviderRegistry, providerID string, payload map[string]any, userID, username string, create bool, traceID string) (string, string, bool, map[string]string, error) {
+	// Normalised here rather than by callers, because this is what gets stored against the identity.
+	providerID = strings.ToLower(providerID)
+
+	if registry == nil {
+		return "", "", false, nil, status.Error(codes.NotFound, "Authentication provider not found: "+providerID)
+	}
+	authProvider := registry.Get(providerID)
+	if authProvider == nil {
+		return "", "", false, nil, status.Error(codes.NotFound, "Authentication provider not found: "+providerID)
+	}
+
+	result, fnErr, code := authProvider.auth(ctx, traceID, payload)
+	if fnErr != nil {
+		return "", "", false, nil, status.Error(code, fnErr.Error())
+	}
+	if result == nil {
+		logger.Error("Authentication provider returned no result.", zap.String("provider", providerID))
+		return "", "", false, nil, status.Error(codes.Internal, "Error authenticating.")
+	}
+
+	providerUserID := result.GetProviderUserID()
+	if providerUserID == "" {
+		logger.Error("Authentication provider returned no provider user ID.", zap.String("provider", providerID))
+		return "", "", false, nil, status.Error(codes.InvalidArgument, "Provider ID is required.")
+	}
+	if invalidCharsRegex.MatchString(providerUserID) {
+		logger.Error("Authentication provider returned an invalid provider user ID.", zap.String("provider", providerID), zap.String("providerUserID", providerUserID))
+		return "", "", false, nil, status.Error(codes.InvalidArgument, "Provider ID invalid, no spaces or control characters allowed.")
+	}
+	if len(providerUserID) > 128 {
+		logger.Error("Authentication provider returned an invalid provider user ID.", zap.String("provider", providerID), zap.String("providerUserID", providerUserID))
+		return "", "", false, nil, status.Error(codes.InvalidArgument, "Provider ID invalid, must be up to 128 bytes.")
+	}
+	if providerUsername := result.GetUsername(); providerUsername != "" {
+		if invalidUsernameRegex.MatchString(providerUsername) {
+			logger.Error("Authentication provider returned an invalid username.", zap.String("provider", providerID), zap.String("providerUserID", providerUserID), zap.String("username", providerUsername))
+			return "", "", false, nil, status.Error(codes.InvalidArgument, "Provider username invalid, no spaces or control characters allowed.")
+		}
+		if len(providerUsername) > 128 {
+			logger.Error("Authentication provider returned an invalid username.", zap.String("provider", providerID), zap.String("providerUserID", providerUserID), zap.String("username", providerUsername))
+			return "", "", false, nil, status.Error(codes.InvalidArgument, "Provider username invalid, must be 1-128 bytes.")
+		}
+		username = providerUsername
+	}
+
+	found := true
+
+	// Look for an existing account.
+	query := `
+SELECT u.id, u.username, u.disable_time
+FROM users u, user_device ud
+WHERE ud.provider = $1 AND ud.id = $2 AND ud.user_id = u.id`
+	var dbUserID string
+	var dbUsername string
+	var dbDisableTime pgtype.Timestamptz
+	err := db.QueryRowContext(ctx, query, providerID, providerUserID).Scan(&dbUserID, &dbUsername, &dbDisableTime)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			found = false
+		} else {
+			logger.Error("Error looking up user by provider ID.", zap.Error(err), zap.String("provider", providerID), zap.String("providerUserID", providerUserID), zap.String("username", username), zap.Bool("create", create))
+			return "", "", false, nil, status.Error(codes.Internal, "Error finding user account.")
+		}
+	}
+
+	// Existing account found.
+	if found {
+		// Check if it's disabled.
+		if dbDisableTime.Valid && dbDisableTime.Time.Unix() != 0 {
+			logger.Info("User account is disabled.", zap.String("provider", providerID), zap.String("providerUserID", providerUserID), zap.String("username", username), zap.Bool("create", create))
+			return "", "", false, nil, status.Error(codes.PermissionDenied, "User account banned.")
+		}
+
+		// Do not fail authentication for friend import errors.
+		_ = importProviderFriends(ctx, logger, db, tracker, router, authProvider.getFriends, traceID, payload, result, dbUserID, dbUsername, providerID)
+
+		return dbUserID, dbUsername, false, result.GetVars(), nil
+	}
+
+	if !create {
+		// No user account found, and creation is not allowed.
+		return "", "", false, nil, status.Error(codes.NotFound, "User account not found.")
+	}
+
+	// Create a new account and its provider link together, so a failure to link cannot leave an orphaned user.
+	if userID == "" {
+		if _, err := uuid.FromString(providerUserID); err == nil {
+			userID = providerUserID
+		} else {
+			userID = uuid.Must(uuid.NewV4()).String()
+		}
+	}
+	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx, "INSERT INTO users (id, username, create_time, update_time) VALUES ($1, $2, now(), now())", userID, username)
+		if err != nil {
+			return err
+		}
+		if rowsAffectedCount, _ := res.RowsAffected(); rowsAffectedCount != 1 {
+			return errors.New("did not insert new user")
+		}
+
+		res, err = tx.ExecContext(ctx, "INSERT INTO user_device (provider, id, user_id) VALUES ($1, $2, $3)", providerID, providerUserID, userID)
+		if err != nil {
+			return err
+		}
+		if rowsAffectedCount, _ := res.RowsAffected(); rowsAffectedCount != 1 {
+			return errors.New("did not insert new user provider link")
+		}
+
+		return nil
+	}); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
+			if strings.Contains(pgErr.Message, "users_username_key") {
+				// Username is already in use by a different account.
+				return "", "", false, nil, status.Error(codes.AlreadyExists, "Username is already in use.")
+			} else if strings.Contains(pgErr.Message, "users_pkey") {
+				// The caller supplied a user ID that belongs to an account not linked to this provider identity.
+				return "", "", false, nil, status.Error(codes.AlreadyExists, "User ID is already in use.")
+			}
+			// A concurrent write has inserted this provider identity.
+			logger.Info("Did not insert new user as provider ID already exists.", zap.Error(err), zap.String("provider", providerID), zap.String("providerUserID", providerUserID), zap.String("username", username), zap.Bool("create", create))
+			return "", "", false, nil, status.Error(codes.Internal, "Error finding or creating user account.")
+		}
+		logger.Error("Cannot find or create user with provider ID.", zap.Error(err), zap.String("provider", providerID), zap.String("providerUserID", providerUserID), zap.String("username", username), zap.Bool("create", create))
+		return "", "", false, nil, status.Error(codes.Internal, "Error finding or creating user account.")
+	}
+
+	// Do not fail authentication for friend import errors.
+	_ = importProviderFriends(ctx, logger, db, tracker, router, authProvider.getFriends, traceID, payload, result, userID, username, providerID)
+
+	return userID, username, true, result.GetVars(), nil
+}
+
 func AuthenticateCustom(ctx context.Context, logger *zap.Logger, db *sql.DB, customID, username string, create bool) (string, string, bool, error) {
 	found := true
 
@@ -130,7 +266,7 @@ func AuthenticateCustom(ctx context.Context, logger *zap.Logger, db *sql.DB, cus
 	var dbDisableTime pgtype.Timestamptz
 	err := db.QueryRowContext(ctx, query, customID).Scan(&dbUserID, &dbUsername, &dbDisableTime)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			found = false
 		} else {
 			logger.Error("Error looking up user by custom ID.", zap.Error(err), zap.String("customID", customID), zap.String("username", username), zap.Bool("create", create))
@@ -186,11 +322,11 @@ func AuthenticateDevice(ctx context.Context, logger *zap.Logger, db *sql.DB, dev
 	found := true
 
 	// Look for an existing account.
-	query := "SELECT user_id FROM user_device WHERE id = $1"
-	var dbUserID string
-	err := db.QueryRowContext(ctx, query, deviceID).Scan(&dbUserID)
+	query := "SELECT user_id, provider FROM user_device WHERE id = $1"
+	var dbUserID, dbProvider string
+	err := db.QueryRowContext(ctx, query, deviceID).Scan(&dbUserID, &dbProvider)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			found = false
 		} else {
 			logger.Error("Error looking up user by device ID.", zap.Error(err), zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
@@ -200,6 +336,10 @@ func AuthenticateDevice(ctx context.Context, logger *zap.Logger, db *sql.DB, dev
 
 	// Existing account found.
 	if found {
+		if dbProvider != "" {
+			return "", "", false, status.Error(codes.PermissionDenied, "User account uses provider-linked identifier.")
+		}
+
 		// Load its details.
 		query = "SELECT username, disable_time FROM users WHERE id = $1"
 		var dbUsername string
@@ -243,7 +383,7 @@ WHERE NOT EXISTS
 		if err != nil {
 			var pgErr *pgconn.PgError
 			ok := errors.As(err, &pgErr)
-			if err == sql.ErrNoRows || (ok && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "user_device_pkey")) {
+			if errors.Is(err, sql.ErrNoRows) || (ok && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "user_device_pkey")) {
 				// A concurrent write has inserted this device ID.
 				logger.Info("Did not insert new user as device ID already exists.", zap.Error(err), zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
 				return StatusError(codes.Internal, "Error finding or creating user account.", err)
@@ -274,7 +414,7 @@ WHERE NOT EXISTS
 		return nil
 	})
 	if err != nil {
-		if e, ok := err.(*statusError); ok {
+		if e, ok := errors.AsType[*statusError](err); ok {
 			return "", "", false, e.Status()
 		}
 		logger.Error("Error in database transaction.", zap.Error(err))
@@ -295,7 +435,7 @@ func AuthenticateEmail(ctx context.Context, logger *zap.Logger, db *sql.DB, emai
 	var dbDisableTime pgtype.Timestamptz
 	err := db.QueryRowContext(ctx, query, email).Scan(&dbUserID, &dbUsername, &dbPassword, &dbDisableTime)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			found = false
 		} else {
 			logger.Error("Error looking up user by email.", zap.Error(err), zap.String("email", email), zap.String("username", username), zap.Bool("create", create))
@@ -366,7 +506,7 @@ func AuthenticateUsername(ctx context.Context, logger *zap.Logger, db *sql.DB, u
 	var dbDisableTime pgtype.Timestamptz
 	err := db.QueryRowContext(ctx, query, username).Scan(&dbUserID, &dbPassword, &dbDisableTime)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			// Account not found and creation is never allowed for this type.
 			return "", status.Error(codes.NotFound, "User account not found.")
 		}
@@ -418,7 +558,7 @@ func AuthenticateFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, c
 	var dbDisableTime pgtype.Timestamptz
 	err = db.QueryRowContext(ctx, query, facebookProfile.ID).Scan(&dbUserID, &dbUsername, &dbDisableTime)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			found = false
 		} else {
 			logger.Error("Error looking up user by Facebook ID.", zap.Error(err), zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create))
@@ -499,7 +639,7 @@ func AuthenticateFacebookInstantGame(ctx context.Context, logger *zap.Logger, db
 	var dbDisableTime pgtype.Timestamptz
 	err = db.QueryRowContext(ctx, query, facebookInstantGameID).Scan(&dbUserID, &dbUsername, &dbDisableTime)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			found = false
 		} else {
 			logger.Error("Error looking up user by Facebook Instant Game ID.", zap.Error(err), zap.String("facebookInstantGameID", facebookInstantGameID), zap.String("username", username), zap.Bool("create", create))
@@ -644,14 +784,14 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 	var dbAvatarURL sql.NullString
 	err = db.QueryRowContext(ctx, query, googleProfile.GetGoogleId()).Scan(&dbUserID, &dbUsername, &dbDisableTime, &dbDisplayName, &dbAvatarURL)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			err = RemapGoogleId(ctx, logger, db, googleProfile)
 			if err == nil {
 				err = db.QueryRowContext(ctx, query, googleProfile.GetGoogleId()).Scan(&dbUserID, &dbUsername, &dbDisableTime, &dbDisplayName, &dbAvatarURL)
 			}
 		}
 
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			found = false
 		} else if err != nil {
 			logger.Error("Error looking up user by Google ID.", zap.Error(err),
@@ -775,7 +915,7 @@ func AuthenticateSteam(ctx context.Context, logger *zap.Logger, db *sql.DB, clie
 	var dbDisableTime pgtype.Timestamptz
 	err = db.QueryRowContext(ctx, query, steamID).Scan(&dbUserID, &dbUsername, &dbDisableTime)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			found = false
 		} else {
 			logger.Error("Error looking up user by Steam ID.", zap.Error(err), zap.String("steamID", steamID), zap.String("username", username), zap.Bool("create", create))
@@ -865,7 +1005,7 @@ func importSteamFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tra
 		query := "SELECT id FROM users WHERE steam_id = ANY($1::text[])"
 		rows, err := tx.QueryContext(ctx, query, steamIDs)
 		if err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				// None of the friend profiles exist.
 				return nil
 			}
@@ -894,6 +1034,91 @@ func importSteamFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tra
 	if err != nil {
 		logger.Error("Error importing Steam friends.", zap.Error(err))
 		return status.Error(codes.Internal, "Error importing Steam friends.")
+	}
+
+	if len(friendUserIDs) != 0 {
+		sendFriendAddedNotification(ctx, logger, db, tracker, messageRouter, userID, username, friendUserIDs)
+	}
+
+	return nil
+}
+
+func importProviderFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, messageRouter MessageRouter, getFriendsFn RuntimeAuthenticateProviderGetFriendsFunction, traceID string, payload map[string]any, result runtime.AuthenticateProviderResult, userIDString, username, provider string) error {
+	if getFriendsFn == nil {
+		return nil
+	}
+
+	userID, err := uuid.FromString(userIDString)
+	if err != nil {
+		return err
+	}
+
+	logger = logger.With(zap.String("userID", userID.String()))
+
+	providerFriendIDs, reset, fnErr, _ := getFriendsFn(ctx, traceID, payload, result)
+	if fnErr != nil {
+		return fnErr
+	}
+
+	if len(providerFriendIDs) == 0 && !reset {
+		// No friends to import, and friend reset not requested - no work to do.
+		return nil
+	}
+
+	var friendUserIDs []uuid.UUID
+	err = ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
+		if reset {
+			if err := resetUserFriends(ctx, tx, userID); err != nil {
+				logger.Error("Could not reset user friends", zap.Error(err))
+				return err
+			}
+		}
+
+		params := make([]string, 0, len(providerFriendIDs))
+		for _, providerFriendID := range providerFriendIDs {
+			if providerFriendID == "" {
+				continue
+			}
+			params = append(params, providerFriendID)
+		}
+
+		// A reset was requested, but now there are no friend profiles to look for.
+		if len(params) == 0 {
+			return nil
+		}
+
+		query := "SELECT user_id FROM user_device WHERE id = ANY($1::text[]) AND provider = $2"
+		rows, err := tx.QueryContext(ctx, query, params, provider)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				// None of the friend profiles exist.
+				return nil
+			}
+			return err
+		}
+
+		var id string
+		possibleFriendIDs := make([]uuid.UUID, 0, len(params))
+		for rows.Next() {
+			err = rows.Scan(&id)
+			if err != nil {
+				// Error scanning the ID, try to skip this user and move on.
+				continue
+			}
+			friendID, err := uuid.FromString(id)
+			if err != nil {
+				continue
+			}
+			possibleFriendIDs = append(possibleFriendIDs, friendID)
+		}
+		_ = rows.Close()
+
+		friendUserIDs = importFriendsByUUID(ctx, logger, tx, userID, possibleFriendIDs, provider)
+		return nil
+	})
+	if err != nil {
+		logger.Error("Error importing provider friends.", zap.Error(err))
+		return status.Error(codes.Internal, "Error importing provider friends.")
 	}
 
 	if len(friendUserIDs) != 0 {
@@ -939,7 +1164,7 @@ func importFacebookFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 		query := "SELECT id FROM users WHERE facebook_id = ANY($1::text[])"
 		rows, err := tx.QueryContext(ctx, query, params)
 		if err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				// None of the friend profiles exist.
 				return nil
 			}
@@ -1040,7 +1265,7 @@ func importFriendsByUUID(ctx context.Context, logger *zap.Logger, tx *sql.Tx, us
 
 		var state sql.NullInt64
 		err := tx.QueryRowContext(ctx, "SELECT state FROM user_edge WHERE source_id = $1 AND destination_id = $2 AND state = 3", userID, friendID).Scan(&state)
-		if err != nil && err != sql.ErrNoRows {
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			logger.Error("Error checking blocked status in friend import.", zap.Error(err))
 			continue
 		}
