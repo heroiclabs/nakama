@@ -4,8 +4,10 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 [Unreleased]
+
+## [3.41.0] - 2026-09-18
 ### Added
-- Update to Go toolchain 1.27.1.
+- Build with Go 1.27.1.
 - Add Console UI to list and query registered Storage Search indices.
 - Add support for namespaced multi fleet manager registration.
 - Expose websocket connection upgrade http headers to session context.
@@ -16,8 +18,13 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add provider-agnostic authentication: register named authentication providers from the Go runtime, then authenticate, link and unlink those identities through the new `Authenticate`, `Link` and `Unlink` APIs, the matching Go, Lua and JavaScript module functions, and their before/after hooks. Identities are stored in the expanded `user_device` table and listed on the account.
 - Add console support for provider identities: search accounts by one, and unlink one from an account.
 
+### Changed
+- Storage write version rejections now return GRPC error code 9 `FAILED_PRECONDITION` instead of 3 `INVALID_ARGUMENT`. HTTP response code mapping remains the same.
+
 ### Fixed
 - Ensure linking a Google ID to an account does not overwrite any existing email.
+- Ensure correct token ID field is used for validating sessions on socket connection.
+- Return well-formed `WWW-Authenticate` header on HTTP 401 Unauthorized responses.
 
 ## [3.40.0] - 2026-07-13
 ### Added
