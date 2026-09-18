@@ -145,16 +145,24 @@ func Authenticate(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker T
 	providerUserID := result.GetProviderUserID()
 	if providerUserID == "" {
 		logger.Error("Authentication provider returned no provider user ID.", zap.String("provider", providerID))
-		return "", "", false, nil, status.Error(codes.Internal, "Error authenticating.")
+		return "", "", false, nil, status.Error(codes.InvalidArgument, "Provider ID is required.")
 	}
-	if invalidCharsRegex.MatchString(providerUserID) || len(providerUserID) > 128 {
+	if invalidCharsRegex.MatchString(providerUserID) {
 		logger.Error("Authentication provider returned an invalid provider user ID.", zap.String("provider", providerID), zap.String("providerUserID", providerUserID))
-		return "", "", false, nil, status.Error(codes.Internal, "Error authenticating.")
+		return "", "", false, nil, status.Error(codes.InvalidArgument, "Provider ID invalid, no spaces or control characters allowed.")
+	}
+	if len(providerUserID) > 128 {
+		logger.Error("Authentication provider returned an invalid provider user ID.", zap.String("provider", providerID), zap.String("providerUserID", providerUserID))
+		return "", "", false, nil, status.Error(codes.InvalidArgument, "Provider ID invalid, must be 10-128 bytes.")
 	}
 	if providerUsername := result.GetUsername(); providerUsername != "" {
-		if invalidUsernameRegex.MatchString(providerUsername) || len(providerUsername) > 128 {
+		if invalidUsernameRegex.MatchString(providerUsername) {
 			logger.Error("Authentication provider returned an invalid username.", zap.String("provider", providerID), zap.String("providerUserID", providerUserID), zap.String("username", providerUsername))
-			return "", "", false, nil, status.Error(codes.Internal, "Error authenticating.")
+			return "", "", false, nil, status.Error(codes.InvalidArgument, "Provider username invalid, no spaces or control characters allowed.")
+		}
+		if len(providerUsername) > 128 {
+			logger.Error("Authentication provider returned an invalid username.", zap.String("provider", providerID), zap.String("providerUserID", providerUserID), zap.String("username", providerUsername))
+			return "", "", false, nil, status.Error(codes.InvalidArgument, "Provider username invalid, must be 1-128 bytes.")
 		}
 		username = providerUsername
 	}

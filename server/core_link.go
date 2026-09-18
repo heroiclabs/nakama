@@ -125,14 +125,23 @@ func Link(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tracker, 
 	if fnErr != nil {
 		return status.Error(code, fnErr.Error())
 	}
-	if result == nil || result.GetProviderUserID() == "" {
-		logger.Error("Authentication provider returned no provider user ID.", zap.String("provider", providerID))
+	if result == nil {
+		logger.Error("Authentication provider returned no result.", zap.String("provider", providerID))
 		return status.Error(codes.Internal, "Error linking provider.")
 	}
+
 	providerUserID := result.GetProviderUserID()
-	if invalidCharsRegex.MatchString(providerUserID) || len(providerUserID) > 128 {
+	if providerUserID == "" {
+		logger.Error("Authentication provider returned no provider user ID.", zap.String("provider", providerID))
+		return status.Error(codes.InvalidArgument, "Provider ID is required.")
+	}
+	if invalidCharsRegex.MatchString(providerUserID) {
 		logger.Error("Authentication provider returned an invalid provider user ID.", zap.String("provider", providerID), zap.String("providerUserID", providerUserID))
-		return status.Error(codes.Internal, "Error linking provider.")
+		return status.Error(codes.InvalidArgument, "Provider ID invalid, no spaces or control characters allowed.")
+	}
+	if len(providerUserID) > 128 {
+		logger.Error("Authentication provider returned an invalid provider user ID.", zap.String("provider", providerID), zap.String("providerUserID", providerUserID))
+		return status.Error(codes.InvalidArgument, "Provider ID invalid, must be 10-128 bytes.")
 	}
 
 	err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
