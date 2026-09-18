@@ -231,9 +231,10 @@ func NewAPIServer(t *testing.T, runtime *Runtime) (*ApiServer, *Pipeline) {
 	router := &DummyMessageRouter{}
 	sessionCache := NewLocalSessionCache(3_600, 7_200)
 	sessionRegistry := NewLocalSessionRegistry(metrics)
+	statusRegistry := NewLocalStatusRegistry(logger, cfg, sessionRegistry, protojsonMarshaler)
 	tracker := &LocalTracker{sessionRegistry: sessionRegistry}
-	pipeline := NewPipeline(logger, cfg, db, protojsonMarshaler, protojsonUnmarshaler, sessionRegistry, nil, nil, nil, nil, tracker, router, runtime, metrics)
-	apiServer := StartApiServer(logger, logger, db, protojsonMarshaler, protojsonUnmarshaler, cfg, "3.0.0", nil, storageIdx, nil, nil, sessionRegistry, sessionCache, nil, nil, nil, nil, tracker, router, nil, metrics, pipeline, runtime)
+	pipeline := NewPipeline(logger, cfg, db, protojsonMarshaler, protojsonUnmarshaler, sessionRegistry, statusRegistry, nil, nil, nil, tracker, router, runtime, metrics)
+	apiServer := StartApiServer(logger, logger, db, protojsonMarshaler, protojsonUnmarshaler, cfg, "3.0.0", nil, storageIdx, nil, nil, sessionRegistry, sessionCache, statusRegistry, nil, nil, nil, tracker, router, nil, metrics, pipeline, runtime)
 
 	WaitForSocket(nil, cfg)
 	return apiServer, pipeline
