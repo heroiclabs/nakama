@@ -137,8 +137,8 @@ github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/internal/genopena
 github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options
 github.com/grpc-ecosystem/grpc-gateway/v2/runtime
 github.com/grpc-ecosystem/grpc-gateway/v2/utilities
-# github.com/heroiclabs/nakama-common v1.47.1-0.20260917191740-6471db54d182
-## explicit; go 1.26.5
+# github.com/heroiclabs/nakama-common v1.48.0
+## explicit; go 1.27.1
 github.com/heroiclabs/nakama-common/api
 github.com/heroiclabs/nakama-common/rtapi
 github.com/heroiclabs/nakama-common/runtime
@@ -313,7 +313,7 @@ google.golang.org/genproto/googleapis/api/visibility
 # google.golang.org/genproto/googleapis/rpc v0.0.0-20260908043556-f8649ddbbfe6
 ## explicit; go 1.25.0
 google.golang.org/genproto/googleapis/rpc/status
-# google.golang.org/grpc v1.83.2
+# google.golang.org/grpc v1.84.0
 ## explicit; go 1.25.0
 google.golang.org/grpc
 google.golang.org/grpc/attributes
