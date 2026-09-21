@@ -252,7 +252,7 @@ type ConsoleClient interface {
 	ListSettings(ctx context.Context, in *ListSettingsRequest, opts ...grpc.CallOption) (*SettingList, error)
 	// List (and optionally filter) storage data.
 	ListStorage(ctx context.Context, in *ListStorageRequest, opts ...grpc.CallOption) (*StorageList, error)
-	//List storage collections
+	// List storage collections
 	ListStorageCollections(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*StorageCollectionsList, error)
 	// List (and optionally filter) accounts.
 	ListAccounts(ctx context.Context, in *ListAccountsRequest, opts ...grpc.CallOption) (*AccountList, error)
@@ -1374,7 +1374,7 @@ type ConsoleServer interface {
 	ListSettings(context.Context, *ListSettingsRequest) (*SettingList, error)
 	// List (and optionally filter) storage data.
 	ListStorage(context.Context, *ListStorageRequest) (*StorageList, error)
-	//List storage collections
+	// List storage collections
 	ListStorageCollections(context.Context, *emptypb.Empty) (*StorageCollectionsList, error)
 	// List (and optionally filter) accounts.
 	ListAccounts(context.Context, *ListAccountsRequest) (*AccountList, error)
