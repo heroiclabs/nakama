@@ -8172,7 +8172,9 @@ type Extensions_HiroSystems struct {
 	// Is Stats system registered.
 	StatsSystem bool `protobuf:"varint,4,opt,name=stats_system,json=statsSystem,proto3" json:"stats_system,omitempty"`
 	// Is Energy system registered.
-	EnergySystem  bool `protobuf:"varint,5,opt,name=energy_system,json=energySystem,proto3" json:"energy_system,omitempty"`
+	EnergySystem bool `protobuf:"varint,5,opt,name=energy_system,json=energySystem,proto3" json:"energy_system,omitempty"`
+	// Is Streaks system registered.
+	StreaksSystem bool `protobuf:"varint,6,opt,name=streaks_system,json=streaksSystem,proto3" json:"streaks_system,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -8238,6 +8240,13 @@ func (x *Extensions_HiroSystems) GetStatsSystem() bool {
 func (x *Extensions_HiroSystems) GetEnergySystem() bool {
 	if x != nil {
 		return x.EnergySystem
+	}
+	return false
+}
+
+func (x *Extensions_HiroSystems) GetStreaksSystem() bool {
+	if x != nil {
+		return x.StreaksSystem
 	}
 	return false
 }
@@ -10042,18 +10051,19 @@ const file_console_proto_rawDesc = "" +
 	"\aversion\x18\x04 \x01(\tR\aversion\"H\n" +
 	"\x19DeleteWalletLedgerRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
-	"\twallet_id\x18\x02 \x01(\tR\bwalletId\"\xdc\x02\n" +
+	"\twallet_id\x18\x02 \x01(\tR\bwalletId\"\x83\x03\n" +
 	"\n" +
 	"Extensions\x12\x12\n" +
 	"\x04hiro\x18\x01 \x01(\bR\x04hiro\x12I\n" +
 	"\fhiro_systems\x18\x02 \x01(\v2&.nakama.console.Extensions.HiroSystemsR\vhiroSystems\x12\x16\n" +
-	"\x06satori\x18\x03 \x01(\bR\x06satori\x1a\xd6\x01\n" +
+	"\x06satori\x18\x03 \x01(\bR\x06satori\x1a\xfd\x01\n" +
 	"\vHiroSystems\x12%\n" +
 	"\x0eeconomy_system\x18\x01 \x01(\bR\reconomySystem\x12)\n" +
 	"\x10inventory_system\x18\x02 \x01(\bR\x0finventorySystem\x12-\n" +
 	"\x12progression_system\x18\x03 \x01(\bR\x11progressionSystem\x12!\n" +
 	"\fstats_system\x18\x04 \x01(\bR\vstatsSystem\x12#\n" +
-	"\renergy_system\x18\x05 \x01(\bR\fenergySystem\"\xf8\x05\n" +
+	"\renergy_system\x18\x05 \x01(\bR\fenergySystem\x12%\n" +
+	"\x0estreaks_system\x18\x06 \x01(\bR\rstreaksSystem\"\xf8\x05\n" +
 	"\vLeaderboard\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12 \n" +

@@ -4607,6 +4607,10 @@
         "energy_system": {
           "type": "boolean",
           "description": "Is Energy system registered."
+        },
+        "streaks_system": {
+          "type": "boolean",
+          "description": "Is Streaks system registered."
         }
       },
       "description": "Hiro available systems."

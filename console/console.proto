@@ -1115,6 +1115,8 @@ message Extensions {
     bool stats_system = 4;
     // Is Energy system registered.
     bool energy_system = 5;
+    // Is Streaks system registered.
+    bool streaks_system = 6;
   }
 }
 
