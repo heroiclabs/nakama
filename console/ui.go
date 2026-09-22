@@ -18,6 +18,7 @@ import (
 	"embed"
 	"io/fs"
 	"net/http"
+	"os"
 	"path"
 )
 
@@ -30,7 +31,31 @@ type uiFS struct {
 }
 
 func (fs *uiFS) Open(name string) (fs.File, error) {
-	return embedFS.Open(path.Join("ui", "dist", name))
+	f, err := embedFS.Open(path.Join("ui", "dist", name))
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if the request is attempting a directory listing.
+	s, err := f.Stat()
+	if err != nil {
+		// Close the directory file handle to prevent leaks.
+		_ = f.Close()
+		return nil, err
+	}
+	if s.IsDir() {
+		// Check if an index.html exists inside this directory, otherwise reject the directory listing.
+		checkF, err := embedFS.Open(path.Join("ui", "dist", name, "index.html"))
+		if err != nil {
+			// Close the directory file handle to prevent leaks.
+			_ = f.Close()
+			// os.ErrNotExist maps to HTTP 404 Not Found.
+			return nil, os.ErrNotExist
+		}
+		_ = checkF.Close()
+	}
+
+	return f, nil
 }
 
 var UI = http.FileServer(http.FS(UIFS))
