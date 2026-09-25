@@ -1,0 +1,49 @@
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Checkout Swagger Github Pages
+        uses: actions/checkout@v3
+        with:
+          repository: peter-evans/swagger-github-pages
+          path: swagger-github-pages
+
+      - name: Configure Swagger Github Pages With Config File
+        run: |
+          sed -i 's/url: "swagger.yaml"/configUrl: "swagger-config.json"/g' \
+            swagger-github-pages/dist/swagger-initializer.js
+
+      - name: Copy Swagger Spec
+        run: |
+          find apigrpc/ -type f | grep -i swagger.json$ \
+            | xargs -i cp {} swagger-github-pages
+          find console/ -type f | grep -i swagger.json$ \
+            | xargs -i cp {} swagger-github-pages
+
+      - name: Generate Swagger Config
+        run: |
+          cat > ./swagger-github-pages/swagger-config.json <<EOF
+          {
+            "deepLinking": true, "tryItOutEnabled": true,
+            "urls": [
+              { "name": "Nakama", "url": "apigrpc.swagger.json" },
+              { "name": "Console", "url": "console.swagger.json" },
+            ],
+          }
+          EOF
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: swagger-github-pages
