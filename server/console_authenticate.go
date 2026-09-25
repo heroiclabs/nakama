@@ -100,62 +100,72 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 
 	if in.Token != nil && *in.Token != "" {
 		consoleConfig := s.config.GetConsole()
-		kumoTokenId, _, email, userAcl, _, _, err := parseConsoleToken([]byte(consoleConfig.SigningKey), *in.Token)
+
+		kumotoken, err := jwt.ParseWithClaims(*in.Token, &ConsoleTokenClaims{}, func(token *jwt.Token) (interface{}, error) {
+			return []byte(consoleConfig.SigningKey), nil
+		}, jwt.WithExpirationRequired(), jwt.WithValidMethods([]string{"HS256"}))
+		if err != nil {
+
+		}
+		claims, ok := kumotoken.Claims.(*ConsoleTokenClaims)
+		if !ok || !kumotoken.Valid {
+			logger.Error("Failed to parse token console jwt token.", zap.Error(err))
+			return nil, status.Error(codes.Internal, "Failed to parse console token.")
+		}
+
 		if err != nil {
 			logger.Error("Failed to parse token console jwt token.", zap.Error(err))
-			return nil, err
+			return nil, status.Error(codes.Internal, "Failed to parse console token.")
 		}
-		if kumoTokenId != "" {
+		if claims.ID != "" {
 			return nil, status.Error(codes.InvalidArgument, "Invalid user ID.")
 		}
+		username := strings.ToLower(claims.Email)
 		userId, err := uuid.NewV4()
 		if err != nil {
-			return nil, err
+			return nil, status.Error(codes.Internal, "Failed to generate user ID.")
 		}
 		var role acl.Permission
 		var dbDisableTime pgtype.Timestamptz
 		transaction := func(tx *sql.Tx) error {
-			err = s.db.QueryRowContext(ctx, "SELECT id, username, acl, disable_time FROM console_user WHERE email = $1", email).Scan(&userId, &role, &dbDisableTime)
+			err = s.db.QueryRowContext(ctx, "SELECT id, username, acl, disable_time FROM console_user WHERE email = $1", claims.Email).Scan(&userId, &role, &dbDisableTime)
 			userExist := true
 			if err != nil {
 				if errors.Is(err, context.Canceled) {
-					return err
+					return status.Error(codes.Canceled, "context canceled")
 				}
 				if errors.Is(err, sql.ErrNoRows) {
 					userExist = false
 				}
 			}
 			if !userExist {
-				role = userAcl
+
 				password := make([]byte, 32)
 				rand.Read(password)
 				hashedPassword, err := bcrypt.GenerateFromPassword(password, bcryptHashCost)
 				if err != nil {
-					logger.Error("Failed to hash the password for the user.", zap.Error(err))
-					return err
+					logger.Error("Failed to hash the temporary password for the new Heroic Cloud user.", zap.Error(err))
+					return status.Error(codes.Internal, "Failed to hash new Heroic Cloud user temporary password.")
 				}
-				acl, err := role.ToJson()
-				if err != nil {
-					logger.Error("failed to json marshal acl", zap.Error(err))
-					return status.Error(codes.Internal, "Error creating console user.")
-				}
+
 				query := "INSERT INTO console_user (id,username,email, password, acl) VALUES ($1, $2, $3,$4,$5) RETURNING id"
-				if err = tx.QueryRowContext(ctx, query, userId.String(), email, email, hashedPassword, acl).Scan(&userId); err != nil {
-					logger.Error("failed to create user", zap.Error(err))
-					return err
+				if err = tx.QueryRowContext(ctx, query, userId.String(), username, claims.Email, hashedPassword, claims.Acl).Scan(&userId); err != nil {
+					logger.Error("failed to create Heroic Cloud console user", zap.Error(err))
+					return status.Error(codes.Internal, "Failed to create Heroic Cloud console user.")
 				}
 			}
 			return nil
 		}
 		if err := ExecuteInTx(ctx, s.db, transaction); err != nil {
-			return nil, err
+			logger.Error("Failed to execute create Heroic Cloud console user transaction.", zap.Error(err))
+			return nil, status.Error(codes.Internal, "Failed to create Heroic Cloud console session.")
 		}
 		exp := time.Now().UTC().Add(time.Duration(s.config.GetConsole().TokenExpirySec) * time.Second).Unix()
 		token := jwt.NewWithClaims(jwt.SigningMethodHS256, &ConsoleTokenClaims{
 			ExpiresAt: exp,
 			ID:        userId.String(),
-			Username:  email,
-			Email:     email,
+			Username:  username,
+			Email:     claims.Email,
 			Acl:       role.String(),
 			Cookie:    s.cookie,
 		})
