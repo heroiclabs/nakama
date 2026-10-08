@@ -8,6 +8,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Changed
 - Directory listings on the console port now return an HTTP 404 Not Found error.
 
+### Fixed
+- Only apply Google Authentication token aud/azp validation if explicitly configured via google_auth.client_ids.
+
 ## [3.41.0] - 2026-09-18
 ### Added
 - Build with Go 1.27.1.
