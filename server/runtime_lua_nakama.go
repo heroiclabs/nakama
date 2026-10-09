@@ -9161,13 +9161,13 @@ func (n *RuntimeLuaNakamaModule) tournamentList(l *lua.LState) int {
 
 	startTime := l.OptNumber(3, -1)
 	startTimeInt := int(lua.LVAsNumber(startTime))
-	if startTimeInt < 0 {
+	if startTimeInt < -1 {
 		l.ArgError(3, "startTime must be >= -1")
 		return 0
 	}
 	endTime := l.OptNumber(4, -1)
 	endTimeInt := int(lua.LVAsNumber(endTime))
-	if endTimeInt < 0 {
+	if endTimeInt < -1 {
 		l.ArgError(4, "endTime must be >= -1")
 		return 0
 	}
