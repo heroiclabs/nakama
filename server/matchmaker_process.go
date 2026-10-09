@@ -256,7 +256,7 @@ func (m *LocalMatchmaker) processDefault(activeIndexCount int, activeIndexesCopy
 					}
 					// Sort to ensure we keep as many of the longest-waiting tickets as possible.
 					sort.Slice(eligibleGroups, func(i, j int) bool {
-						return eligibleGroups[i].avgCreatedAt < eligibleGroups[j].avgCreatedAt
+						return eligibleGroups[i].avgCreatedAt > eligibleGroups[j].avgCreatedAt
 					})
 					// The most eligible group is removed from the combo.
 					for _, egIndex := range eligibleGroups[0].indexes {
