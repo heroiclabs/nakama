@@ -536,6 +536,18 @@ func consoleHttpAuditLogInterceptor(ctx context.Context, logger *zap.Logger, db 
 		resource = console.AclResources_HIRO_ENERGY
 		metadata = body
 		log = "hiro energy grant"
+	case method == http.MethodGet && path == "/v2/console/hiro/streaks/{user_id}": // HiroStreaksList
+		// Read-only operations do not create audit log entries.
+	case method == http.MethodPost && path == "/v2/console/hiro/streaks/{user_id}": // HiroStreaksRevert
+		action = console.AuditLogAction_UPDATE
+		resource = console.AclResources_HIRO_STREAKS
+		metadata = body
+		log = "hiro streaks revert"
+	case method == http.MethodPut && path == "/v2/console/hiro/streaks/{user_id}": // HiroStreaksSet
+		action = console.AuditLogAction_UPDATE
+		resource = console.AclResources_HIRO_STREAKS
+		metadata = body
+		log = "hiro streaks set"
 	}
 
 	if action == console.AuditLogAction_UNKNOWN {
