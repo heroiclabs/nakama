@@ -297,6 +297,20 @@ func UserIDFromSession(session *api.Session) (uuid.UUID, error) {
 	return uuid.FromString(data["uid"].(string))
 }
 
+func TestRequestBodyTooLargeResponseUsesRequestEntityTooLargeStatus(t *testing.T) {
+	t.Parallel()
+
+	if requestBodyTooLargeHTTPStatus != http.StatusRequestEntityTooLarge {
+		t.Fatalf("expected HTTP 413 for RPC body-too-large, got %d", requestBodyTooLargeHTTPStatus)
+	}
+	if strings.Contains(string(requestBodyTooLargeBytes), `"code":8`) {
+		t.Fatalf("RPC body-too-large must not use ResourceExhausted (8); grpc-gateway maps it to HTTP 429, got %q", string(requestBodyTooLargeBytes))
+	}
+	if !strings.Contains(string(requestBodyTooLargeBytes), "http: request body too large") {
+		t.Fatalf("expected body-too-large message in payload, got %q", string(requestBodyTooLargeBytes))
+	}
+}
+
 func TestWWWAuthenticateHeaderOnUnauthenticated(t *testing.T) {
 	t.Parallel()
 
