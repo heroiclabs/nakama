@@ -4,9 +4,9 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 [Unreleased]
-
 ### Changed
 - Directory listings on the console port now return an HTTP 404 Not Found error.
+- Change the Fleet Manager Init interface to return the namespace of the instance being registered.
 
 ### Fixed
 - Only apply Google Authentication token aud/azp validation if explicitly configured via google_auth.client_ids.
