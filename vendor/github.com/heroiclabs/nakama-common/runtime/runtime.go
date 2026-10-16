@@ -1435,7 +1435,7 @@ type FleetManagerInitializer interface {
 	FleetManager
 	// Init function - it is called internally by RegisterFleetManager to expose NakamaModule and FmCallbackHandler.
 	// The implementation should keep references to nk and callbackHandler.
-	Init(nk NakamaModule, callbackHandler FmCallbackHandler) error
+	Init(initializer Initializer, nk NakamaModule, callbackHandler FmCallbackHandler, namespace string) error
 	Update(ctx context.Context, id string, playerCount int, metadata map[string]any) error
 	Delete(ctx context.Context, id string) error
 }
