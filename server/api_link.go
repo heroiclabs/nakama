@@ -52,7 +52,7 @@ func (s *ApiServer) LinkApple(ctx context.Context, in *api.AccountApple) (*empty
 		}
 	}
 
-	err := LinkApple(ctx, logger, s.db, s.config, s.socialClient, userID, in.Token)
+	err := LinkApple(ctx, logger, s.db, s.config, s.socialClient, userID, in.Token, in.ImportEmail == nil || in.ImportEmail.Value)
 	if err != nil {
 		return nil, err
 	}
@@ -288,7 +288,7 @@ func (s *ApiServer) LinkFacebook(ctx context.Context, in *api.LinkFacebookReques
 		return nil, status.Error(codes.InvalidArgument, "Facebook access token is required.")
 	}
 
-	err := LinkFacebook(ctx, logger, s.db, s.socialClient, s.tracker, s.router, userID, username, s.config.GetSocial().FacebookLimitedLogin.AppId, in.Account.Token, in.Sync == nil || in.Sync.Value)
+	err := LinkFacebook(ctx, logger, s.db, s.socialClient, s.tracker, s.router, userID, username, s.config.GetSocial().FacebookLimitedLogin.AppId, in.Account.Token, in.Sync == nil || in.Sync.Value, in.Account.ImportEmail == nil || in.Account.ImportEmail.Value)
 	if err != nil {
 		return nil, err
 	}

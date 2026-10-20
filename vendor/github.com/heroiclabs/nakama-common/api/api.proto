@@ -65,6 +65,8 @@ message AccountApple {
   string token = 1;
   // Extra information that will be bundled in the session token.
   map<string, string> vars = 2;
+  // Import email coming from the provider, if available, and if no other email is already set.
+  google.protobuf.BoolValue importEmail = 3;
 }
 
 // Send a custom ID to the server. Used with authenticate/link/unlink.
@@ -99,6 +101,8 @@ message AccountFacebook {
   string token = 1;
   // Extra information that will be bundled in the session token.
   map<string, string> vars = 2;
+  // Import email coming from the provider, if available, and if no other email is already set.
+  google.protobuf.BoolValue importEmail = 3;
 }
 
 // Send a Facebook Instant Game token to the server. Used with authenticate/link/unlink.
@@ -135,6 +139,8 @@ message AccountGoogle {
   string token = 1;
   // Extra information that will be bundled in the session token.
   map<string, string> vars = 2;
+  // Import email coming from the provider, if available, and if no other email is already set.
+  google.protobuf.BoolValue importEmail = 3;
 }
 
 // A provider identity linked to a user's account.
@@ -205,6 +211,8 @@ message AuthenticateAppleRequest {
   google.protobuf.BoolValue create = 2;
   // Set the username on the account at register. Must be unique.
   string username = 3;
+  // Import an email coming from the provider, if available, and if no other email is already set.
+  google.protobuf.BoolValue importEmail = 4;
 }
 
 // Authenticate against the server with a custom ID.
@@ -247,6 +255,8 @@ message AuthenticateFacebookRequest {
   string username = 3;
   // Import Facebook friends for the user.
   google.protobuf.BoolValue sync = 4;
+  // Import an email coming from the provider, if available, and if no other email is already set.
+  google.protobuf.BoolValue importEmail = 5;
 }
 
 // Authenticate against the server with Facebook Instant Game token.
@@ -277,6 +287,8 @@ message AuthenticateGoogleRequest {
   google.protobuf.BoolValue create = 2;
   // Set the username on the account at register. Must be unique.
   string username = 3;
+  // Import an email coming from the provider, if available, and if no other email is already set.
+  google.protobuf.BoolValue importEmail = 4;
 }
 
 // Authenticate against the server with a runtime-registered provider.

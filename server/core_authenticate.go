@@ -40,7 +40,7 @@ import (
 
 var bcryptHashCost = int(math.Max(float64(bcrypt.DefaultCost), 13)) // Currently recommended minimum cost is 13.
 
-func AuthenticateApple(ctx context.Context, logger *zap.Logger, db *sql.DB, client *social.Client, bundleId, token, username string, create bool) (string, string, bool, error) {
+func AuthenticateApple(ctx context.Context, logger *zap.Logger, db *sql.DB, client *social.Client, bundleId, token, username string, create, importEmail bool) (string, string, bool, error) {
 	profile, err := client.CheckAppleToken(ctx, bundleId, token)
 	if err != nil {
 		logger.Info("Could not authenticate Apple profile.", zap.Error(err))
@@ -104,9 +104,9 @@ func AuthenticateApple(ctx context.Context, logger *zap.Logger, db *sql.DB, clie
 		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 	}
 
-	// Import email address, if it exists.
-	if profile.Email != "" {
-		_, err = db.ExecContext(ctx, "UPDATE users SET email = $1 WHERE id = $2", profile.Email, userID)
+	// Import email address, if it exists and importEmail is true.
+	if profile.Email != "" && importEmail {
+		_, err = db.ExecContext(ctx, "UPDATE users SET email = $1 WHERE id = $2 AND NULLIF(email, '') IS NULL", profile.Email, userID)
 		if err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_email_key") {
@@ -535,7 +535,7 @@ func AuthenticateUsername(ctx context.Context, logger *zap.Logger, db *sql.DB, u
 	return dbUserID, nil
 }
 
-func AuthenticateFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, client *social.Client, appId, accessToken, username string, create bool) (string, string, bool, error) {
+func AuthenticateFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, client *social.Client, appId, accessToken, username string, create, importEmail bool) (string, string, bool, error) {
 	var facebookProfile *social.FacebookProfile
 	var err error
 
@@ -607,9 +607,9 @@ func AuthenticateFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, c
 		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 	}
 
-	// Import email address, if it exists.
-	if facebookProfile.Email != "" {
-		_, err = db.ExecContext(ctx, "UPDATE users SET email = $1 WHERE id = $2", facebookProfile.Email, userID)
+	// Import email address, if it exists and importEmail is true.
+	if facebookProfile.Email != "" && importEmail {
+		_, err = db.ExecContext(ctx, "UPDATE users SET email = $1 WHERE id = $2 AND NULLIF(email, '') IS NULL", facebookProfile.Email, userID)
 		if err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_email_key") {
@@ -767,7 +767,7 @@ func RemapGoogleId(ctx context.Context, logger *zap.Logger, db *sql.DB, googlePr
 	return err
 }
 
-func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, client *social.Client, idToken, username string, create bool) (string, string, bool, error) {
+func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, client *social.Client, idToken, username string, create, importEmail bool) (string, string, bool, error) {
 	googleProfile, err := client.CheckGoogleToken(ctx, idToken)
 	if err != nil {
 		logger.Error("Could not authenticate Google profile.", zap.Error(err))
@@ -882,9 +882,9 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 		return "", "", false, status.Error(codes.Internal, "Error finding or creating user account.")
 	}
 
-	// Import email address, if it exists.
-	if googleProfile.GetEmail() != "" {
-		_, err = db.ExecContext(ctx, "UPDATE users SET email = $1 WHERE id = $2", googleProfile.GetEmail(), userID)
+	// Import email address, if it exists and importEmail is true.
+	if googleProfile.GetEmail() != "" && importEmail {
+		_, err = db.ExecContext(ctx, "UPDATE users SET email = $1 WHERE id = $2 AND NULLIF(email, '') IS NULL", googleProfile.GetEmail(), userID)
 		if err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_email_key") {
