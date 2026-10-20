@@ -208,7 +208,7 @@ type NakamaClient interface {
 	// Leave a group the user is a member of.
 	LeaveGroup(ctx context.Context, in *api.LeaveGroupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Add an Apple ID to the social profiles on the current user's account.
-	LinkApple(ctx context.Context, in *api.AccountApple, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	LinkApple(ctx context.Context, in *api.LinkAppleRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Add a custom ID to the social profiles on the current user's account.
 	LinkCustom(ctx context.Context, in *api.AccountCustom, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Add an authentication provider identity to the current user's account.
@@ -224,7 +224,7 @@ type NakamaClient interface {
 	// Add Apple's GameCenter to the social profiles on the current user's account.
 	LinkGameCenter(ctx context.Context, in *api.AccountGameCenter, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Add Google to the social profiles on the current user's account.
-	LinkGoogle(ctx context.Context, in *api.AccountGoogle, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	LinkGoogle(ctx context.Context, in *api.LinkGoogleRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Add Steam to the social profiles on the current user's account.
 	LinkSteam(ctx context.Context, in *api.LinkSteamRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// List a channel's message history.
@@ -681,7 +681,7 @@ func (c *nakamaClient) LeaveGroup(ctx context.Context, in *api.LeaveGroupRequest
 	return out, nil
 }
 
-func (c *nakamaClient) LinkApple(ctx context.Context, in *api.AccountApple, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *nakamaClient) LinkApple(ctx context.Context, in *api.LinkAppleRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, Nakama_LinkApple_FullMethodName, in, out, cOpts...)
@@ -761,7 +761,7 @@ func (c *nakamaClient) LinkGameCenter(ctx context.Context, in *api.AccountGameCe
 	return out, nil
 }
 
-func (c *nakamaClient) LinkGoogle(ctx context.Context, in *api.AccountGoogle, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *nakamaClient) LinkGoogle(ctx context.Context, in *api.LinkGoogleRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, Nakama_LinkGoogle_FullMethodName, in, out, cOpts...)
@@ -1281,7 +1281,7 @@ type NakamaServer interface {
 	// Leave a group the user is a member of.
 	LeaveGroup(context.Context, *api.LeaveGroupRequest) (*emptypb.Empty, error)
 	// Add an Apple ID to the social profiles on the current user's account.
-	LinkApple(context.Context, *api.AccountApple) (*emptypb.Empty, error)
+	LinkApple(context.Context, *api.LinkAppleRequest) (*emptypb.Empty, error)
 	// Add a custom ID to the social profiles on the current user's account.
 	LinkCustom(context.Context, *api.AccountCustom) (*emptypb.Empty, error)
 	// Add an authentication provider identity to the current user's account.
@@ -1297,7 +1297,7 @@ type NakamaServer interface {
 	// Add Apple's GameCenter to the social profiles on the current user's account.
 	LinkGameCenter(context.Context, *api.AccountGameCenter) (*emptypb.Empty, error)
 	// Add Google to the social profiles on the current user's account.
-	LinkGoogle(context.Context, *api.AccountGoogle) (*emptypb.Empty, error)
+	LinkGoogle(context.Context, *api.LinkGoogleRequest) (*emptypb.Empty, error)
 	// Add Steam to the social profiles on the current user's account.
 	LinkSteam(context.Context, *api.LinkSteamRequest) (*emptypb.Empty, error)
 	// List a channel's message history.
@@ -1502,7 +1502,7 @@ func (UnimplementedNakamaServer) KickGroupUsers(context.Context, *api.KickGroupU
 func (UnimplementedNakamaServer) LeaveGroup(context.Context, *api.LeaveGroupRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LeaveGroup not implemented")
 }
-func (UnimplementedNakamaServer) LinkApple(context.Context, *api.AccountApple) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) LinkApple(context.Context, *api.LinkAppleRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LinkApple not implemented")
 }
 func (UnimplementedNakamaServer) LinkCustom(context.Context, *api.AccountCustom) (*emptypb.Empty, error) {
@@ -1526,7 +1526,7 @@ func (UnimplementedNakamaServer) LinkFacebookInstantGame(context.Context, *api.A
 func (UnimplementedNakamaServer) LinkGameCenter(context.Context, *api.AccountGameCenter) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LinkGameCenter not implemented")
 }
-func (UnimplementedNakamaServer) LinkGoogle(context.Context, *api.AccountGoogle) (*emptypb.Empty, error) {
+func (UnimplementedNakamaServer) LinkGoogle(context.Context, *api.LinkGoogleRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LinkGoogle not implemented")
 }
 func (UnimplementedNakamaServer) LinkSteam(context.Context, *api.LinkSteamRequest) (*emptypb.Empty, error) {
@@ -2328,7 +2328,7 @@ func _Nakama_LeaveGroup_Handler(srv interface{}, ctx context.Context, dec func(i
 }
 
 func _Nakama_LinkApple_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(api.AccountApple)
+	in := new(api.LinkAppleRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -2340,7 +2340,7 @@ func _Nakama_LinkApple_Handler(srv interface{}, ctx context.Context, dec func(in
 		FullMethod: Nakama_LinkApple_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NakamaServer).LinkApple(ctx, req.(*api.AccountApple))
+		return srv.(NakamaServer).LinkApple(ctx, req.(*api.LinkAppleRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2472,7 +2472,7 @@ func _Nakama_LinkGameCenter_Handler(srv interface{}, ctx context.Context, dec fu
 }
 
 func _Nakama_LinkGoogle_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(api.AccountGoogle)
+	in := new(api.LinkGoogleRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -2484,7 +2484,7 @@ func _Nakama_LinkGoogle_Handler(srv interface{}, ctx context.Context, dec func(i
 		FullMethod: Nakama_LinkGoogle_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NakamaServer).LinkGoogle(ctx, req.(*api.AccountGoogle))
+		return srv.(NakamaServer).LinkGoogle(ctx, req.(*api.LinkGoogleRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }

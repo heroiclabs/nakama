@@ -65,8 +65,6 @@ message AccountApple {
   string token = 1;
   // Extra information that will be bundled in the session token.
   map<string, string> vars = 2;
-  // Import email coming from the provider, if available, and if no other email is already set.
-  google.protobuf.BoolValue importEmail = 3;
 }
 
 // Send a custom ID to the server. Used with authenticate/link/unlink.
@@ -101,8 +99,6 @@ message AccountFacebook {
   string token = 1;
   // Extra information that will be bundled in the session token.
   map<string, string> vars = 2;
-  // Import email coming from the provider, if available, and if no other email is already set.
-  google.protobuf.BoolValue importEmail = 3;
 }
 
 // Send a Facebook Instant Game token to the server. Used with authenticate/link/unlink.
@@ -139,8 +135,6 @@ message AccountGoogle {
   string token = 1;
   // Extra information that will be bundled in the session token.
   map<string, string> vars = 2;
-  // Import email coming from the provider, if available, and if no other email is already set.
-  google.protobuf.BoolValue importEmail = 3;
 }
 
 // A provider identity linked to a user's account.
@@ -212,7 +206,7 @@ message AuthenticateAppleRequest {
   // Set the username on the account at register. Must be unique.
   string username = 3;
   // Import an email coming from the provider, if available, and if no other email is already set.
-  google.protobuf.BoolValue importEmail = 4;
+  google.protobuf.BoolValue import_email = 4;
 }
 
 // Authenticate against the server with a custom ID.
@@ -256,7 +250,7 @@ message AuthenticateFacebookRequest {
   // Import Facebook friends for the user.
   google.protobuf.BoolValue sync = 4;
   // Import an email coming from the provider, if available, and if no other email is already set.
-  google.protobuf.BoolValue importEmail = 5;
+  google.protobuf.BoolValue import_email = 5;
 }
 
 // Authenticate against the server with Facebook Instant Game token.
@@ -288,7 +282,7 @@ message AuthenticateGoogleRequest {
   // Set the username on the account at register. Must be unique.
   string username = 3;
   // Import an email coming from the provider, if available, and if no other email is already set.
-  google.protobuf.BoolValue importEmail = 4;
+  google.protobuf.BoolValue import_email = 4;
 }
 
 // Authenticate against the server with a runtime-registered provider.
@@ -686,12 +680,32 @@ message LeaveGroupRequest {
   string group_id = 1;
 }
 
+// Link Apple to the current user's account.
+message LinkAppleRequest {
+  // The Apple account details.
+  AccountApple account = 1;
+  // Import Apple friends for the user.
+  google.protobuf.BoolValue sync = 2;
+  // Import an email coming from the provider, if available, and if no other email is already set.
+  google.protobuf.BoolValue import_email = 3;
+}
+
 // Link Facebook to the current user's account.
 message LinkFacebookRequest {
   // The Facebook account details.
   AccountFacebook account = 1;
   // Import Facebook friends for the user.
   google.protobuf.BoolValue sync = 2;
+  // Import an email coming from the provider, if available, and if no other email is already set.
+  google.protobuf.BoolValue import_email = 3;
+}
+
+// Link Google to the current user's account.
+message LinkGoogleRequest {
+  // The Google account details.
+  AccountGoogle account = 1;
+  // Import an email coming from the provider, if available, and if no other email is already set.
+  google.protobuf.BoolValue import_email = 2;
 }
 
 // Link Steam to the current user's account.

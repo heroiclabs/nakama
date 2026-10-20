@@ -641,10 +641,10 @@ type Initializer interface {
 	RegisterAfterListLeaderboardRecordsAroundOwner(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.LeaderboardRecordList, in *api.ListLeaderboardRecordsAroundOwnerRequest) error) error
 
 	// RegisterBeforeLinkApple can be used to perform additional logic before linking Apple ID to an account.
-	RegisterBeforeLinkApple(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AccountApple) (*api.AccountApple, error)) error
+	RegisterBeforeLinkApple(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.LinkAppleRequest) (*api.LinkAppleRequest, error)) error
 
 	// RegisterAfterLinkApple can be used to perform additional logic after linking Apple ID to an account.
-	RegisterAfterLinkApple(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AccountApple) error) error
+	RegisterAfterLinkApple(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.LinkAppleRequest) error) error
 
 	// RegisterBeforeLinkCustom can be used to perform additional logic before linking custom ID to an account.
 	RegisterBeforeLinkCustom(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AccountCustom) (*api.AccountCustom, error)) error
@@ -689,10 +689,10 @@ type Initializer interface {
 	RegisterAfterLinkGameCenter(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AccountGameCenter) error) error
 
 	// RegisterBeforeLinkGoogle can be used to perform additional logic before linking Google to an account.
-	RegisterBeforeLinkGoogle(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AccountGoogle) (*api.AccountGoogle, error)) error
+	RegisterBeforeLinkGoogle(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.LinkGoogleRequest) (*api.LinkGoogleRequest, error)) error
 
 	// RegisterAfterLinkGoogle can be used to perform additional logic after linking Google to an account.
-	RegisterAfterLinkGoogle(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.AccountGoogle) error) error
+	RegisterAfterLinkGoogle(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.LinkGoogleRequest) error) error
 
 	// RegisterBeforeLinkSteam can be used to perform additional logic before linking Steam to an account.
 	RegisterBeforeLinkSteam(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.LinkSteamRequest) (*api.LinkSteamRequest, error)) error
@@ -1151,14 +1151,14 @@ func (d *DefaultAuthenticateProviderResult) GetMetadata() map[string]any {
 
 type NakamaModule interface {
 	Authenticate(ctx context.Context, provider string, payload map[string]any, userID, username string, create bool) (string, string, bool, error)
-	AuthenticateApple(ctx context.Context, token, username string, create bool) (string, string, bool, error)
+	AuthenticateApple(ctx context.Context, token, username string, create, importEmail bool) (string, string, bool, error)
 	AuthenticateCustom(ctx context.Context, id, username string, create bool) (string, string, bool, error)
 	AuthenticateDevice(ctx context.Context, id, username string, create bool) (string, string, bool, error)
 	AuthenticateEmail(ctx context.Context, email, password, username string, create bool) (string, string, bool, error)
-	AuthenticateFacebook(ctx context.Context, token string, importFriends bool, username string, create bool) (string, string, bool, error)
+	AuthenticateFacebook(ctx context.Context, token string, importFriends bool, username string, create, importEmail bool) (string, string, bool, error)
 	AuthenticateFacebookInstantGame(ctx context.Context, signedPlayerInfo string, username string, create bool) (string, string, bool, error)
 	AuthenticateGameCenter(ctx context.Context, playerID, bundleID string, timestamp int64, salt, signature, publicKeyUrl, username string, create bool) (string, string, bool, error)
-	AuthenticateGoogle(ctx context.Context, token, username string, create bool) (string, string, bool, error)
+	AuthenticateGoogle(ctx context.Context, token, username string, create, importEmail bool) (string, string, bool, error)
 	AuthenticateSteam(ctx context.Context, token, username string, create bool) (string, string, bool, error)
 
 	AuthenticateTokenGenerate(userID, username string, exp int64, vars map[string]string) (string, int64, error)
@@ -1179,14 +1179,14 @@ type NakamaModule interface {
 	UsersUnbanId(ctx context.Context, userIDs []string) error
 
 	Link(ctx context.Context, userID, username, provider string, payload map[string]any) error
-	LinkApple(ctx context.Context, userID, token string) error
+	LinkApple(ctx context.Context, userID, token string, importEmail bool) error
 	LinkCustom(ctx context.Context, userID, customID string) error
 	LinkDevice(ctx context.Context, userID, deviceID string) error
 	LinkEmail(ctx context.Context, userID, email, password string) error
-	LinkFacebook(ctx context.Context, userID, username, token string, importFriends bool) error
+	LinkFacebook(ctx context.Context, userID, username, token string, importFriends, importEmail bool) error
 	LinkFacebookInstantGame(ctx context.Context, userID, signedPlayerInfo string) error
 	LinkGameCenter(ctx context.Context, userID, playerID, bundleID string, timestamp int64, salt, signature, publicKeyUrl string) error
-	LinkGoogle(ctx context.Context, userID, token string) error
+	LinkGoogle(ctx context.Context, userID, token string, importEmail bool) error
 	LinkSteam(ctx context.Context, userID, username, token string, importFriends bool) error
 
 	CronPrev(expression string, timestamp int64) (int64, error)

@@ -1802,8 +1802,8 @@ func (ri *RuntimeGoInitializer) RegisterAfterListLeaderboardRecordsAroundOwner(f
 // @summary Register a function to perform additional logic before linking Apple ID to an account.
 // @param fn(type=function) The function to execute before the request is processed. It can modify the input or reject the request.
 // @return error(error) An optional error value if an error occurred.
-func (ri *RuntimeGoInitializer) RegisterBeforeLinkApple(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountApple) (*api.AccountApple, error)) error {
-	ri.beforeReq.beforeLinkAppleFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountApple) (*api.AccountApple, error, codes.Code) {
+func (ri *RuntimeGoInitializer) RegisterBeforeLinkApple(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.LinkAppleRequest) (*api.LinkAppleRequest, error)) error {
+	ri.beforeReq.beforeLinkAppleFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.LinkAppleRequest) (*api.LinkAppleRequest, error, codes.Code) {
 		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeBefore, nil, nil, traceID, expiry, userID, username, vars, "", clientIP, clientPort, "")
 		loggerFields := map[string]any{"api_id": "linkapple", "mode": RuntimeExecutionModeBefore.String()}
 		result, fnErr := fn(ctx, RuntimeLoggerWithTraceId(ctx, ri.logger.WithFields(loggerFields)), ri.db, ri.nk, in)
@@ -1827,8 +1827,8 @@ func (ri *RuntimeGoInitializer) RegisterBeforeLinkApple(fn func(ctx context.Cont
 // @summary Register a function to perform additional logic after linking Apple ID to an account.
 // @param fn(type=function) The function to execute after the request is processed.
 // @return error(error) An optional error value if an error occurred.
-func (ri *RuntimeGoInitializer) RegisterAfterLinkApple(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountApple) error) error {
-	ri.afterReq.afterLinkAppleFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountApple) error {
+func (ri *RuntimeGoInitializer) RegisterAfterLinkApple(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.LinkAppleRequest) error) error {
+	ri.afterReq.afterLinkAppleFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.LinkAppleRequest) error {
 		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeAfter, nil, nil, traceID, expiry, userID, username, vars, "", clientIP, clientPort, "")
 		loggerFields := map[string]any{"api_id": "linkapple", "mode": RuntimeExecutionModeAfter.String()}
 		return fn(ctx, RuntimeLoggerWithTraceId(ctx, ri.logger.WithFields(loggerFields)), ri.db, ri.nk, in)
@@ -2107,8 +2107,8 @@ func (ri *RuntimeGoInitializer) RegisterAfterLinkGameCenter(fn func(ctx context.
 // @summary Register a function to perform additional logic before linking Google to an account.
 // @param fn(type=function) The function to execute before the request is processed. It can modify the input or reject the request.
 // @return error(error) An optional error value if an error occurred.
-func (ri *RuntimeGoInitializer) RegisterBeforeLinkGoogle(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountGoogle) (*api.AccountGoogle, error)) error {
-	ri.beforeReq.beforeLinkGoogleFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountGoogle) (*api.AccountGoogle, error, codes.Code) {
+func (ri *RuntimeGoInitializer) RegisterBeforeLinkGoogle(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.LinkGoogleRequest) (*api.LinkGoogleRequest, error)) error {
+	ri.beforeReq.beforeLinkGoogleFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.LinkGoogleRequest) (*api.LinkGoogleRequest, error, codes.Code) {
 		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeBefore, nil, nil, traceID, expiry, userID, username, vars, "", clientIP, clientPort, "")
 		loggerFields := map[string]any{"api_id": "linkgoogle", "mode": RuntimeExecutionModeBefore.String()}
 		result, fnErr := fn(ctx, RuntimeLoggerWithTraceId(ctx, ri.logger.WithFields(loggerFields)), ri.db, ri.nk, in)
@@ -2132,8 +2132,8 @@ func (ri *RuntimeGoInitializer) RegisterBeforeLinkGoogle(fn func(ctx context.Con
 // @summary Register a function to perform additional logic after linking Google to an account.
 // @param fn(type=function) The function to execute after the request is processed.
 // @return error(error) An optional error value if an error occurred.
-func (ri *RuntimeGoInitializer) RegisterAfterLinkGoogle(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AccountGoogle) error) error {
-	ri.afterReq.afterLinkGoogleFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountGoogle) error {
+func (ri *RuntimeGoInitializer) RegisterAfterLinkGoogle(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.LinkGoogleRequest) error) error {
+	ri.afterReq.afterLinkGoogleFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.LinkGoogleRequest) error {
 		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeAfter, nil, nil, traceID, expiry, userID, username, vars, "", clientIP, clientPort, "")
 		loggerFields := map[string]any{"api_id": "linkgoogle", "mode": RuntimeExecutionModeAfter.String()}
 		return fn(ctx, RuntimeLoggerWithTraceId(ctx, ri.logger.WithFields(loggerFields)), ri.db, ri.nk, in)

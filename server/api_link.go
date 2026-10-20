@@ -25,7 +25,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-func (s *ApiServer) LinkApple(ctx context.Context, in *api.AccountApple) (*emptypb.Empty, error) {
+func (s *ApiServer) LinkApple(ctx context.Context, in *api.LinkAppleRequest) (*emptypb.Empty, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 
@@ -52,7 +52,7 @@ func (s *ApiServer) LinkApple(ctx context.Context, in *api.AccountApple) (*empty
 		}
 	}
 
-	err := LinkApple(ctx, logger, s.db, s.config, s.socialClient, userID, in.Token, in.ImportEmail == nil || in.ImportEmail.Value)
+	err := LinkApple(ctx, logger, s.db, s.config, s.socialClient, userID, in.Account.Token, in.ImportEmail == nil || in.ImportEmail.Value)
 	if err != nil {
 		return nil, err
 	}
@@ -288,7 +288,7 @@ func (s *ApiServer) LinkFacebook(ctx context.Context, in *api.LinkFacebookReques
 		return nil, status.Error(codes.InvalidArgument, "Facebook access token is required.")
 	}
 
-	err := LinkFacebook(ctx, logger, s.db, s.socialClient, s.tracker, s.router, userID, username, s.config.GetSocial().FacebookLimitedLogin.AppId, in.Account.Token, in.Sync == nil || in.Sync.Value, in.Account.ImportEmail == nil || in.Account.ImportEmail.Value)
+	err := LinkFacebook(ctx, logger, s.db, s.socialClient, s.tracker, s.router, userID, username, s.config.GetSocial().FacebookLimitedLogin.AppId, in.Account.Token, in.Sync == nil || in.Sync.Value, in.ImportEmail == nil || in.ImportEmail.Value)
 	if err != nil {
 		return nil, err
 	}
@@ -400,7 +400,7 @@ func (s *ApiServer) LinkGameCenter(ctx context.Context, in *api.AccountGameCente
 	return &emptypb.Empty{}, nil
 }
 
-func (s *ApiServer) LinkGoogle(ctx context.Context, in *api.AccountGoogle) (*emptypb.Empty, error) {
+func (s *ApiServer) LinkGoogle(ctx context.Context, in *api.LinkGoogleRequest) (*emptypb.Empty, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 
@@ -427,7 +427,7 @@ func (s *ApiServer) LinkGoogle(ctx context.Context, in *api.AccountGoogle) (*emp
 		}
 	}
 
-	err := LinkGoogle(ctx, logger, s.db, s.socialClient, userID, in.Token)
+	err := LinkGoogle(ctx, logger, s.db, s.socialClient, userID, in.Account.Token, in.ImportEmail == nil || in.ImportEmail.Value)
 	if err != nil {
 		return nil, err
 	}
