@@ -1427,6 +1427,7 @@ func (n *RuntimeJavascriptNakamaModule) bcryptCompare(r *goja.Runtime) func(goja
 // @param token(type=string) Apple sign in token.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
 // @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
+// @param importEmail(type=bool, optional=true, default=true) Import email from Apple if available and if the user account has no email set.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return create(bool) Value indicating if this account was just created or already existed.
@@ -1460,7 +1461,12 @@ func (n *RuntimeJavascriptNakamaModule) authenticateApple(r *goja.Runtime) func(
 			create = getJsBool(r, f.Argument(2))
 		}
 
-		dbUserID, dbUsername, created, err := AuthenticateApple(n.ctx, n.logger, n.db, n.socialClient, n.config.GetSocial().Apple.BundleId, token, username, create)
+		importEmail := true
+		if f.Argument(3) != goja.Undefined() {
+			importEmail = getJsBool(r, f.Argument(3))
+		}
+
+		dbUserID, dbUsername, created, err := AuthenticateApple(n.ctx, n.logger, n.db, n.socialClient, n.config.GetSocial().Apple.BundleId, token, username, create, importEmail)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error authenticating: %v", err.Error())))
 		}
@@ -1659,6 +1665,7 @@ func (n *RuntimeJavascriptNakamaModule) authenticateEmail(r *goja.Runtime) func(
 // @param importFriends(type=bool, optional=true, default=true) Whether to automatically import Facebook friends after authentication.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
 // @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
+// @param importEmail(type=bool, optional=true, default=true) Import email from Facebook if available and if the user account has no email set.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return create(bool) Value indicating if this account was just created or already existed.
@@ -1693,7 +1700,12 @@ func (n *RuntimeJavascriptNakamaModule) authenticateFacebook(r *goja.Runtime) fu
 			create = getJsBool(r, f.Argument(3))
 		}
 
-		dbUserID, dbUsername, created, err := AuthenticateFacebook(n.ctx, n.logger, n.db, n.socialClient, n.config.GetSocial().FacebookLimitedLogin.AppId, token, username, create)
+		importEmail := true
+		if f.Argument(4) != goja.Undefined() {
+			importEmail = getJsBool(r, f.Argument(4))
+		}
+
+		dbUserID, dbUsername, created, err := AuthenticateFacebook(n.ctx, n.logger, n.db, n.socialClient, n.config.GetSocial().FacebookLimitedLogin.AppId, token, username, create, importEmail)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error authenticating: %v", err.Error())))
 		}
@@ -1835,6 +1847,7 @@ func (n *RuntimeJavascriptNakamaModule) authenticateGameCenter(r *goja.Runtime) 
 // @param token(type=string) Google OAuth access token.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
 // @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
+// @param importEmail(type=bool, optional=true, default=true) Import email from Google if available and if the user account has no email set.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return create(bool) Value indicating if this account was just created or already existed.
@@ -1864,7 +1877,12 @@ func (n *RuntimeJavascriptNakamaModule) authenticateGoogle(r *goja.Runtime) func
 			create = getJsBool(r, f.Argument(2))
 		}
 
-		dbUserID, dbUsername, created, err := AuthenticateGoogle(n.ctx, n.logger, n.db, n.socialClient, token, username, create)
+		importEmail := true
+		if f.Argument(3) != goja.Undefined() {
+			importEmail = getJsBool(r, f.Argument(3))
+		}
+
+		dbUserID, dbUsername, created, err := AuthenticateGoogle(n.ctx, n.logger, n.db, n.socialClient, token, username, create, importEmail)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error authenticating: %v", err.Error())))
 		}
@@ -2570,6 +2588,7 @@ func (n *RuntimeJavascriptNakamaModule) usersUnbanId(r *goja.Runtime) func(goja.
 // @summary Link Apple authentication to a user ID.
 // @param userID(type=string) The user ID to be linked.
 // @param token(type=string) Apple sign in token.
+// @param importEmail(type=bool, optional=true, default=true) Import email from Apple if available and if the user account has no email set.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeJavascriptNakamaModule) linkApple(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -2584,7 +2603,12 @@ func (n *RuntimeJavascriptNakamaModule) linkApple(r *goja.Runtime) func(goja.Fun
 			panic(r.NewTypeError("expects token string"))
 		}
 
-		if err := LinkApple(n.ctx, n.logger, n.db, n.config, n.socialClient, id, token); err != nil {
+		importEmail := true
+		if f.Argument(2) != goja.Undefined() {
+			importEmail = getJsBool(r, f.Argument(2))
+		}
+
+		if err := LinkApple(n.ctx, n.logger, n.db, n.config, n.socialClient, id, token, importEmail); err != nil {
 			panic(r.NewGoError(fmt.Errorf("error linking: %v", err.Error())))
 		}
 
@@ -2744,6 +2768,7 @@ func (n *RuntimeJavascriptNakamaModule) linkEmail(r *goja.Runtime) func(goja.Fun
 // @param username(type=string, optional=true) If left empty, one is generated.
 // @param token(type=string) Facebook OAuth or Limited Login (JWT) access token.
 // @param importFriends(type=bool, optional=true, default=true) Whether to automatically import Facebook friends after authentication.
+// @param importEmail(type=bool, optional=true, default=true) Import email from Facebook if available and if the user account has no email set.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeJavascriptNakamaModule) linkFacebook(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -2757,16 +2782,23 @@ func (n *RuntimeJavascriptNakamaModule) linkFacebook(r *goja.Runtime) func(goja.
 		if username == "" {
 			panic(r.NewTypeError("expects username string"))
 		}
+
 		token := getJsString(r, f.Argument(2))
 		if token == "" {
 			panic(r.NewTypeError("expects token string"))
 		}
+
 		importFriends := true
 		if f.Argument(3) != goja.Undefined() {
 			importFriends = getJsBool(r, f.Argument(3))
 		}
 
-		if err := LinkFacebook(n.ctx, n.logger, n.db, n.socialClient, n.tracker, n.router, id, username, n.config.GetSocial().FacebookLimitedLogin.AppId, token, importFriends); err != nil {
+		importEmail := true
+		if f.Argument(4) != goja.Undefined() {
+			importEmail = getJsBool(r, f.Argument(4))
+		}
+
+		if err := LinkFacebook(n.ctx, n.logger, n.db, n.socialClient, n.tracker, n.router, id, username, n.config.GetSocial().FacebookLimitedLogin.AppId, token, importFriends, importEmail); err != nil {
 			panic(r.NewGoError(fmt.Errorf("error linking: %v", err.Error())))
 		}
 
@@ -2855,6 +2887,7 @@ func (n *RuntimeJavascriptNakamaModule) linkGameCenter(r *goja.Runtime) func(goj
 // @summary Link Google authentication to a user ID.
 // @param userID(type=string) The user ID to be linked.
 // @param token(type=string) Google OAuth access token.
+// @param importEmail(type=bool, optional=true, default=true) Import email from Google if available and if the user account has no email set.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeJavascriptNakamaModule) linkGoogle(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
@@ -2869,7 +2902,12 @@ func (n *RuntimeJavascriptNakamaModule) linkGoogle(r *goja.Runtime) func(goja.Fu
 			panic(r.NewTypeError("expects token string"))
 		}
 
-		if err := LinkGoogle(n.ctx, n.logger, n.db, n.socialClient, id, token); err != nil {
+		importEmail := true
+		if f.Argument(2) != goja.Undefined() {
+			importEmail = getJsBool(r, f.Argument(2))
+		}
+
+		if err := LinkGoogle(n.ctx, n.logger, n.db, n.socialClient, id, token, importEmail); err != nil {
 			panic(r.NewGoError(fmt.Errorf("error linking: %v", err.Error())))
 		}
 
@@ -4086,7 +4124,7 @@ func (n *RuntimeJavascriptNakamaModule) notificationSend(r *goja.Runtime) func(g
 // @group notifications
 // @summary List notifications by user id.
 // @param userID(type=string) Optional userID to scope results to that user only.
-// @param limit(type=int, optiona=true, default=100) Limit number of results. Must be a value between 1 and 1000.
+// @param limit(type=int, optional=true, default=100) Limit number of results. Must be a value between 1 and 1000.
 // @param cursor(type=string, optional=true, default="") Pagination cursor from previous result. Don't set to start fetching from the beginning.
 // @return notifications(nkruntime.NotificationList) A list of notifications.
 // @return error(error) An optional error value if an error occurred.
@@ -10198,7 +10236,7 @@ func (n *RuntimeJavascriptNakamaModule) satoriMessagesList(r *goja.Runtime) func
 // @param identifier(type=string) The identifier of the identity.
 // @param messageID(type=string) The id of the message.
 // @param readTime(type=int) The time the message was read at the client.
-// @param consumeTime(type=int, optiona=true, default=0) The time the message was consumed by the identity.
+// @param consumeTime(type=int, optional=true, default=0) The time the message was consumed by the identity.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeJavascriptNakamaModule) satoriMessageUpdate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {

@@ -1754,6 +1754,7 @@ func (n *RuntimeLuaNakamaModule) bcryptCompare(l *lua.LState) int {
 // @param token(type=string) Apple sign in token.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
 // @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
+// @param importEmail(type=bool, optional=true, default=true) Import email from Apple if available and if the user account has no email set.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return created(bool) Value indicating if this account was just created or already existed.
@@ -1786,7 +1787,10 @@ func (n *RuntimeLuaNakamaModule) authenticateApple(l *lua.LState) int {
 	// Parse create flag, if any.
 	create := l.OptBool(3, true)
 
-	dbUserID, dbUsername, created, err := AuthenticateApple(l.Context(), n.logger, n.db, n.socialClient, n.config.GetSocial().Apple.BundleId, token, username, create)
+	// Parse import email flag, if any.
+	importEmail := l.OptBool(4, true)
+
+	dbUserID, dbUsername, created, err := AuthenticateApple(l.Context(), n.logger, n.db, n.socialClient, n.config.GetSocial().Apple.BundleId, token, username, create, importEmail)
 	if err != nil {
 		l.RaiseError("error authenticating: %v", err.Error())
 		return 0
@@ -1983,6 +1987,7 @@ func (n *RuntimeLuaNakamaModule) authenticateEmail(l *lua.LState) int {
 // @param importFriends(type=bool, optional=true, default=true) Whether to automatically import Facebook friends after authentication.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
 // @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
+// @param importEmail(type=bool, optional=true, default=true) Import email from Facebook if available and if the user account has no email set.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return created(bool) Value indicating if this account was just created or already existed.
@@ -2013,7 +2018,10 @@ func (n *RuntimeLuaNakamaModule) authenticateFacebook(l *lua.LState) int {
 	// Parse create flag, if any.
 	create := l.OptBool(4, true)
 
-	dbUserID, dbUsername, created, err := AuthenticateFacebook(l.Context(), n.logger, n.db, n.socialClient, n.config.GetSocial().FacebookLimitedLogin.AppId, token, username, create)
+	// Parse import email flag, if any.
+	importEmail := l.OptBool(5, true)
+
+	dbUserID, dbUsername, created, err := AuthenticateFacebook(l.Context(), n.logger, n.db, n.socialClient, n.config.GetSocial().FacebookLimitedLogin.AppId, token, username, create, importEmail)
 	if err != nil {
 		l.RaiseError("error authenticating: %v", err.Error())
 		return 0
@@ -2154,6 +2162,7 @@ func (n *RuntimeLuaNakamaModule) authenticateGameCenter(l *lua.LState) int {
 // @param token(type=string) Google OAuth access token.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
 // @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
+// @param importEmail(type=bool, optional=true, default=true) Import email from Google if available and if the user account has no email set.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return created(bool) Value indicating if this account was just created or already existed.
@@ -2181,7 +2190,10 @@ func (n *RuntimeLuaNakamaModule) authenticateGoogle(l *lua.LState) int {
 	// Parse create flag, if any.
 	create := l.OptBool(3, true)
 
-	dbUserID, dbUsername, created, err := AuthenticateGoogle(l.Context(), n.logger, n.db, n.socialClient, token, username, create)
+	// Parse import email flag, if any.
+	importEmail := l.OptBool(4, true)
+
+	dbUserID, dbUsername, created, err := AuthenticateGoogle(l.Context(), n.logger, n.db, n.socialClient, token, username, create, importEmail)
 	if err != nil {
 		l.RaiseError("error authenticating: %v", err.Error())
 		return 0
@@ -3297,6 +3309,7 @@ func (n *RuntimeLuaNakamaModule) usersUnbanId(l *lua.LState) int {
 // @summary Link Apple authentication to a user ID.
 // @param userID(type=string) The user ID to be linked.
 // @param token(type=string) Apple sign in token.
+// @param importEmail(type=bool, optional=true, default=true) Import email from Apple if available and if the user account has no email set.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) linkApple(l *lua.LState) int {
 	userID := l.CheckString(1)
@@ -3312,7 +3325,9 @@ func (n *RuntimeLuaNakamaModule) linkApple(l *lua.LState) int {
 		return 0
 	}
 
-	if err := LinkApple(l.Context(), n.logger, n.db, n.config, n.socialClient, id, token); err != nil {
+	importEmail := l.OptBool(3, true)
+
+	if err := LinkApple(l.Context(), n.logger, n.db, n.config, n.socialClient, id, token, importEmail); err != nil {
 		l.RaiseError("error linking: %v", err.Error())
 	}
 	return 0
@@ -3468,6 +3483,7 @@ func (n *RuntimeLuaNakamaModule) linkEmail(l *lua.LState) int {
 // @param username(type=string, optional=true) If left empty, one is generated.
 // @param token(type=string) Facebook OAuth or Limited Login (JWT) access token.
 // @param importFriends(type=bool, optional=true, default=true) Whether to automatically import Facebook friends after authentication.
+// @param importEmail(type=bool, optional=true, default=true) Import email from Facebook if available and if the user account has no email set.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) linkFacebook(l *lua.LState) int {
 	userID := l.CheckString(1)
@@ -3482,14 +3498,18 @@ func (n *RuntimeLuaNakamaModule) linkFacebook(l *lua.LState) int {
 		l.ArgError(2, "expects username string")
 		return 0
 	}
+
 	token := l.CheckString(3)
 	if token == "" {
 		l.ArgError(3, "expects token string")
 		return 0
 	}
+
 	importFriends := l.OptBool(4, true)
 
-	if err := LinkFacebook(l.Context(), n.logger, n.db, n.socialClient, n.tracker, n.router, id, username, n.config.GetSocial().FacebookLimitedLogin.AppId, token, importFriends); err != nil {
+	importEmail := l.OptBool(5, true)
+
+	if err := LinkFacebook(l.Context(), n.logger, n.db, n.socialClient, n.tracker, n.router, id, username, n.config.GetSocial().FacebookLimitedLogin.AppId, token, importFriends, importEmail); err != nil {
 		l.RaiseError("error linking: %v", err.Error())
 	}
 	return 0
@@ -3579,6 +3599,7 @@ func (n *RuntimeLuaNakamaModule) linkGameCenter(l *lua.LState) int {
 // @summary Link Google authentication to a user ID.
 // @param userID(type=string) The user ID to be linked.
 // @param token(type=string) Google OAuth access token.
+// @param importEmail(type=bool, optional=true, default=true) Import email from Google if available and if the user account has no email set.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) linkGoogle(l *lua.LState) int {
 	userID := l.CheckString(1)
@@ -3594,7 +3615,9 @@ func (n *RuntimeLuaNakamaModule) linkGoogle(l *lua.LState) int {
 		return 0
 	}
 
-	if err := LinkGoogle(l.Context(), n.logger, n.db, n.socialClient, id, token); err != nil {
+	importEmail := l.OptBool(3, true)
+
+	if err := LinkGoogle(l.Context(), n.logger, n.db, n.socialClient, id, token, importEmail); err != nil {
 		l.RaiseError("error linking: %v", err.Error())
 	}
 	return 0
@@ -3605,7 +3628,7 @@ func (n *RuntimeLuaNakamaModule) linkGoogle(l *lua.LState) int {
 // @param userID(type=string) The user ID to be linked.
 // @param username(type=string) If left empty, one is generated.
 // @param token(type=string) Steam access token.
-// @param importFriends(type=bool, optiona=true, default=true) Whether to automatically import Steam friends after authentication.
+// @param importFriends(type=bool, optional=true, default=true) Whether to automatically import Steam friends after authentication.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) linkSteam(l *lua.LState) int {
 	userID := l.CheckString(1)
@@ -4653,7 +4676,7 @@ func (n *RuntimeLuaNakamaModule) streamClose(l *lua.LState) int {
 // @param streamTable(type=table) A stream object consisting of a `mode` (int), `subject` (string), `descriptor` (string) and `label` (string).
 // @param data(type=string) The data to send.
 // @param presences(type=table) Table of presences to receive the sent data. If not set, will be sent to all presences.
-// @param reliable(type=bool, optiona=true, default=true) Whether the sender has been validated prior.
+// @param reliable(type=bool, optional=true, default=true) Whether the sender has been validated prior.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) streamSend(l *lua.LState) int {
 	// Parse input stream identifier.

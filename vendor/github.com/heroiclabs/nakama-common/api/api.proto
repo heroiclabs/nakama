@@ -205,6 +205,8 @@ message AuthenticateAppleRequest {
   google.protobuf.BoolValue create = 2;
   // Set the username on the account at register. Must be unique.
   string username = 3;
+  // Import an email coming from the provider, if available, and if no other email is already set.
+  google.protobuf.BoolValue import_email = 4;
 }
 
 // Authenticate against the server with a custom ID.
@@ -247,6 +249,8 @@ message AuthenticateFacebookRequest {
   string username = 3;
   // Import Facebook friends for the user.
   google.protobuf.BoolValue sync = 4;
+  // Import an email coming from the provider, if available, and if no other email is already set.
+  google.protobuf.BoolValue import_email = 5;
 }
 
 // Authenticate against the server with Facebook Instant Game token.
@@ -277,6 +281,8 @@ message AuthenticateGoogleRequest {
   google.protobuf.BoolValue create = 2;
   // Set the username on the account at register. Must be unique.
   string username = 3;
+  // Import an email coming from the provider, if available, and if no other email is already set.
+  google.protobuf.BoolValue import_email = 4;
 }
 
 // Authenticate against the server with a runtime-registered provider.
@@ -674,12 +680,32 @@ message LeaveGroupRequest {
   string group_id = 1;
 }
 
+// Link Apple to the current user's account.
+message LinkAppleRequest {
+  // The Apple account details.
+  AccountApple account = 1;
+  // Import Apple friends for the user.
+  google.protobuf.BoolValue sync = 2;
+  // Import an email coming from the provider, if available, and if no other email is already set.
+  google.protobuf.BoolValue import_email = 3;
+}
+
 // Link Facebook to the current user's account.
 message LinkFacebookRequest {
   // The Facebook account details.
   AccountFacebook account = 1;
   // Import Facebook friends for the user.
   google.protobuf.BoolValue sync = 2;
+  // Import an email coming from the provider, if available, and if no other email is already set.
+  google.protobuf.BoolValue import_email = 3;
+}
+
+// Link Google to the current user's account.
+message LinkGoogleRequest {
+  // The Google account details.
+  AccountGoogle account = 1;
+  // Import an email coming from the provider, if available, and if no other email is already set.
+  google.protobuf.BoolValue import_email = 2;
 }
 
 // Link Steam to the current user's account.

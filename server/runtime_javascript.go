@@ -1158,12 +1158,12 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 						return result.(*api.ListLeaderboardRecordsAroundOwnerRequest), nil, 0
 					}
 				case "linkapple":
-					beforeReqFunctions.beforeLinkAppleFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountApple) (*api.AccountApple, error, codes.Code) {
+					beforeReqFunctions.beforeLinkAppleFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.LinkAppleRequest) (*api.LinkAppleRequest, error, codes.Code) {
 						result, err, code := runtimeProviderJS.BeforeReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
-						return result.(*api.AccountApple), nil, 0
+						return result.(*api.LinkAppleRequest), nil, 0
 					}
 				case "linkcustom":
 					beforeReqFunctions.beforeLinkCustomFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountCustom) (*api.AccountCustom, error, codes.Code) {
@@ -1222,12 +1222,12 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 						return result.(*api.AccountGameCenter), nil, 0
 					}
 				case "linkgoogle":
-					beforeReqFunctions.beforeLinkGoogleFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountGoogle) (*api.AccountGoogle, error, codes.Code) {
+					beforeReqFunctions.beforeLinkGoogleFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.LinkGoogleRequest) (*api.LinkGoogleRequest, error, codes.Code) {
 						result, err, code := runtimeProviderJS.BeforeReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, in)
 						if result == nil || err != nil {
 							return nil, err, code
 						}
-						return result.(*api.AccountGoogle), nil, 0
+						return result.(*api.LinkGoogleRequest), nil, 0
 					}
 				case "linksteam":
 					beforeReqFunctions.beforeLinkSteamFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.LinkSteamRequest) (*api.LinkSteamRequest, error, codes.Code) {
@@ -1664,7 +1664,7 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 						return runtimeProviderJS.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, out, in)
 					}
 				case "linkapple":
-					afterReqFunctions.afterLinkAppleFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountApple) error {
+					afterReqFunctions.afterLinkAppleFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.LinkAppleRequest) error {
 						return runtimeProviderJS.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, nil, in)
 					}
 				case "linkcustom":
@@ -1696,7 +1696,7 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 						return runtimeProviderJS.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, nil, in)
 					}
 				case "linkgoogle":
-					afterReqFunctions.afterLinkGoogleFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AccountGoogle) error {
+					afterReqFunctions.afterLinkGoogleFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.LinkGoogleRequest) error {
 						return runtimeProviderJS.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, nil, in)
 					}
 				case "linksteam":
