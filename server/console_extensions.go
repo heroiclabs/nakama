@@ -62,6 +62,12 @@ func (s *ConsoleServer) RegisteredExtensions(ctx context.Context, in *emptypb.Em
 			}
 			hiroSystems.EnergySystem = true
 		}
+		if (hiroSystems == nil || !hiroSystems.StreaksSystem) && strings.HasPrefix(handler.PathPattern, "/v2/console/hiro/streaks/") {
+			if hiroSystems == nil {
+				hiroSystems = &console.Extensions_HiroSystems{}
+			}
+			hiroSystems.StreaksSystem = true
+		}
 	}
 
 	extensions := &console.Extensions{
