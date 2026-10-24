@@ -3,6 +3,9 @@ name: Run tests
 on:
   pull_request:
     types: [opened, synchronize]
+  push:
+    branches:
+      - 'release-*'
 jobs:
   run_tests:
     name: Run Nakama tests
