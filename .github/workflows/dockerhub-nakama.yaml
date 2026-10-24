@@ -47,6 +47,8 @@ jobs:
             COMMIT=${{ env.ARG_COMMIT }}
             VERSION=${{ env.ARG_VERSION }}
           push: true
+          provenance: mode=max
+          sbom: true
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
