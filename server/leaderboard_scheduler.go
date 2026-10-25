@@ -181,6 +181,10 @@ func (ls *LocalLeaderboardScheduler) scheduleLoop() {
 
 		if wakeTs > 0 && wakeTs <= now.Unix() {
 			ls.processHooks(now, endActiveTs, expiryTs, endActiveIds, expiryIds)
+			// This skips the select below, so check for Stop() here.
+			if ls.ctx.Err() != nil {
+				return
+			}
 			continue
 		}
 
