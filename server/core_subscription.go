@@ -1182,7 +1182,7 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 
 				purchase := &storagePurchase{
 					userID:        uid,
-					store:         api.StoreProvider_APPLE_APP_STORE,
+					store:         int(api.StoreProvider_APPLE_APP_STORE),
 					productId:     transactionInfo.ProductId,
 					transactionId: transactionInfo.TransactionId,
 					purchaseTime:  parseMillisecondUnixTimestamp(transactionInfo.PurchaseDate),
@@ -1623,7 +1623,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 
 				sPurchase := &storagePurchase{
 					userID:        *uid,
-					store:         api.StoreProvider_GOOGLE_PLAY_STORE,
+					store:         int(api.StoreProvider_GOOGLE_PLAY_STORE),
 					productId:     gPurchase.ProductLineItem[0].ProductId, // This item can have multiple entries if the subscription was upgraded/downgraded. Skip handling this for now.
 					purchaseTime:  gPurchase.PurchaseCompletionTime,
 					transactionId: transactionId,
@@ -1652,7 +1652,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 						UserId:        suid,
 						ProductId:     sPurchase.productId,
 						TransactionId: sPurchase.transactionId,
-						Store:         sPurchase.store,
+						Store:         api.StoreProvider(sPurchase.store),
 						PurchaseTime:  timestamppb.New(sPurchase.purchaseTime),
 						CreateTime:    timestamppb.New(sPurchase.createTime),
 						UpdateTime:    timestamppb.New(sPurchase.updateTime),

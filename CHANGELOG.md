@@ -4,6 +4,10 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 [Unreleased]
+### Added
+- Add Go runtime purchase providers, validated with the `ValidatePurchase` client API and `PurchaseValidate` function.
+- Add purchase provider refund notification endpoints and the `RegisterPurchaseNotificationProvider` hook.
+
 ### Changed
 - Directory listings on the console port now return an HTTP 404 Not Found error.
 - Change the Fleet Manager Init interface to receive the namespace of the instance being registered.
