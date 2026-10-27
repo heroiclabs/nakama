@@ -1165,7 +1165,7 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 			} else {
 				// This is a purchase related refund.
 				if uid.IsNil() {
-					p, err := GetPurchaseByTransactionId(r.Context(), logger, db, transactionInfo.TransactionId)
+					p, err := GetPurchaseByTransactionId(r.Context(), logger, db, nil, transactionInfo.TransactionId)
 					if err != nil {
 						logger.Error("Failed to get subscription by original transaction id", zap.Error(err))
 						w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
@@ -1599,7 +1599,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 				transactionId := googleNotification.VoidedPurchaseNotification.PurchaseToken
 
 				if uid == nil {
-					s, err := GetPurchaseByTransactionId(r.Context(), loggerWithNotification, db, transactionId)
+					s, err := GetPurchaseByTransactionId(r.Context(), loggerWithNotification, db, nil, transactionId)
 					if err != nil {
 						loggerWithNotification.Error("Failed to get purchase by transaction id", zap.Error(err))
 						w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.

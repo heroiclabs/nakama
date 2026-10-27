@@ -83,15 +83,16 @@ type RuntimeJavascriptNakamaModule struct {
 	router               MessageRouter
 	storageIndex         StorageIndex
 
-	node                 string
-	matchCreateFn        RuntimeMatchCreateFunction
-	eventFn              RuntimeEventCustomFunction
-	authProviderRegistry *RuntimeAuthenticateProviderRegistry
+	node                     string
+	matchCreateFn            RuntimeMatchCreateFunction
+	eventFn                  RuntimeEventCustomFunction
+	authProviderRegistry     *RuntimeAuthenticateProviderRegistry
+	purchaseProviderRegistry *RuntimePurchaseProviderRegistry
 
 	satori runtime.Satori
 }
 
-func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, storageIndex StorageIndex, localCache *RuntimeJavascriptLocalCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, satoriClient runtime.Satori, eventFn RuntimeEventCustomFunction, matchCreateFn RuntimeMatchCreateFunction, authProviderRegistry *RuntimeAuthenticateProviderRegistry) *RuntimeJavascriptNakamaModule {
+func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, storageIndex StorageIndex, localCache *RuntimeJavascriptLocalCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, satoriClient runtime.Satori, eventFn RuntimeEventCustomFunction, matchCreateFn RuntimeMatchCreateFunction, authProviderRegistry *RuntimeAuthenticateProviderRegistry, purchaseProviderRegistry *RuntimePurchaseProviderRegistry) *RuntimeJavascriptNakamaModule {
 	return &RuntimeJavascriptNakamaModule{
 		ctx:                  context.Background(),
 		logger:               logger,
@@ -117,10 +118,11 @@ func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonM
 		httpClientInsecure:   &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}},
 		storageIndex:         storageIndex,
 
-		node:                 config.GetName(),
-		eventFn:              eventFn,
-		authProviderRegistry: authProviderRegistry,
-		matchCreateFn:        matchCreateFn,
+		node:                     config.GetName(),
+		eventFn:                  eventFn,
+		authProviderRegistry:     authProviderRegistry,
+		purchaseProviderRegistry: purchaseProviderRegistry,
+		matchCreateFn:            matchCreateFn,
 
 		satori: satoriClient,
 	}
@@ -6706,7 +6708,7 @@ func (n *RuntimeJavascriptNakamaModule) purchaseGetByTransactionId(r *goja.Runti
 			panic(r.NewTypeError("expects a transaction id string"))
 		}
 
-		purchase, err := GetPurchaseByTransactionId(n.ctx, n.logger, n.db, transactionID)
+		purchase, err := GetPurchaseByTransactionId(n.ctx, n.logger, n.db, n.purchaseProviderRegistry, transactionID)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error retrieving purchase: %s", err.Error())))
 		}
@@ -6745,7 +6747,7 @@ func (n *RuntimeJavascriptNakamaModule) purchasesList(r *goja.Runtime) func(goja
 			cursor = getJsString(r, f.Argument(2))
 		}
 
-		purchases, err := ListPurchases(n.ctx, n.logger, n.db, userID, limit, cursor, time.Time{}, time.Time{})
+		purchases, err := ListPurchases(n.ctx, n.logger, n.db, n.purchaseProviderRegistry, userID, limit, cursor, time.Time{}, time.Time{})
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error retrieving purchases: %s", err.Error())))
 		}
@@ -10512,6 +10514,10 @@ func validatedPurchaseToJsObject(purchase *api.ValidatedPurchase) map[string]any
 	}
 	validatedPurchaseMap["environment"] = purchase.Environment.String()
 	validatedPurchaseMap["seenBefore"] = purchase.SeenBefore
+	if purchase.Source == api.PurchaseSource_PLUGIN {
+		validatedPurchaseMap["provider"] = purchase.Provider
+	}
+	validatedPurchaseMap["source"] = purchase.Source.String()
 
 	return validatedPurchaseMap
 }

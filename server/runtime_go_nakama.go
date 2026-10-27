@@ -44,53 +44,55 @@ import (
 
 type RuntimeGoNakamaModule struct {
 	sync.RWMutex
-	logger               *zap.Logger
-	db                   *sql.DB
-	protojsonMarshaler   *protojson.MarshalOptions
-	config               Config
-	socialClient         *social.Client
-	leaderboardCache     LeaderboardCache
-	leaderboardRankCache LeaderboardRankCache
-	leaderboardScheduler LeaderboardScheduler
-	sessionRegistry      SessionRegistry
-	sessionCache         SessionCache
-	statusRegistry       StatusRegistry
-	matchRegistry        MatchRegistry
-	partyRegistry        PartyRegistry
-	tracker              Tracker
-	metrics              Metrics
-	streamManager        StreamManager
-	router               MessageRouter
-	eventFn              RuntimeEventCustomFunction
-	authProviderRegistry *RuntimeAuthenticateProviderRegistry
-	node                 string
-	matchCreateFn        RuntimeMatchCreateFunction
-	satori               runtime.Satori
-	fleetManagers        map[string]runtime.FleetManager
-	storageIndex         StorageIndex
+	logger                   *zap.Logger
+	db                       *sql.DB
+	protojsonMarshaler       *protojson.MarshalOptions
+	config                   Config
+	socialClient             *social.Client
+	leaderboardCache         LeaderboardCache
+	leaderboardRankCache     LeaderboardRankCache
+	leaderboardScheduler     LeaderboardScheduler
+	sessionRegistry          SessionRegistry
+	sessionCache             SessionCache
+	statusRegistry           StatusRegistry
+	matchRegistry            MatchRegistry
+	partyRegistry            PartyRegistry
+	tracker                  Tracker
+	metrics                  Metrics
+	streamManager            StreamManager
+	router                   MessageRouter
+	eventFn                  RuntimeEventCustomFunction
+	authProviderRegistry     *RuntimeAuthenticateProviderRegistry
+	purchaseProviderRegistry *RuntimePurchaseProviderRegistry
+	node                     string
+	matchCreateFn            RuntimeMatchCreateFunction
+	satori                   runtime.Satori
+	fleetManagers            map[string]runtime.FleetManager
+	storageIndex             StorageIndex
 }
 
-func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, storageIndex StorageIndex, satoriClient runtime.Satori, authProviderRegistry *RuntimeAuthenticateProviderRegistry) *RuntimeGoNakamaModule {
+func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, storageIndex StorageIndex, satoriClient runtime.Satori, authProviderRegistry *RuntimeAuthenticateProviderRegistry, purchaseProviderRegistry *RuntimePurchaseProviderRegistry) *RuntimeGoNakamaModule {
 	return &RuntimeGoNakamaModule{
-		logger:               logger,
-		db:                   db,
-		authProviderRegistry: authProviderRegistry,
-		protojsonMarshaler:   protojsonMarshaler,
-		config:               config,
-		socialClient:         socialClient,
-		leaderboardCache:     leaderboardCache,
-		leaderboardRankCache: leaderboardRankCache,
-		leaderboardScheduler: leaderboardScheduler,
-		sessionRegistry:      sessionRegistry,
-		sessionCache:         sessionCache,
-		statusRegistry:       statusRegistry,
-		matchRegistry:        matchRegistry,
-		partyRegistry:        partyRegistry,
-		tracker:              tracker,
-		metrics:              metrics,
-		streamManager:        streamManager,
-		router:               router,
-		storageIndex:         storageIndex,
+		logger:                   logger,
+		db:                       db,
+		authProviderRegistry:     authProviderRegistry,
+		purchaseProviderRegistry: purchaseProviderRegistry,
+		protojsonMarshaler:       protojsonMarshaler,
+		config:                   config,
+		socialClient:             socialClient,
+		leaderboardCache:         leaderboardCache,
+		leaderboardRankCache:     leaderboardRankCache,
+		leaderboardScheduler:     leaderboardScheduler,
+		sessionRegistry:          sessionRegistry,
+		sessionCache:             sessionCache,
+		statusRegistry:           statusRegistry,
+		matchRegistry:            matchRegistry,
+		partyRegistry:            partyRegistry,
+		tracker:                  tracker,
+		metrics:                  metrics,
+		streamManager:            streamManager,
+		router:                   router,
+		storageIndex:             storageIndex,
 
 		node: config.GetName(),
 
@@ -3491,7 +3493,7 @@ func (n *RuntimeGoNakamaModule) PurchasesList(ctx context.Context, userID string
 		return nil, errors.New("limit must be a positive value <= 100")
 	}
 
-	return ListPurchases(ctx, n.logger, n.db, userID, limit, cursor, time.Time{}, time.Time{})
+	return ListPurchases(ctx, n.logger, n.db, n.purchaseProviderRegistry, userID, limit, cursor, time.Time{}, time.Time{})
 }
 
 // @group purchases
@@ -3505,7 +3507,12 @@ func (n *RuntimeGoNakamaModule) PurchaseGetByTransactionId(ctx context.Context, 
 		return nil, errors.New("expects a transaction id string.")
 	}
 
-	return GetPurchaseByTransactionId(ctx, n.logger, n.db, transactionID)
+	purchase, err := GetPurchaseByTransactionId(ctx, n.logger, n.db, n.purchaseProviderRegistry, transactionID)
+	if err != nil {
+		return nil, err
+	}
+
+	return purchase, nil
 }
 
 // @group subscriptions
@@ -4675,4 +4682,34 @@ func (n *RuntimeGoNakamaModule) GetFleetManager() runtime.FleetManager {
 // @return fleetManager(runtime.FleetManager) The Fleet Manager client, or nil if none is registered under that name.
 func (n *RuntimeGoNakamaModule) GetFleetManagerByName(name string) runtime.FleetManager {
 	return n.fleetManagers[name]
+}
+
+// @group purchases
+// @summary Validates and stores a purchase with a registered purchase provider.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param provider(type=string) The name the purchase provider was registered under.
+// @param userID(type=string) The user ID of the owner of the purchase.
+// @param payload(type=map[string]any) The opaque payload passed through to the provider.
+// @param persist(type=bool) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
+// @param overrides(type=map[string]any, optional=true) Optional credential overrides passed through to the provider.
+// @return validation(*api.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) PurchaseValidate(ctx context.Context, provider, userID string, payload map[string]any, persist bool, overrides ...map[string]any) (*api.ValidatePurchaseResponse, error) {
+	uid, err := uuid.FromString(userID)
+	if err != nil {
+		return nil, errors.New("user ID must be a valid id string")
+	}
+
+	if len(provider) < 1 {
+		return nil, errors.New("provider cannot be empty string")
+	}
+
+	var providerOverrides map[string]any
+	if len(overrides) > 1 {
+		return nil, errors.New("expects a single overrides parameter")
+	} else if len(overrides) == 1 {
+		providerOverrides = overrides[0]
+	}
+
+	return ValidatePurchase(ctx, n.logger, n.db, n.purchaseProviderRegistry, uid, "", provider, payload, providerOverrides, persist)
 }

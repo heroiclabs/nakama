@@ -235,6 +235,16 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		logger.Info("Registered endpoint for Google subscription notifications callback", zap.String("endpoint", endpoint))
 	}
 
+	purchaseProviderRegistry := runtime.PurchaseProviderRegistry()
+	for name, provider := range purchaseProviderRegistry.providersByName.Range {
+		if provider.notificationHandler == nil {
+			continue
+		}
+		endpoint := fmt.Sprintf("/v2/console/%s/notifications", name)
+		grpcGatewayRouter.HandleFunc(endpoint, purchaseProviderNotificationHandler(logger, db, purchaseProviderRegistry, provider, runtime.PurchaseNotificationProvider()))
+		logger.Info("Registered endpoint for purchase provider notifications callback", zap.String("provider", name), zap.String("endpoint", endpoint))
+	}
+
 	// pprof routes
 	grpcGatewayRouter.Handle("/debug/pprof/", adminBasicAuth(config.GetConsole())(http.HandlerFunc(pprof.Index)))
 	grpcGatewayRouter.Handle("/debug/pprof/cmdline", adminBasicAuth(config.GetConsole())(http.HandlerFunc(pprof.Cmdline)))

@@ -89,15 +89,16 @@ type RuntimeLuaNakamaModule struct {
 	httpClient           *http.Client
 	httpClientInsecure   *http.Client
 
-	node                 string
-	matchCreateFn        RuntimeMatchCreateFunction
-	eventFn              RuntimeEventCustomFunction
-	authProviderRegistry *RuntimeAuthenticateProviderRegistry
+	node                     string
+	matchCreateFn            RuntimeMatchCreateFunction
+	eventFn                  RuntimeEventCustomFunction
+	authProviderRegistry     *RuntimeAuthenticateProviderRegistry
+	purchaseProviderRegistry *RuntimePurchaseProviderRegistry
 
 	satori runtime.Satori
 }
 
-func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, storageIndex StorageIndex, satoriClient runtime.Satori, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, authProviderRegistry *RuntimeAuthenticateProviderRegistry, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
+func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, storageIndex StorageIndex, satoriClient runtime.Satori, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, authProviderRegistry *RuntimeAuthenticateProviderRegistry, purchaseProviderRegistry *RuntimePurchaseProviderRegistry, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
 	return &RuntimeLuaNakamaModule{
 		logger:               logger,
 		db:                   db,
@@ -126,10 +127,11 @@ func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshale
 		httpClient:           &http.Client{},
 		httpClientInsecure:   &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}},
 
-		node:                 config.GetName(),
-		matchCreateFn:        matchCreateFn,
-		eventFn:              eventFn,
-		authProviderRegistry: authProviderRegistry,
+		node:                     config.GetName(),
+		matchCreateFn:            matchCreateFn,
+		eventFn:                  eventFn,
+		authProviderRegistry:     authProviderRegistry,
+		purchaseProviderRegistry: purchaseProviderRegistry,
 
 		satori: satoriClient,
 	}
@@ -2991,6 +2993,10 @@ func purchaseToLuaTable(l *lua.LState, p *api.ValidatedPurchase) *lua.LTable {
 	}
 	validatedPurchaseTable.RawSetString("environment", lua.LString(p.Environment.String()))
 	validatedPurchaseTable.RawSetString("seen_before", lua.LBool(p.SeenBefore))
+	if p.Source == api.PurchaseSource_PLUGIN {
+		validatedPurchaseTable.RawSetString("provider", lua.LString(p.Provider))
+	}
+	validatedPurchaseTable.RawSetString("source", lua.LString(p.Source.String()))
 
 	return validatedPurchaseTable
 }
@@ -8425,7 +8431,7 @@ func (n *RuntimeLuaNakamaModule) purchaseGetByTransactionId(l *lua.LState) int {
 		return 0
 	}
 
-	purchase, err := GetPurchaseByTransactionId(l.Context(), n.logger, n.db, transactionID)
+	purchase, err := GetPurchaseByTransactionId(l.Context(), n.logger, n.db, n.purchaseProviderRegistry, transactionID)
 	if err != nil {
 		l.RaiseError("error retrieving purchase: %v", err.Error())
 		return 0
@@ -8459,7 +8465,7 @@ func (n *RuntimeLuaNakamaModule) purchasesList(l *lua.LState) int {
 
 	cursor := l.OptString(3, "")
 
-	purchases, err := ListPurchases(l.Context(), n.logger, n.db, userID, limit, cursor, time.Time{}, time.Time{})
+	purchases, err := ListPurchases(l.Context(), n.logger, n.db, n.purchaseProviderRegistry, userID, limit, cursor, time.Time{}, time.Time{})
 	if err != nil {
 		l.RaiseError("error retrieving purchases: %v", err.Error())
 		return 0

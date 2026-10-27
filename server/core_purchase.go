@@ -577,7 +577,7 @@ func ValidatePurchaseSamsung(ctx context.Context, logger *zap.Logger, db *sql.DB
 	}, nil
 }
 
-func GetPurchaseByTransactionId(ctx context.Context, logger *zap.Logger, db *sql.DB, transactionID string) (*api.ValidatedPurchase, error) {
+func GetPurchaseByTransactionId(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimePurchaseProviderRegistry, transactionID string) (*api.ValidatedPurchase, error) {
 	var (
 		dbTransactionId string
 		dbUserId        uuid.UUID
@@ -643,7 +643,7 @@ type purchasesListCursor struct {
 	Before        time.Time
 }
 
-func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID string, limit int, cursor string, after, before time.Time) (*api.PurchaseList, error) {
+func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimePurchaseProviderRegistry, userID string, limit int, cursor string, after, before time.Time) (*api.PurchaseList, error) {
 	var incomingCursor *purchasesListCursor
 	if cursor != "" {
 		cb, err := base64.URLEncoding.DecodeString(cursor)
