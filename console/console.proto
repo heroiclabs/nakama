@@ -1558,6 +1558,8 @@ message RuntimeInfo {
   repeated string go_authenticate_providers = 8;
   // JavaScript registered authentication providers
   repeated string js_authenticate_providers = 9;
+  // Go registered purchase providers
+  repeated string go_purchase_providers = 10;
 }
 
 // An individual update to a user's wallet.

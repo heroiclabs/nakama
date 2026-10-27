@@ -180,6 +180,8 @@ type NakamaClient interface {
 	UpdateAccount(ctx context.Context, in *api.UpdateAccountRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Update fields in a given group.
 	UpdateGroup(ctx context.Context, in *api.UpdateGroupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// Validate a purchase with a registered purchase provider
+	ValidatePurchase(ctx context.Context, in *api.ValidatePurchaseRequest, opts ...grpc.CallOption) (*api.ValidatePurchaseResponse, error)
 	// Validate Apple IAP Receipt
 	ValidatePurchaseApple(ctx context.Context, in *api.ValidatePurchaseAppleRequest, opts ...grpc.CallOption) (*api.ValidatePurchaseResponse, error)
 	// Validate Apple Subscription Receipt
@@ -912,6 +914,15 @@ func (c *nakamaClient) UpdateGroup(ctx context.Context, in *api.UpdateGroupReque
 	return out, nil
 }
 
+func (c *nakamaClient) ValidatePurchase(ctx context.Context, in *api.ValidatePurchaseRequest, opts ...grpc.CallOption) (*api.ValidatePurchaseResponse, error) {
+	out := new(api.ValidatePurchaseResponse)
+	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/ValidatePurchase", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *nakamaClient) ValidatePurchaseApple(ctx context.Context, in *api.ValidatePurchaseAppleRequest, opts ...grpc.CallOption) (*api.ValidatePurchaseResponse, error) {
 	out := new(api.ValidatePurchaseResponse)
 	err := c.cc.Invoke(ctx, "/nakama.api.Nakama/ValidatePurchaseApple", in, out, opts...)
@@ -1162,6 +1173,8 @@ type NakamaServer interface {
 	UpdateAccount(context.Context, *api.UpdateAccountRequest) (*emptypb.Empty, error)
 	// Update fields in a given group.
 	UpdateGroup(context.Context, *api.UpdateGroupRequest) (*emptypb.Empty, error)
+	// Validate a purchase with a registered purchase provider
+	ValidatePurchase(context.Context, *api.ValidatePurchaseRequest) (*api.ValidatePurchaseResponse, error)
 	// Validate Apple IAP Receipt
 	ValidatePurchaseApple(context.Context, *api.ValidatePurchaseAppleRequest) (*api.ValidatePurchaseResponse, error)
 	// Validate Apple Subscription Receipt
@@ -1422,6 +1435,9 @@ func (UnimplementedNakamaServer) UpdateAccount(context.Context, *api.UpdateAccou
 }
 func (UnimplementedNakamaServer) UpdateGroup(context.Context, *api.UpdateGroupRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateGroup not implemented")
+}
+func (UnimplementedNakamaServer) ValidatePurchase(context.Context, *api.ValidatePurchaseRequest) (*api.ValidatePurchaseResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ValidatePurchase not implemented")
 }
 func (UnimplementedNakamaServer) ValidatePurchaseApple(context.Context, *api.ValidatePurchaseAppleRequest) (*api.ValidatePurchaseResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ValidatePurchaseApple not implemented")
@@ -2870,6 +2886,24 @@ func _Nakama_UpdateGroup_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Nakama_ValidatePurchase_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(api.ValidatePurchaseRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NakamaServer).ValidatePurchase(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/nakama.api.Nakama/ValidatePurchase",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NakamaServer).ValidatePurchase(ctx, req.(*api.ValidatePurchaseRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Nakama_ValidatePurchaseApple_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(api.ValidatePurchaseAppleRequest)
 	if err := dec(in); err != nil {
@@ -3368,6 +3402,10 @@ var Nakama_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateGroup",
 			Handler:    _Nakama_UpdateGroup_Handler,
+		},
+		{
+			MethodName: "ValidatePurchase",
+			Handler:    _Nakama_ValidatePurchase_Handler,
 		},
 		{
 			MethodName: "ValidatePurchaseApple",

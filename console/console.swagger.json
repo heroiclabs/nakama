@@ -4965,6 +4965,15 @@
       },
       "description": "A list of validated purchases stored by Nakama."
     },
+    "PurchaseSource": {
+      "type": "string",
+      "enum": [
+        "STORE",
+        "PLUGIN"
+      ],
+      "default": "STORE",
+      "description": "Purchase validation source.\n\n - STORE: A built-in store, named by the store field.\n - PLUGIN: A runtime-registered purchase provider, named by the provider field."
+    },
     "QueryStorageIndexBody": {
       "type": "object",
       "properties": {
@@ -5078,6 +5087,13 @@
             "type": "string"
           },
           "title": "JavaScript registered authentication providers"
+        },
+        "go_purchase_providers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "Go registered purchase providers"
         }
       },
       "title": "Runtime information"
@@ -5967,6 +5983,14 @@
         "seen_before": {
           "type": "boolean",
           "description": "Whether the purchase had already been validated by Nakama before."
+        },
+        "provider": {
+          "type": "string",
+          "description": "Name of the provider that validated the purchase."
+        },
+        "source": {
+          "$ref": "#/definitions/PurchaseSource",
+          "description": "Whether a store or a purchase provider validated the purchase. For provider plugins, store holds the provider's code."
         }
       },
       "description": "Validated Purchase stored by Nakama."

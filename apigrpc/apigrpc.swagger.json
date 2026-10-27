@@ -2505,6 +2505,46 @@
         ]
       }
     },
+    "/v2/iap/purchase/{provider}": {
+      "post": {
+        "summary": "Validate a purchase with a registered purchase provider",
+        "operationId": "Nakama_ValidatePurchase",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiValidatePurchaseResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "provider",
+            "description": "The name the provider was registered under during runtime initialization.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/NakamaValidatePurchaseBody"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
     "/v2/iap/subscription": {
       "post": {
         "summary": "List user's subscriptions.",
@@ -3917,6 +3957,20 @@
       },
       "description": "Update fields in a given group."
     },
+    "NakamaValidatePurchaseBody": {
+      "type": "object",
+      "properties": {
+        "payload": {
+          "type": "object",
+          "description": "Opaque JSON passed through to the registered provider."
+        },
+        "persist": {
+          "type": "boolean",
+          "description": "Persist the purchase so that seenBefore can be computed to protect against replay attacks."
+        }
+      },
+      "description": "Validate a purchase with a runtime-registered purchase provider."
+    },
     "UserGroupListUserGroup": {
       "type": "object",
       "properties": {
@@ -4866,6 +4920,15 @@
       },
       "description": "A list of realtime matches."
     },
+    "apiPurchaseSource": {
+      "type": "string",
+      "enum": [
+        "STORE",
+        "PLUGIN"
+      ],
+      "default": "STORE",
+      "description": "Purchase validation source.\n\n - STORE: A built-in store, named by the store field.\n - PLUGIN: A runtime-registered purchase provider, named by the provider field."
+    },
     "apiReadStorageObjectId": {
       "type": "object",
       "properties": {
@@ -5609,6 +5672,14 @@
         "seenBefore": {
           "type": "boolean",
           "description": "Whether the purchase had already been validated by Nakama before."
+        },
+        "provider": {
+          "type": "string",
+          "description": "Name of the provider that validated the purchase."
+        },
+        "source": {
+          "$ref": "#/definitions/apiPurchaseSource",
+          "description": "Whether a store or a purchase provider validated the purchase. For provider plugins, store holds the provider's code."
         }
       },
       "description": "Validated Purchase stored by Nakama."
