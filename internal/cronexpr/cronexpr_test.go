@@ -15,6 +15,7 @@ package cronexpr
 /******************************************************************************/
 
 import (
+	"sync"
 	"testing"
 	"time"
 )
@@ -451,6 +452,27 @@ func TestBackwardExpressions(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestConcurrentLastAndNext(t *testing.T) {
+	// Run with -race: each call takes a path that used to write to the shared expression.
+	weekly := MustParse("0 0 * * 1")
+	yearly := MustParse("0 0 1 1 *")
+	december := MustParse("0 0 1 12 *")
+	from := time.Date(2026, 6, 10, 12, 0, 0, 0, time.UTC)
+
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Go(func() {
+			for range 100 {
+				weekly.Last(from)
+				yearly.Last(from)
+				december.Last(from)
+				yearly.Next(from)
+			}
+		})
+	}
+	wg.Wait()
 }
 
 func TestExpressions(t *testing.T) {

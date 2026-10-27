@@ -35,7 +35,6 @@ type Expression struct {
 	lastDayOfMonth         bool
 	lastWorkdayOfMonth     bool
 	daysOfMonthRestricted  bool
-	actualDaysOfMonthList  []int
 	monthList              []int
 	daysOfWeek             map[int]bool
 	specificWeekDaysOfWeek map[int]bool
@@ -267,50 +266,50 @@ func (expr *Expression) Last(fromTime time.Time) time.Time {
 		return expr.lastMonth(fromTime, false)
 	}
 
-	expr.actualDaysOfMonthList = expr.calculateActualDaysOfMonth(fromTime.Year(), int(fromTime.Month()))
-	if len(expr.actualDaysOfMonthList) == 0 {
+	actualDaysOfMonthList := expr.calculateActualDaysOfMonth(fromTime.Year(), int(fromTime.Month()))
+	if len(actualDaysOfMonthList) == 0 {
 		return expr.lastMonth(fromTime, true)
 	}
 
 	// day of month
 	v = fromTime.Day()
-	i = sort.SearchInts(expr.actualDaysOfMonthList, v)
-	if i == 0 && v != expr.actualDaysOfMonthList[i] {
+	i = sort.SearchInts(actualDaysOfMonthList, v)
+	if i == 0 && v != actualDaysOfMonthList[i] {
 		return expr.lastMonth(fromTime, true)
 	}
-	if i == len(expr.actualDaysOfMonthList) || v != expr.actualDaysOfMonthList[i] {
-		return expr.lastActualDayOfMonth(fromTime, false)
+	if i == len(actualDaysOfMonthList) || v != actualDaysOfMonthList[i] {
+		return expr.lastActualDayOfMonth(fromTime, false, actualDaysOfMonthList)
 	}
 	// hour
 	v = fromTime.Hour()
 	i = sort.SearchInts(expr.hourList, v)
 	if i == 0 && v != expr.hourList[i] {
-		return expr.lastActualDayOfMonth(fromTime, true)
+		return expr.lastActualDayOfMonth(fromTime, true, actualDaysOfMonthList)
 	}
 	if i == len(expr.hourList) || v != expr.hourList[i] {
-		return expr.lastHour(fromTime, false)
+		return expr.lastHour(fromTime, false, actualDaysOfMonthList)
 	}
 
 	// minute
 	v = fromTime.Minute()
 	i = sort.SearchInts(expr.minuteList, v)
 	if i == 0 && v != expr.minuteList[i] {
-		return expr.lastHour(fromTime, true)
+		return expr.lastHour(fromTime, true, actualDaysOfMonthList)
 	}
 	if i == len(expr.minuteList) || v != expr.minuteList[i] {
-		return expr.lastMinute(fromTime, false)
+		return expr.lastMinute(fromTime, false, actualDaysOfMonthList)
 	}
 	// second
 	v = fromTime.Second()
 	i = sort.SearchInts(expr.secondList, v)
 	if i == len(expr.secondList) {
-		return expr.lastMinute(fromTime, true)
+		return expr.lastMinute(fromTime, true, actualDaysOfMonthList)
 	}
 
 	// If we reach this point, there is nothing better to do
 	// than to move to the next second
 
-	return expr.lastSecond(fromTime)
+	return expr.lastSecond(fromTime, actualDaysOfMonthList)
 }
 
 /******************************************************************************/
