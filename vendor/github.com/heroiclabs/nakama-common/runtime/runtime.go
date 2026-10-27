@@ -341,6 +341,11 @@ type Initializer interface {
 	RegisterAuthenticateProvider(name string, provider AuthenticateProvider) error
 
 	/*
+		RegisterPurchaseProvider registers a purchase provider under its name. This name is used by server code through NakamaModule.PurchaseValidate and by clients through the generic purchase validation request to select the provider.
+	*/
+	RegisterPurchaseProvider(provider PurchaseProvider) error
+
+	/*
 		RegisterBeforeRt registers a function with for a message. Any function may be registered to intercept a message received from a client and operate on it (or reject it) based on custom logic.
 		This is useful to enforce specific rules on top of the standard features in the server.
 
@@ -381,6 +386,9 @@ type Initializer interface {
 
 	// RegisterPurchaseNotificationApple
 	RegisterPurchaseNotificationApple(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, notificationType NotificationType, purchase *api.ValidatedPurchase, payload *AppleNotificationData) error) error
+
+	// RegisterPurchaseNotificationProvider
+	RegisterPurchaseNotificationProvider(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, provider string, notificationType NotificationType, purchase *api.ValidatedPurchase, providerPayload string) error) error
 
 	// RegisterSubscriptionNotificationApple
 	RegisterSubscriptionNotificationApple(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, notificationType NotificationType, subscription *api.ValidatedSubscription, payload *AppleNotificationData) error) error
@@ -820,6 +828,12 @@ type Initializer interface {
 	// RegisterAfterValidatePurchaseSamsung can be used to perform additional logic after validating a Samsung Galaxy Store IAP receipt.
 	RegisterAfterValidatePurchaseSamsung(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseSamsungRequest) error) error
 
+	// RegisterBeforeValidatePurchase can be used to perform additional logic before validating a purchase with a registered purchase provider.
+	RegisterBeforeValidatePurchase(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ValidatePurchaseRequest) (*api.ValidatePurchaseRequest, error)) error
+
+	// RegisterAfterValidatePurchase can be used to perform additional logic after validating a purchase with a registered purchase provider.
+	RegisterAfterValidatePurchase(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseRequest) error) error
+
 	// RegisterBeforeListSubscriptions can be used to perform additional logic before listing subscriptions.
 	RegisterBeforeListSubscriptions(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ListSubscriptionsRequest) (*api.ListSubscriptionsRequest, error)) error
 
@@ -1149,6 +1163,36 @@ func (d *DefaultAuthenticateProviderResult) GetMetadata() map[string]any {
 	return d.Metadata
 }
 
+/*
+PurchaseProvider is a named purchase backend registered through Initializer.RegisterPurchaseProvider.
+*/
+type PurchaseProvider interface {
+	// Name selects the provider in validation requests and notification URLs.
+	Name() string
+	// Code identifies the provider's purchases in storage.
+	Code() int
+	// ValidatePurchase verifies the caller's payload, using any server-side overrides, and returns the purchases for Nakama to store.
+	ValidatePurchase(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, payload map[string]any, overrides map[string]any) ([]*ProviderPurchase, error)
+}
+
+/*
+PurchaseNotificationHandler is optionally implemented by a PurchaseProvider to receive refund notifications at
+/v2/console/<name>/notifications.
+*/
+type PurchaseNotificationHandler interface {
+	// HandlePurchaseNotification authenticates a refund notification and returns the refunded purchase and its user ID, if known.
+	HandlePurchaseNotification(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, body []byte, headers, query map[string][]string) (*ProviderPurchase, string, error)
+}
+
+type ProviderPurchase struct {
+	TransactionId string
+	ProductId     string
+	PurchaseTime  time.Time
+	RefundTime    time.Time
+	Environment   api.StoreEnvironment
+	RawResponse   string
+}
+
 type NakamaModule interface {
 	Authenticate(ctx context.Context, provider string, payload map[string]any, userID, username string, create bool) (string, string, bool, error)
 	AuthenticateApple(ctx context.Context, token, username string, create bool) (string, string, bool, error)
@@ -1267,6 +1311,7 @@ type NakamaModule interface {
 	PurchaseValidateSamsung(ctx context.Context, userID, purchaseId string, persist bool) (*api.ValidatePurchaseResponse, error)
 	PurchasesList(ctx context.Context, userID string, limit int, cursor string) (*api.PurchaseList, error)
 	PurchaseGetByTransactionId(ctx context.Context, transactionID string) (*api.ValidatedPurchase, error)
+	PurchaseValidate(ctx context.Context, provider, userID string, payload map[string]any, persist bool, overrides ...map[string]any) (*api.ValidatePurchaseResponse, error)
 
 	SubscriptionValidateApple(ctx context.Context, userID, receipt string, persist bool, passwordOverride ...string) (*api.ValidateSubscriptionResponse, error)
 	SubscriptionValidateGoogle(ctx context.Context, userID, receipt string, persist bool, overrides ...struct {

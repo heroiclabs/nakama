@@ -1278,6 +1278,16 @@ message ValidatePurchaseSamsungRequest {
   google.protobuf.BoolValue persist = 2;
 }
 
+// Validate a purchase with a runtime-registered purchase provider.
+message ValidatePurchaseRequest {
+  // The name the provider was registered under during runtime initialization.
+  string provider = 1;
+  // Opaque JSON passed through to the registered provider.
+  google.protobuf.Struct payload = 2;
+  // Persist the purchase so that seenBefore can be computed to protect against replay attacks.
+  google.protobuf.BoolValue persist = 3;
+}
+
 // Validated Purchase stored by Nakama.
 message ValidatedPurchase {
   // Purchase User ID.
@@ -1302,6 +1312,10 @@ message ValidatedPurchase {
   StoreEnvironment environment = 10;
   // Whether the purchase had already been validated by Nakama before.
   bool seen_before = 11;
+  // Name of the provider that validated the purchase.
+  string provider = 12;
+  // Whether a store or a purchase provider validated the purchase. For provider plugins, store holds the provider's code.
+  PurchaseSource source = 13;
 }
 
 // Validate IAP response.
@@ -1327,6 +1341,14 @@ enum StoreProvider {
   FACEBOOK_INSTANT_STORE = 3;
   // Samsung Galaxy Store
   SAMSUNG_GALAXY_STORE = 4;
+}
+
+// Purchase validation source.
+enum PurchaseSource {
+  // A built-in store, named by the store field.
+  STORE = 0;
+  // A runtime-registered purchase provider, named by the provider field.
+  PLUGIN = 1;
 }
 
 // Environment where a purchase/subscription took place,
