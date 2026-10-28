@@ -789,14 +789,14 @@ func ValidateReceiptHuawei(ctx context.Context, httpc *http.Client, pubKey, clie
 		return nil, nil, nil, err
 	}
 
-	rootUrl := "https://orders-at-dre.iap.dbankcloud.com"
+	host := "orders-at-dre.iap.dbankcloud.com"
 	if data.AccountFlag != 1 {
-		rootUrl = "https://orders-dre.iap.hicloud.com"
+		host = "orders-dre.iap.hicloud.com"
 	}
 
 	u := &url.URL{
-		Host:   rootUrl,
-		Path:   fmt.Sprintf("%s/applications/purchases/tokens/verify", rootUrl),
+		Host:   host,
+		Path:   "/applications/purchases/tokens/verify",
 		Scheme: "https",
 	}
 
