@@ -46,7 +46,7 @@ var File_apigrpc_proto protoreflect.FileDescriptor
 const file_apigrpc_proto_rawDesc = "" +
 	"\n" +
 	"\rapigrpc.proto\x12\n" +
-	"nakama.api\x1a\rapi/api.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a.protoc-gen-openapiv2/options/annotations.proto2\xd1T\n" +
+	"nakama.api\x1a\rapi/api.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a.protoc-gen-openapiv2/options/annotations.proto2\xe9U\n" +
 	"\x06Nakama\x12W\n" +
 	"\n" +
 	"AddFriends\x12\x1d.nakama.api.AddFriendsRequest\x1a\x16.google.protobuf.Empty\"\x12\x82\xd3\xe4\x93\x02\f\"\n" +
@@ -163,7 +163,8 @@ const file_apigrpc_proto_rawDesc = "" +
 	"\vUnlinkSteam\x12\x18.nakama.api.AccountSteam\x1a\x16.google.protobuf.Empty\"#\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v2/account/unlink/steam\x12a\n" +
 	"\rUpdateAccount\x12 .nakama.api.UpdateAccountRequest\x1a\x16.google.protobuf.Empty\"\x16\x82\xd3\xe4\x93\x02\x10:\x01*\x1a\v/v2/account\x12f\n" +
 	"\vUpdateGroup\x12\x1e.nakama.api.UpdateGroupRequest\x1a\x16.google.protobuf.Empty\"\x1f\x82\xd3\xe4\x93\x02\x19:\x01*\x1a\x14/v2/group/{group_id}\x12\x85\x01\n" +
-	"\x10ValidatePurchase\x12#.nakama.api.ValidatePurchaseRequest\x1a$.nakama.api.ValidatePurchaseResponse\"&\x82\xd3\xe4\x93\x02 :\x01*\"\x1b/v2/iap/purchase/{provider}\x12\x8a\x01\n" +
+	"\x10ValidatePurchase\x12#.nakama.api.ValidatePurchaseRequest\x1a$.nakama.api.ValidatePurchaseResponse\"&\x82\xd3\xe4\x93\x02 :\x01*\"\x1b/v2/iap/purchase/{provider}\x12\x95\x01\n" +
+	"\x14ValidateSubscription\x12'.nakama.api.ValidateSubscriptionRequest\x1a(.nakama.api.ValidateSubscriptionResponse\"*\x82\xd3\xe4\x93\x02$:\x01*\"\x1f/v2/iap/subscription/{provider}\x12\x8a\x01\n" +
 	"\x15ValidatePurchaseApple\x12(.nakama.api.ValidatePurchaseAppleRequest\x1a$.nakama.api.ValidatePurchaseResponse\"!\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/v2/iap/purchase/apple\x12\x9a\x01\n" +
 	"\x19ValidateSubscriptionApple\x12,.nakama.api.ValidateSubscriptionAppleRequest\x1a(.nakama.api.ValidateSubscriptionResponse\"%\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/v2/iap/subscription/apple\x12\x8d\x01\n" +
 	"\x16ValidatePurchaseGoogle\x12).nakama.api.ValidatePurchaseGoogleRequest\x1a$.nakama.api.ValidatePurchaseResponse\"\"\x82\xd3\xe4\x93\x02\x1c:\x01*\"\x17/v2/iap/purchase/google\x12\x9d\x01\n" +
@@ -256,41 +257,42 @@ var file_apigrpc_proto_goTypes = []any{
 	(*api.UpdateAccountRequest)(nil),                     // 65: nakama.api.UpdateAccountRequest
 	(*api.UpdateGroupRequest)(nil),                       // 66: nakama.api.UpdateGroupRequest
 	(*api.ValidatePurchaseRequest)(nil),                  // 67: nakama.api.ValidatePurchaseRequest
-	(*api.ValidatePurchaseAppleRequest)(nil),             // 68: nakama.api.ValidatePurchaseAppleRequest
-	(*api.ValidateSubscriptionAppleRequest)(nil),         // 69: nakama.api.ValidateSubscriptionAppleRequest
-	(*api.ValidatePurchaseGoogleRequest)(nil),            // 70: nakama.api.ValidatePurchaseGoogleRequest
-	(*api.ValidateSubscriptionGoogleRequest)(nil),        // 71: nakama.api.ValidateSubscriptionGoogleRequest
-	(*api.ValidatePurchaseHuaweiRequest)(nil),            // 72: nakama.api.ValidatePurchaseHuaweiRequest
-	(*api.ValidatePurchaseFacebookInstantRequest)(nil),   // 73: nakama.api.ValidatePurchaseFacebookInstantRequest
-	(*api.ValidatePurchaseSamsungRequest)(nil),           // 74: nakama.api.ValidatePurchaseSamsungRequest
-	(*api.WriteLeaderboardRecordRequest)(nil),            // 75: nakama.api.WriteLeaderboardRecordRequest
-	(*api.WriteStorageObjectsRequest)(nil),               // 76: nakama.api.WriteStorageObjectsRequest
-	(*api.WriteTournamentRecordRequest)(nil),             // 77: nakama.api.WriteTournamentRecordRequest
-	(*api.Session)(nil),                                  // 78: nakama.api.Session
-	(*api.Group)(nil),                                    // 79: nakama.api.Group
-	(*api.Account)(nil),                                  // 80: nakama.api.Account
-	(*api.Users)(nil),                                    // 81: nakama.api.Users
-	(*api.ValidatedSubscription)(nil),                    // 82: nakama.api.ValidatedSubscription
-	(*api.MatchmakerStats)(nil),                          // 83: nakama.api.MatchmakerStats
-	(*api.ChannelMessageList)(nil),                       // 84: nakama.api.ChannelMessageList
-	(*api.FriendList)(nil),                               // 85: nakama.api.FriendList
-	(*api.FriendsOfFriendsList)(nil),                     // 86: nakama.api.FriendsOfFriendsList
-	(*api.GroupList)(nil),                                // 87: nakama.api.GroupList
-	(*api.GroupUserList)(nil),                            // 88: nakama.api.GroupUserList
-	(*api.LeaderboardRecordList)(nil),                    // 89: nakama.api.LeaderboardRecordList
-	(*api.MatchList)(nil),                                // 90: nakama.api.MatchList
-	(*api.PartyList)(nil),                                // 91: nakama.api.PartyList
-	(*api.NotificationList)(nil),                         // 92: nakama.api.NotificationList
-	(*api.StorageObjectList)(nil),                        // 93: nakama.api.StorageObjectList
-	(*api.SubscriptionList)(nil),                         // 94: nakama.api.SubscriptionList
-	(*api.TournamentList)(nil),                           // 95: nakama.api.TournamentList
-	(*api.TournamentRecordList)(nil),                     // 96: nakama.api.TournamentRecordList
-	(*api.UserGroupList)(nil),                            // 97: nakama.api.UserGroupList
-	(*api.StorageObjects)(nil),                           // 98: nakama.api.StorageObjects
-	(*api.ValidatePurchaseResponse)(nil),                 // 99: nakama.api.ValidatePurchaseResponse
-	(*api.ValidateSubscriptionResponse)(nil),             // 100: nakama.api.ValidateSubscriptionResponse
-	(*api.LeaderboardRecord)(nil),                        // 101: nakama.api.LeaderboardRecord
-	(*api.StorageObjectAcks)(nil),                        // 102: nakama.api.StorageObjectAcks
+	(*api.ValidateSubscriptionRequest)(nil),              // 68: nakama.api.ValidateSubscriptionRequest
+	(*api.ValidatePurchaseAppleRequest)(nil),             // 69: nakama.api.ValidatePurchaseAppleRequest
+	(*api.ValidateSubscriptionAppleRequest)(nil),         // 70: nakama.api.ValidateSubscriptionAppleRequest
+	(*api.ValidatePurchaseGoogleRequest)(nil),            // 71: nakama.api.ValidatePurchaseGoogleRequest
+	(*api.ValidateSubscriptionGoogleRequest)(nil),        // 72: nakama.api.ValidateSubscriptionGoogleRequest
+	(*api.ValidatePurchaseHuaweiRequest)(nil),            // 73: nakama.api.ValidatePurchaseHuaweiRequest
+	(*api.ValidatePurchaseFacebookInstantRequest)(nil),   // 74: nakama.api.ValidatePurchaseFacebookInstantRequest
+	(*api.ValidatePurchaseSamsungRequest)(nil),           // 75: nakama.api.ValidatePurchaseSamsungRequest
+	(*api.WriteLeaderboardRecordRequest)(nil),            // 76: nakama.api.WriteLeaderboardRecordRequest
+	(*api.WriteStorageObjectsRequest)(nil),               // 77: nakama.api.WriteStorageObjectsRequest
+	(*api.WriteTournamentRecordRequest)(nil),             // 78: nakama.api.WriteTournamentRecordRequest
+	(*api.Session)(nil),                                  // 79: nakama.api.Session
+	(*api.Group)(nil),                                    // 80: nakama.api.Group
+	(*api.Account)(nil),                                  // 81: nakama.api.Account
+	(*api.Users)(nil),                                    // 82: nakama.api.Users
+	(*api.ValidatedSubscription)(nil),                    // 83: nakama.api.ValidatedSubscription
+	(*api.MatchmakerStats)(nil),                          // 84: nakama.api.MatchmakerStats
+	(*api.ChannelMessageList)(nil),                       // 85: nakama.api.ChannelMessageList
+	(*api.FriendList)(nil),                               // 86: nakama.api.FriendList
+	(*api.FriendsOfFriendsList)(nil),                     // 87: nakama.api.FriendsOfFriendsList
+	(*api.GroupList)(nil),                                // 88: nakama.api.GroupList
+	(*api.GroupUserList)(nil),                            // 89: nakama.api.GroupUserList
+	(*api.LeaderboardRecordList)(nil),                    // 90: nakama.api.LeaderboardRecordList
+	(*api.MatchList)(nil),                                // 91: nakama.api.MatchList
+	(*api.PartyList)(nil),                                // 92: nakama.api.PartyList
+	(*api.NotificationList)(nil),                         // 93: nakama.api.NotificationList
+	(*api.StorageObjectList)(nil),                        // 94: nakama.api.StorageObjectList
+	(*api.SubscriptionList)(nil),                         // 95: nakama.api.SubscriptionList
+	(*api.TournamentList)(nil),                           // 96: nakama.api.TournamentList
+	(*api.TournamentRecordList)(nil),                     // 97: nakama.api.TournamentRecordList
+	(*api.UserGroupList)(nil),                            // 98: nakama.api.UserGroupList
+	(*api.StorageObjects)(nil),                           // 99: nakama.api.StorageObjects
+	(*api.ValidatePurchaseResponse)(nil),                 // 100: nakama.api.ValidatePurchaseResponse
+	(*api.ValidateSubscriptionResponse)(nil),             // 101: nakama.api.ValidateSubscriptionResponse
+	(*api.LeaderboardRecord)(nil),                        // 102: nakama.api.LeaderboardRecord
+	(*api.StorageObjectAcks)(nil),                        // 103: nakama.api.StorageObjectAcks
 }
 var file_apigrpc_proto_depIdxs = []int32{
 	0,   // 0: nakama.api.Nakama.AddFriends:input_type -> nakama.api.AddFriendsRequest
@@ -372,107 +374,109 @@ var file_apigrpc_proto_depIdxs = []int32{
 	65,  // 76: nakama.api.Nakama.UpdateAccount:input_type -> nakama.api.UpdateAccountRequest
 	66,  // 77: nakama.api.Nakama.UpdateGroup:input_type -> nakama.api.UpdateGroupRequest
 	67,  // 78: nakama.api.Nakama.ValidatePurchase:input_type -> nakama.api.ValidatePurchaseRequest
-	68,  // 79: nakama.api.Nakama.ValidatePurchaseApple:input_type -> nakama.api.ValidatePurchaseAppleRequest
-	69,  // 80: nakama.api.Nakama.ValidateSubscriptionApple:input_type -> nakama.api.ValidateSubscriptionAppleRequest
-	70,  // 81: nakama.api.Nakama.ValidatePurchaseGoogle:input_type -> nakama.api.ValidatePurchaseGoogleRequest
-	71,  // 82: nakama.api.Nakama.ValidateSubscriptionGoogle:input_type -> nakama.api.ValidateSubscriptionGoogleRequest
-	72,  // 83: nakama.api.Nakama.ValidatePurchaseHuawei:input_type -> nakama.api.ValidatePurchaseHuaweiRequest
-	73,  // 84: nakama.api.Nakama.ValidatePurchaseFacebookInstant:input_type -> nakama.api.ValidatePurchaseFacebookInstantRequest
-	74,  // 85: nakama.api.Nakama.ValidatePurchaseSamsung:input_type -> nakama.api.ValidatePurchaseSamsungRequest
-	75,  // 86: nakama.api.Nakama.WriteLeaderboardRecord:input_type -> nakama.api.WriteLeaderboardRecordRequest
-	76,  // 87: nakama.api.Nakama.WriteStorageObjects:input_type -> nakama.api.WriteStorageObjectsRequest
-	77,  // 88: nakama.api.Nakama.WriteTournamentRecord:input_type -> nakama.api.WriteTournamentRecordRequest
-	17,  // 89: nakama.api.Nakama.AddFriends:output_type -> google.protobuf.Empty
-	17,  // 90: nakama.api.Nakama.AddGroupUsers:output_type -> google.protobuf.Empty
-	78,  // 91: nakama.api.Nakama.SessionRefresh:output_type -> nakama.api.Session
-	17,  // 92: nakama.api.Nakama.SessionLogout:output_type -> google.protobuf.Empty
-	78,  // 93: nakama.api.Nakama.AuthenticateApple:output_type -> nakama.api.Session
-	78,  // 94: nakama.api.Nakama.AuthenticateCustom:output_type -> nakama.api.Session
-	78,  // 95: nakama.api.Nakama.AuthenticateDevice:output_type -> nakama.api.Session
-	78,  // 96: nakama.api.Nakama.AuthenticateEmail:output_type -> nakama.api.Session
-	78,  // 97: nakama.api.Nakama.AuthenticateFacebook:output_type -> nakama.api.Session
-	78,  // 98: nakama.api.Nakama.AuthenticateFacebookInstantGame:output_type -> nakama.api.Session
-	78,  // 99: nakama.api.Nakama.AuthenticateGameCenter:output_type -> nakama.api.Session
-	78,  // 100: nakama.api.Nakama.AuthenticateGoogle:output_type -> nakama.api.Session
-	78,  // 101: nakama.api.Nakama.Authenticate:output_type -> nakama.api.Session
-	78,  // 102: nakama.api.Nakama.AuthenticateSteam:output_type -> nakama.api.Session
-	17,  // 103: nakama.api.Nakama.BanGroupUsers:output_type -> google.protobuf.Empty
-	17,  // 104: nakama.api.Nakama.BlockFriends:output_type -> google.protobuf.Empty
-	79,  // 105: nakama.api.Nakama.CreateGroup:output_type -> nakama.api.Group
-	17,  // 106: nakama.api.Nakama.DeleteAccount:output_type -> google.protobuf.Empty
-	17,  // 107: nakama.api.Nakama.DeleteFriends:output_type -> google.protobuf.Empty
-	17,  // 108: nakama.api.Nakama.DeleteGroup:output_type -> google.protobuf.Empty
-	17,  // 109: nakama.api.Nakama.DeleteLeaderboardRecord:output_type -> google.protobuf.Empty
-	17,  // 110: nakama.api.Nakama.DeleteNotifications:output_type -> google.protobuf.Empty
-	17,  // 111: nakama.api.Nakama.DeleteTournamentRecord:output_type -> google.protobuf.Empty
-	17,  // 112: nakama.api.Nakama.DeleteStorageObjects:output_type -> google.protobuf.Empty
-	17,  // 113: nakama.api.Nakama.Event:output_type -> google.protobuf.Empty
-	80,  // 114: nakama.api.Nakama.GetAccount:output_type -> nakama.api.Account
-	81,  // 115: nakama.api.Nakama.GetUsers:output_type -> nakama.api.Users
-	82,  // 116: nakama.api.Nakama.GetSubscription:output_type -> nakama.api.ValidatedSubscription
-	83,  // 117: nakama.api.Nakama.GetMatchmakerStats:output_type -> nakama.api.MatchmakerStats
-	17,  // 118: nakama.api.Nakama.Healthcheck:output_type -> google.protobuf.Empty
-	17,  // 119: nakama.api.Nakama.ImportFacebookFriends:output_type -> google.protobuf.Empty
-	17,  // 120: nakama.api.Nakama.ImportSteamFriends:output_type -> google.protobuf.Empty
-	17,  // 121: nakama.api.Nakama.JoinGroup:output_type -> google.protobuf.Empty
-	17,  // 122: nakama.api.Nakama.JoinTournament:output_type -> google.protobuf.Empty
-	17,  // 123: nakama.api.Nakama.KickGroupUsers:output_type -> google.protobuf.Empty
-	17,  // 124: nakama.api.Nakama.LeaveGroup:output_type -> google.protobuf.Empty
-	17,  // 125: nakama.api.Nakama.LinkApple:output_type -> google.protobuf.Empty
-	17,  // 126: nakama.api.Nakama.LinkCustom:output_type -> google.protobuf.Empty
-	17,  // 127: nakama.api.Nakama.Link:output_type -> google.protobuf.Empty
-	17,  // 128: nakama.api.Nakama.LinkDevice:output_type -> google.protobuf.Empty
-	17,  // 129: nakama.api.Nakama.LinkEmail:output_type -> google.protobuf.Empty
-	17,  // 130: nakama.api.Nakama.LinkFacebook:output_type -> google.protobuf.Empty
-	17,  // 131: nakama.api.Nakama.LinkFacebookInstantGame:output_type -> google.protobuf.Empty
-	17,  // 132: nakama.api.Nakama.LinkGameCenter:output_type -> google.protobuf.Empty
-	17,  // 133: nakama.api.Nakama.LinkGoogle:output_type -> google.protobuf.Empty
-	17,  // 134: nakama.api.Nakama.LinkSteam:output_type -> google.protobuf.Empty
-	84,  // 135: nakama.api.Nakama.ListChannelMessages:output_type -> nakama.api.ChannelMessageList
-	85,  // 136: nakama.api.Nakama.ListFriends:output_type -> nakama.api.FriendList
-	86,  // 137: nakama.api.Nakama.ListFriendsOfFriends:output_type -> nakama.api.FriendsOfFriendsList
-	87,  // 138: nakama.api.Nakama.ListGroups:output_type -> nakama.api.GroupList
-	88,  // 139: nakama.api.Nakama.ListGroupUsers:output_type -> nakama.api.GroupUserList
-	89,  // 140: nakama.api.Nakama.ListLeaderboardRecords:output_type -> nakama.api.LeaderboardRecordList
-	89,  // 141: nakama.api.Nakama.ListLeaderboardRecordsAroundOwner:output_type -> nakama.api.LeaderboardRecordList
-	90,  // 142: nakama.api.Nakama.ListMatches:output_type -> nakama.api.MatchList
-	91,  // 143: nakama.api.Nakama.ListParties:output_type -> nakama.api.PartyList
-	92,  // 144: nakama.api.Nakama.ListNotifications:output_type -> nakama.api.NotificationList
-	93,  // 145: nakama.api.Nakama.ListStorageObjects:output_type -> nakama.api.StorageObjectList
-	94,  // 146: nakama.api.Nakama.ListSubscriptions:output_type -> nakama.api.SubscriptionList
-	95,  // 147: nakama.api.Nakama.ListTournaments:output_type -> nakama.api.TournamentList
-	96,  // 148: nakama.api.Nakama.ListTournamentRecords:output_type -> nakama.api.TournamentRecordList
-	96,  // 149: nakama.api.Nakama.ListTournamentRecordsAroundOwner:output_type -> nakama.api.TournamentRecordList
-	97,  // 150: nakama.api.Nakama.ListUserGroups:output_type -> nakama.api.UserGroupList
-	17,  // 151: nakama.api.Nakama.PromoteGroupUsers:output_type -> google.protobuf.Empty
-	17,  // 152: nakama.api.Nakama.DemoteGroupUsers:output_type -> google.protobuf.Empty
-	98,  // 153: nakama.api.Nakama.ReadStorageObjects:output_type -> nakama.api.StorageObjects
-	62,  // 154: nakama.api.Nakama.RpcFunc:output_type -> nakama.api.Rpc
-	17,  // 155: nakama.api.Nakama.UnlinkApple:output_type -> google.protobuf.Empty
-	17,  // 156: nakama.api.Nakama.UnlinkCustom:output_type -> google.protobuf.Empty
-	17,  // 157: nakama.api.Nakama.Unlink:output_type -> google.protobuf.Empty
-	17,  // 158: nakama.api.Nakama.UnlinkDevice:output_type -> google.protobuf.Empty
-	17,  // 159: nakama.api.Nakama.UnlinkEmail:output_type -> google.protobuf.Empty
-	17,  // 160: nakama.api.Nakama.UnlinkFacebook:output_type -> google.protobuf.Empty
-	17,  // 161: nakama.api.Nakama.UnlinkFacebookInstantGame:output_type -> google.protobuf.Empty
-	17,  // 162: nakama.api.Nakama.UnlinkGameCenter:output_type -> google.protobuf.Empty
-	17,  // 163: nakama.api.Nakama.UnlinkGoogle:output_type -> google.protobuf.Empty
-	17,  // 164: nakama.api.Nakama.UnlinkSteam:output_type -> google.protobuf.Empty
-	17,  // 165: nakama.api.Nakama.UpdateAccount:output_type -> google.protobuf.Empty
-	17,  // 166: nakama.api.Nakama.UpdateGroup:output_type -> google.protobuf.Empty
-	99,  // 167: nakama.api.Nakama.ValidatePurchase:output_type -> nakama.api.ValidatePurchaseResponse
-	99,  // 168: nakama.api.Nakama.ValidatePurchaseApple:output_type -> nakama.api.ValidatePurchaseResponse
-	100, // 169: nakama.api.Nakama.ValidateSubscriptionApple:output_type -> nakama.api.ValidateSubscriptionResponse
-	99,  // 170: nakama.api.Nakama.ValidatePurchaseGoogle:output_type -> nakama.api.ValidatePurchaseResponse
-	100, // 171: nakama.api.Nakama.ValidateSubscriptionGoogle:output_type -> nakama.api.ValidateSubscriptionResponse
-	99,  // 172: nakama.api.Nakama.ValidatePurchaseHuawei:output_type -> nakama.api.ValidatePurchaseResponse
-	99,  // 173: nakama.api.Nakama.ValidatePurchaseFacebookInstant:output_type -> nakama.api.ValidatePurchaseResponse
-	99,  // 174: nakama.api.Nakama.ValidatePurchaseSamsung:output_type -> nakama.api.ValidatePurchaseResponse
-	101, // 175: nakama.api.Nakama.WriteLeaderboardRecord:output_type -> nakama.api.LeaderboardRecord
-	102, // 176: nakama.api.Nakama.WriteStorageObjects:output_type -> nakama.api.StorageObjectAcks
-	101, // 177: nakama.api.Nakama.WriteTournamentRecord:output_type -> nakama.api.LeaderboardRecord
-	89,  // [89:178] is the sub-list for method output_type
-	0,   // [0:89] is the sub-list for method input_type
+	68,  // 79: nakama.api.Nakama.ValidateSubscription:input_type -> nakama.api.ValidateSubscriptionRequest
+	69,  // 80: nakama.api.Nakama.ValidatePurchaseApple:input_type -> nakama.api.ValidatePurchaseAppleRequest
+	70,  // 81: nakama.api.Nakama.ValidateSubscriptionApple:input_type -> nakama.api.ValidateSubscriptionAppleRequest
+	71,  // 82: nakama.api.Nakama.ValidatePurchaseGoogle:input_type -> nakama.api.ValidatePurchaseGoogleRequest
+	72,  // 83: nakama.api.Nakama.ValidateSubscriptionGoogle:input_type -> nakama.api.ValidateSubscriptionGoogleRequest
+	73,  // 84: nakama.api.Nakama.ValidatePurchaseHuawei:input_type -> nakama.api.ValidatePurchaseHuaweiRequest
+	74,  // 85: nakama.api.Nakama.ValidatePurchaseFacebookInstant:input_type -> nakama.api.ValidatePurchaseFacebookInstantRequest
+	75,  // 86: nakama.api.Nakama.ValidatePurchaseSamsung:input_type -> nakama.api.ValidatePurchaseSamsungRequest
+	76,  // 87: nakama.api.Nakama.WriteLeaderboardRecord:input_type -> nakama.api.WriteLeaderboardRecordRequest
+	77,  // 88: nakama.api.Nakama.WriteStorageObjects:input_type -> nakama.api.WriteStorageObjectsRequest
+	78,  // 89: nakama.api.Nakama.WriteTournamentRecord:input_type -> nakama.api.WriteTournamentRecordRequest
+	17,  // 90: nakama.api.Nakama.AddFriends:output_type -> google.protobuf.Empty
+	17,  // 91: nakama.api.Nakama.AddGroupUsers:output_type -> google.protobuf.Empty
+	79,  // 92: nakama.api.Nakama.SessionRefresh:output_type -> nakama.api.Session
+	17,  // 93: nakama.api.Nakama.SessionLogout:output_type -> google.protobuf.Empty
+	79,  // 94: nakama.api.Nakama.AuthenticateApple:output_type -> nakama.api.Session
+	79,  // 95: nakama.api.Nakama.AuthenticateCustom:output_type -> nakama.api.Session
+	79,  // 96: nakama.api.Nakama.AuthenticateDevice:output_type -> nakama.api.Session
+	79,  // 97: nakama.api.Nakama.AuthenticateEmail:output_type -> nakama.api.Session
+	79,  // 98: nakama.api.Nakama.AuthenticateFacebook:output_type -> nakama.api.Session
+	79,  // 99: nakama.api.Nakama.AuthenticateFacebookInstantGame:output_type -> nakama.api.Session
+	79,  // 100: nakama.api.Nakama.AuthenticateGameCenter:output_type -> nakama.api.Session
+	79,  // 101: nakama.api.Nakama.AuthenticateGoogle:output_type -> nakama.api.Session
+	79,  // 102: nakama.api.Nakama.Authenticate:output_type -> nakama.api.Session
+	79,  // 103: nakama.api.Nakama.AuthenticateSteam:output_type -> nakama.api.Session
+	17,  // 104: nakama.api.Nakama.BanGroupUsers:output_type -> google.protobuf.Empty
+	17,  // 105: nakama.api.Nakama.BlockFriends:output_type -> google.protobuf.Empty
+	80,  // 106: nakama.api.Nakama.CreateGroup:output_type -> nakama.api.Group
+	17,  // 107: nakama.api.Nakama.DeleteAccount:output_type -> google.protobuf.Empty
+	17,  // 108: nakama.api.Nakama.DeleteFriends:output_type -> google.protobuf.Empty
+	17,  // 109: nakama.api.Nakama.DeleteGroup:output_type -> google.protobuf.Empty
+	17,  // 110: nakama.api.Nakama.DeleteLeaderboardRecord:output_type -> google.protobuf.Empty
+	17,  // 111: nakama.api.Nakama.DeleteNotifications:output_type -> google.protobuf.Empty
+	17,  // 112: nakama.api.Nakama.DeleteTournamentRecord:output_type -> google.protobuf.Empty
+	17,  // 113: nakama.api.Nakama.DeleteStorageObjects:output_type -> google.protobuf.Empty
+	17,  // 114: nakama.api.Nakama.Event:output_type -> google.protobuf.Empty
+	81,  // 115: nakama.api.Nakama.GetAccount:output_type -> nakama.api.Account
+	82,  // 116: nakama.api.Nakama.GetUsers:output_type -> nakama.api.Users
+	83,  // 117: nakama.api.Nakama.GetSubscription:output_type -> nakama.api.ValidatedSubscription
+	84,  // 118: nakama.api.Nakama.GetMatchmakerStats:output_type -> nakama.api.MatchmakerStats
+	17,  // 119: nakama.api.Nakama.Healthcheck:output_type -> google.protobuf.Empty
+	17,  // 120: nakama.api.Nakama.ImportFacebookFriends:output_type -> google.protobuf.Empty
+	17,  // 121: nakama.api.Nakama.ImportSteamFriends:output_type -> google.protobuf.Empty
+	17,  // 122: nakama.api.Nakama.JoinGroup:output_type -> google.protobuf.Empty
+	17,  // 123: nakama.api.Nakama.JoinTournament:output_type -> google.protobuf.Empty
+	17,  // 124: nakama.api.Nakama.KickGroupUsers:output_type -> google.protobuf.Empty
+	17,  // 125: nakama.api.Nakama.LeaveGroup:output_type -> google.protobuf.Empty
+	17,  // 126: nakama.api.Nakama.LinkApple:output_type -> google.protobuf.Empty
+	17,  // 127: nakama.api.Nakama.LinkCustom:output_type -> google.protobuf.Empty
+	17,  // 128: nakama.api.Nakama.Link:output_type -> google.protobuf.Empty
+	17,  // 129: nakama.api.Nakama.LinkDevice:output_type -> google.protobuf.Empty
+	17,  // 130: nakama.api.Nakama.LinkEmail:output_type -> google.protobuf.Empty
+	17,  // 131: nakama.api.Nakama.LinkFacebook:output_type -> google.protobuf.Empty
+	17,  // 132: nakama.api.Nakama.LinkFacebookInstantGame:output_type -> google.protobuf.Empty
+	17,  // 133: nakama.api.Nakama.LinkGameCenter:output_type -> google.protobuf.Empty
+	17,  // 134: nakama.api.Nakama.LinkGoogle:output_type -> google.protobuf.Empty
+	17,  // 135: nakama.api.Nakama.LinkSteam:output_type -> google.protobuf.Empty
+	85,  // 136: nakama.api.Nakama.ListChannelMessages:output_type -> nakama.api.ChannelMessageList
+	86,  // 137: nakama.api.Nakama.ListFriends:output_type -> nakama.api.FriendList
+	87,  // 138: nakama.api.Nakama.ListFriendsOfFriends:output_type -> nakama.api.FriendsOfFriendsList
+	88,  // 139: nakama.api.Nakama.ListGroups:output_type -> nakama.api.GroupList
+	89,  // 140: nakama.api.Nakama.ListGroupUsers:output_type -> nakama.api.GroupUserList
+	90,  // 141: nakama.api.Nakama.ListLeaderboardRecords:output_type -> nakama.api.LeaderboardRecordList
+	90,  // 142: nakama.api.Nakama.ListLeaderboardRecordsAroundOwner:output_type -> nakama.api.LeaderboardRecordList
+	91,  // 143: nakama.api.Nakama.ListMatches:output_type -> nakama.api.MatchList
+	92,  // 144: nakama.api.Nakama.ListParties:output_type -> nakama.api.PartyList
+	93,  // 145: nakama.api.Nakama.ListNotifications:output_type -> nakama.api.NotificationList
+	94,  // 146: nakama.api.Nakama.ListStorageObjects:output_type -> nakama.api.StorageObjectList
+	95,  // 147: nakama.api.Nakama.ListSubscriptions:output_type -> nakama.api.SubscriptionList
+	96,  // 148: nakama.api.Nakama.ListTournaments:output_type -> nakama.api.TournamentList
+	97,  // 149: nakama.api.Nakama.ListTournamentRecords:output_type -> nakama.api.TournamentRecordList
+	97,  // 150: nakama.api.Nakama.ListTournamentRecordsAroundOwner:output_type -> nakama.api.TournamentRecordList
+	98,  // 151: nakama.api.Nakama.ListUserGroups:output_type -> nakama.api.UserGroupList
+	17,  // 152: nakama.api.Nakama.PromoteGroupUsers:output_type -> google.protobuf.Empty
+	17,  // 153: nakama.api.Nakama.DemoteGroupUsers:output_type -> google.protobuf.Empty
+	99,  // 154: nakama.api.Nakama.ReadStorageObjects:output_type -> nakama.api.StorageObjects
+	62,  // 155: nakama.api.Nakama.RpcFunc:output_type -> nakama.api.Rpc
+	17,  // 156: nakama.api.Nakama.UnlinkApple:output_type -> google.protobuf.Empty
+	17,  // 157: nakama.api.Nakama.UnlinkCustom:output_type -> google.protobuf.Empty
+	17,  // 158: nakama.api.Nakama.Unlink:output_type -> google.protobuf.Empty
+	17,  // 159: nakama.api.Nakama.UnlinkDevice:output_type -> google.protobuf.Empty
+	17,  // 160: nakama.api.Nakama.UnlinkEmail:output_type -> google.protobuf.Empty
+	17,  // 161: nakama.api.Nakama.UnlinkFacebook:output_type -> google.protobuf.Empty
+	17,  // 162: nakama.api.Nakama.UnlinkFacebookInstantGame:output_type -> google.protobuf.Empty
+	17,  // 163: nakama.api.Nakama.UnlinkGameCenter:output_type -> google.protobuf.Empty
+	17,  // 164: nakama.api.Nakama.UnlinkGoogle:output_type -> google.protobuf.Empty
+	17,  // 165: nakama.api.Nakama.UnlinkSteam:output_type -> google.protobuf.Empty
+	17,  // 166: nakama.api.Nakama.UpdateAccount:output_type -> google.protobuf.Empty
+	17,  // 167: nakama.api.Nakama.UpdateGroup:output_type -> google.protobuf.Empty
+	100, // 168: nakama.api.Nakama.ValidatePurchase:output_type -> nakama.api.ValidatePurchaseResponse
+	101, // 169: nakama.api.Nakama.ValidateSubscription:output_type -> nakama.api.ValidateSubscriptionResponse
+	100, // 170: nakama.api.Nakama.ValidatePurchaseApple:output_type -> nakama.api.ValidatePurchaseResponse
+	101, // 171: nakama.api.Nakama.ValidateSubscriptionApple:output_type -> nakama.api.ValidateSubscriptionResponse
+	100, // 172: nakama.api.Nakama.ValidatePurchaseGoogle:output_type -> nakama.api.ValidatePurchaseResponse
+	101, // 173: nakama.api.Nakama.ValidateSubscriptionGoogle:output_type -> nakama.api.ValidateSubscriptionResponse
+	100, // 174: nakama.api.Nakama.ValidatePurchaseHuawei:output_type -> nakama.api.ValidatePurchaseResponse
+	100, // 175: nakama.api.Nakama.ValidatePurchaseFacebookInstant:output_type -> nakama.api.ValidatePurchaseResponse
+	100, // 176: nakama.api.Nakama.ValidatePurchaseSamsung:output_type -> nakama.api.ValidatePurchaseResponse
+	102, // 177: nakama.api.Nakama.WriteLeaderboardRecord:output_type -> nakama.api.LeaderboardRecord
+	103, // 178: nakama.api.Nakama.WriteStorageObjects:output_type -> nakama.api.StorageObjectAcks
+	102, // 179: nakama.api.Nakama.WriteTournamentRecord:output_type -> nakama.api.LeaderboardRecord
+	90,  // [90:180] is the sub-list for method output_type
+	0,   // [0:90] is the sub-list for method input_type
 	0,   // [0:0] is the sub-list for extension type_name
 	0,   // [0:0] is the sub-list for extension extendee
 	0,   // [0:0] is the sub-list for field type_name

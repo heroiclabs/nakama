@@ -6054,6 +6054,14 @@
         "active": {
           "type": "boolean",
           "description": "Whether the subscription is currently active or not."
+        },
+        "provider": {
+          "type": "string",
+          "description": "Name of the provider that validated the subscription."
+        },
+        "source": {
+          "$ref": "#/definitions/PurchaseSource",
+          "description": "Whether a store or a purchase provider validated the subscription. For provider plugins, store holds the provider's code."
         }
       }
     },

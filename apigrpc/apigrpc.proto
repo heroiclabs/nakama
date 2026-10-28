@@ -722,6 +722,14 @@ service Nakama {
     };
   }
 
+  // Validate a subscription with a registered purchase provider
+  rpc ValidateSubscription (api.ValidateSubscriptionRequest) returns (api.ValidateSubscriptionResponse) {
+    option (google.api.http) = {
+      post: "/v2/iap/subscription/{provider}",
+      body: "*"
+    };
+  }
+
   // Validate Apple IAP Receipt
   rpc ValidatePurchaseApple (api.ValidatePurchaseAppleRequest) returns (api.ValidatePurchaseResponse) {
     option (google.api.http) = {

@@ -2677,6 +2677,46 @@
         ]
       }
     },
+    "/v2/iap/subscription/{provider}": {
+      "post": {
+        "summary": "Validate a subscription with a registered purchase provider",
+        "operationId": "Nakama_ValidateSubscription",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiValidateSubscriptionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "provider",
+            "description": "The name the provider was registered under during runtime initialization.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/NakamaValidateSubscriptionBody"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
     "/v2/leaderboard/{leaderboardId}": {
       "get": {
         "summary": "List leaderboard records.",
@@ -3970,6 +4010,20 @@
         }
       },
       "description": "Validate a purchase with a runtime-registered purchase provider."
+    },
+    "NakamaValidateSubscriptionBody": {
+      "type": "object",
+      "properties": {
+        "payload": {
+          "type": "object",
+          "description": "Opaque JSON passed through to the registered provider."
+        },
+        "persist": {
+          "type": "boolean",
+          "description": "Persist the subscription."
+        }
+      },
+      "description": "Validate a subscription with a runtime-registered purchase provider."
     },
     "UserGroupListUserGroup": {
       "type": "object",
@@ -5743,6 +5797,14 @@
         "active": {
           "type": "boolean",
           "description": "Whether the subscription is currently active or not."
+        },
+        "provider": {
+          "type": "string",
+          "description": "Name of the provider that validated the subscription."
+        },
+        "source": {
+          "$ref": "#/definitions/apiPurchaseSource",
+          "description": "Whether a store or a purchase provider validated the subscription. For provider plugins, store holds the provider's code."
         }
       }
     },
