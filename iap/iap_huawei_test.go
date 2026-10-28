@@ -24,7 +24,6 @@ import (
 	"encoding/base64"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 	"testing"
 
@@ -38,7 +37,7 @@ func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
 }
 
-func TestHuaweiValidationNeverReachesHuaweiBecauseTheVerifyURLIsMalformed(t *testing.T) {
+func TestHuaweiValidationSendsThePurchaseToHuaweisVerifyEndpoint(t *testing.T) {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 	publicKey, err := x509.MarshalPKIXPublicKey(&key.PublicKey)
@@ -60,8 +59,9 @@ func TestHuaweiValidationNeverReachesHuaweiBecauseTheVerifyURLIsMalformed(t *tes
 
 	_, _, _, err = ValidateReceiptHuawei(context.Background(), httpc, base64.StdEncoding.EncodeToString(publicKey), "client-id", "client-secret", purchaseData, base64.StdEncoding.EncodeToString(signature))
 
-	var urlErr *url.Error
-	require.ErrorAs(t, err, &urlErr)
-	assert.Equal(t, "https://https:%2F%2Forders-dre.iap.hicloud.com/https://orders-dre.iap.hicloud.com/applications/purchases/tokens/verify", urlErr.URL)
-	assert.Equal(t, []string{"https://oauth-login.cloud.huawei.com/oauth2/v3/token"}, requested)
+	require.NoError(t, err)
+	assert.Equal(t, []string{
+		"https://oauth-login.cloud.huawei.com/oauth2/v3/token",
+		"https://orders-dre.iap.hicloud.com/applications/purchases/tokens/verify",
+	}, requested)
 }
