@@ -7,7 +7,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Added
 - Add Go runtime IAP providers, validated with the `ValidatePurchase` client API and `PurchaseValidate` function.
 - Add subscription validation through IAP providers with the `ValidateSubscription` client API and `SubscriptionValidate` function, and the `RegisterBeforeValidateSubscription` and `RegisterAfterValidateSubscription` hooks.
-- Add IAP provider notification endpoints for purchase refunds and subscription changes, with the `RegisterIAPPurchaseNotification` and `RegisterIAPSubscriptionNotification` hooks.
+- Add a notification endpoint for each IAP provider at `/v2/console/<NotificationId>/notifications`, or `/v2/console/<Name>/notifications` when the provider returns no `NotificationId`.
+- Add the `RegisterIAPPurchaseNotification` and `RegisterIAPSubscriptionNotification` hooks for purchase refunds and subscription changes reported by IAP providers.
 
 ### Changed
 - Directory listings on the console port now return an HTTP 404 Not Found error.

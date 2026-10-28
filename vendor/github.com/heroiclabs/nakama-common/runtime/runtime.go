@@ -1176,8 +1176,10 @@ func (d *DefaultAuthenticateProviderResult) GetMetadata() map[string]any {
 IAPProvider is a named purchase backend registered through Initializer.RegisterIAPProvider.
 */
 type IAPProvider interface {
-	// Name selects the provider in validation requests and notification URLs.
+	// Name selects the provider in validation requests.
 	Name() string
+	// NotificationId is the path segment of the provider's notification endpoint. When empty, Name is used.
+	NotificationId() string
 	// Code identifies the provider's purchases in storage.
 	Code() int
 	// ValidatePurchase verifies the caller's payload, using any server-side overrides, and returns the purchases for Nakama to store.

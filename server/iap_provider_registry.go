@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -26,6 +27,8 @@ import (
 	"github.com/heroiclabs/nakama-common/runtime"
 	"google.golang.org/grpc/codes"
 )
+
+var iapProviderNameRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,128}$`)
 
 type RuntimeIAPProviderPurchaseFunction func(ctx context.Context, traceID string, payload, overrides map[string]any) ([]*runtime.IAPProviderPurchase, error, codes.Code)
 
@@ -35,6 +38,7 @@ type RuntimeIAPProviderNotificationFunction func(ctx context.Context, body []byt
 
 type RuntimeIAPProviderFunctions struct {
 	name                 string
+	notificationId       string
 	storeCode            int
 	validate             RuntimeIAPProviderPurchaseFunction
 	validateSubscription RuntimeIAPProviderSubscriptionFunction
@@ -42,17 +46,28 @@ type RuntimeIAPProviderFunctions struct {
 }
 
 type RuntimeIAPProviderRegistry struct {
-	providersByName MapOf[string, *RuntimeIAPProviderFunctions]
-	providersByCode MapOf[int, *RuntimeIAPProviderFunctions]
+	providersByName           MapOf[string, *RuntimeIAPProviderFunctions]
+	providersByCode           MapOf[int, *RuntimeIAPProviderFunctions]
+	providersByNotificationId MapOf[string, *RuntimeIAPProviderFunctions]
 }
 
-func (r *RuntimeIAPProviderRegistry) Register(name string, code int, validate RuntimeIAPProviderPurchaseFunction, validateSubscription RuntimeIAPProviderSubscriptionFunction, notificationHandler RuntimeIAPProviderNotificationFunction) error {
-	if !authenticationProviderNameRegex.MatchString(name) {
+func (r *RuntimeIAPProviderRegistry) Register(name, notificationId string, code int, validate RuntimeIAPProviderPurchaseFunction, validateSubscription RuntimeIAPProviderSubscriptionFunction, notificationHandler RuntimeIAPProviderNotificationFunction) error {
+	if !iapProviderNameRegex.MatchString(name) {
 		return errors.New("expects provider name to be valid, must be 1-128 bytes and contain only [a-zA-Z0-9_-]")
 	}
 	switch name {
 	case "apple", "google", "huawei", "facebookinstant", "samsung":
 		return fmt.Errorf("IAP provider name is reserved: %s", name)
+	}
+	if notificationId == "" {
+		notificationId = name
+	}
+	if !iapProviderNameRegex.MatchString(notificationId) {
+		return fmt.Errorf("expects IAP provider notification id to be valid, must be 1-128 bytes and contain only [a-zA-Z0-9_-]: %s", name)
+	}
+	switch notificationId {
+	case "apple", "google", "huawei", "facebookinstant", "samsung":
+		return fmt.Errorf("IAP provider notification id is reserved: %s", name)
 	}
 	if code < math.MinInt16 || code > math.MaxInt16 {
 		return fmt.Errorf("IAP provider code must fit in 16 bits: %s has %d", name, code)
@@ -60,13 +75,18 @@ func (r *RuntimeIAPProviderRegistry) Register(name string, code int, validate Ru
 	if _, builtIn := api.StoreProvider_name[int32(code)]; builtIn {
 		return fmt.Errorf("IAP provider code %d is used by a built-in store: %s", code, name)
 	}
-	provider := &RuntimeIAPProviderFunctions{name: name, storeCode: code, validate: validate, validateSubscription: validateSubscription, notificationHandler: notificationHandler}
-	if _, dup := r.providersByName.LoadOrStore(name, provider); dup {
+	provider := &RuntimeIAPProviderFunctions{name: name, notificationId: notificationId, storeCode: code, validate: validate, validateSubscription: validateSubscription, notificationHandler: notificationHandler}
+	if _, found := r.providersByName.LoadOrStore(name, provider); found {
 		return fmt.Errorf("IAP provider already registered: %s", name)
 	}
-	if owner, dup := r.providersByCode.LoadOrStore(code, provider); dup {
+	if provider, found := r.providersByCode.LoadOrStore(code, provider); found {
 		r.providersByName.Delete(name)
-		return fmt.Errorf("IAP provider code %d is already used by %s", code, owner.name)
+		return fmt.Errorf("IAP provider code %d is already used by %s", code, provider.name)
+	}
+	if provider, found := r.providersByNotificationId.LoadOrStore(notificationId, provider); found {
+		r.providersByName.Delete(name)
+		r.providersByCode.Delete(code)
+		return fmt.Errorf("IAP provider notification id of %s is already used by %s", name, provider.name)
 	}
 	return nil
 }
