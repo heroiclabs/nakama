@@ -1097,7 +1097,7 @@ func parseMillisecondUnixTimestamp(t int64) time.Time {
 	return time.Unix(0, 0).Add(time.Duration(t) * time.Millisecond)
 }
 
-func purchaseProviderNotificationHandler(logger *zap.Logger, db *sql.DB, registry *RuntimePurchaseProviderRegistry, provider *RuntimePurchaseProviderFunctions, hook RuntimePurchaseNotificationProviderFunction, subscriptionHook RuntimeSubscriptionNotificationProviderFunction) http.HandlerFunc {
+func purchaseProviderNotificationHandler(logger *zap.Logger, db *sql.DB, registry *RuntimePurchaseProviderRegistry, provider *RuntimePurchaseProviderFunctions, purchaseHook RuntimePurchaseNotificationProviderFunction, subscriptionHook RuntimeSubscriptionNotificationProviderFunction) http.HandlerFunc {
 	logger = logger.With(zap.String("provider", provider.name))
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
@@ -1107,199 +1107,191 @@ func purchaseProviderNotificationHandler(logger *zap.Logger, db *sql.DB, registr
 			return
 		}
 
-		notification, err := provider.notificationHandler(r.Context(), body, r.Header, r.URL.Query())
+		notifications, err := provider.notificationHandler(r.Context(), body, r.Header, r.URL.Query())
 		if err != nil {
 			logger.Error("Failed to handle purchase provider notification", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		if notification == nil {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-
-		if subscription := notification.Subscription; subscription != nil {
-			if subscription.OriginalTransactionId == "" {
-				logger.Error("Purchase provider subscription notification has no original transaction ID")
-				w.WriteHeader(http.StatusOK)
-				return
+		for _, notification := range notifications {
+			if notification == nil {
+				continue
 			}
 
-			existing, err := getSubscriptionByOriginalTransactionId(r.Context(), logger, db, registry, subscription.OriginalTransactionId)
+			if subscription := notification.Subscription; subscription != nil {
+				if subscription.OriginalTransactionId == "" {
+					logger.Error("Purchase provider subscription notification has no original transaction ID")
+					continue
+				}
+
+				existing, err := getSubscriptionByOriginalTransactionId(r.Context(), logger, db, registry, subscription.OriginalTransactionId)
+				if err != nil {
+					logger.Error("Failed to get subscription by original transaction id", zap.Error(err))
+					w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
+					return
+				}
+				if existing != nil && existing.Store != api.StoreProvider(provider.storeCode) {
+					logger.Warn("Purchase provider subscription notification original transaction ID belongs to another store", zap.String("original_transaction_id", subscription.OriginalTransactionId))
+					continue
+				}
+
+				uid := uuid.FromStringOrNil(notification.UserId)
+				if uid.IsNil() {
+					if existing == nil || existing.UserId == "" {
+						logger.Warn("No userId found for this purchase provider subscription notification", zap.String("original_transaction_id", subscription.OriginalTransactionId))
+						if notification.RequireUser {
+							w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
+							return
+						}
+						continue
+					}
+					uid = uuid.Must(uuid.FromString(existing.UserId))
+				}
+
+				refundTime := subscription.RefundTime
+				if refundTime.IsZero() && notification.Type == runtime.IAPNotificationRefunded {
+					refundTime = time.Now()
+				}
+				sub := &storageSubscription{
+					userID:                uid,
+					originalTransactionId: subscription.OriginalTransactionId,
+					store:                 api.StoreProvider(provider.storeCode),
+					productId:             subscription.ProductId,
+					purchaseTime:          subscription.PurchaseTime,
+					environment:           subscription.Environment,
+					expireTime:            subscription.ExpiryTime,
+					refundTime:            refundTime,
+					rawResponse:           subscription.RawResponse,
+					rawNotification:       string(body),
+				}
+
+				if err = ExecuteInTx(r.Context(), db, func(tx *sql.Tx) error {
+					return upsertSubscription(r.Context(), tx, sub)
+				}); err != nil {
+					var pgErr *pgconn.PgError
+					if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
+						logger.Warn("User not found for this purchase provider subscription notification", zap.String("original_transaction_id", subscription.OriginalTransactionId))
+						continue
+					}
+					logger.Error("Failed to store purchase provider notification subscription data", zap.Error(err))
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+
+				if subscriptionHook != nil && notification.Type != 0 {
+					suid := sub.userID.String()
+					if sub.userID.IsNil() {
+						suid = ""
+					}
+					validatedSub := &api.ValidatedSubscription{
+						UserId:                suid,
+						ProductId:             sub.productId,
+						OriginalTransactionId: sub.originalTransactionId,
+						Store:                 sub.store,
+						Provider:              provider.name,
+						Source:                api.PurchaseSource_PLUGIN,
+						PurchaseTime:          timestamppb.New(sub.purchaseTime),
+						CreateTime:            timestamppb.New(sub.createTime),
+						UpdateTime:            timestamppb.New(sub.updateTime),
+						Environment:           sub.environment,
+						ExpiryTime:            timestamppb.New(sub.expireTime),
+						RefundTime:            timestamppb.New(sub.refundTime),
+						ProviderResponse:      sub.rawResponse,
+						ProviderNotification:  sub.rawNotification,
+						Active:                sub.Active(),
+					}
+
+					if err = subscriptionHook(r.Context(), provider.name, notification.Type, validatedSub, string(body)); err != nil {
+						logger.Error("Error invoking purchase provider subscription notification function", zap.Error(err), zap.String("original_transaction_id", sub.originalTransactionId))
+					}
+				}
+
+				continue
+			}
+
+			if notification.Purchase == nil {
+				continue
+			}
+			if notification.Type != runtime.IAPNotificationRefunded {
+				logger.Warn("Purchase provider purchase notification is not a refund, ignoring", zap.String("notification_type", notification.Type.String()))
+				continue
+			}
+			purchase := notification.Purchase
+
+			existing, err := GetPurchaseByTransactionId(r.Context(), logger, db, registry, purchase.TransactionId)
 			if err != nil {
-				logger.Error("Failed to get subscription by original transaction id", zap.Error(err))
+				logger.Error("Failed to get purchase by transaction id", zap.Error(err))
 				w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
 				return
 			}
-			if existing != nil && existing.Store != api.StoreProvider(provider.storeCode) {
-				logger.Warn("Purchase provider subscription notification original transaction ID belongs to another store", zap.String("original_transaction_id", subscription.OriginalTransactionId))
-				w.WriteHeader(http.StatusOK)
-				return
+			if existing != nil && existing.Provider != provider.name {
+				logger.Warn("Purchase provider refund notification transaction ID belongs to another store", zap.String("transaction_id", purchase.TransactionId))
+				continue
 			}
 
 			uid := uuid.FromStringOrNil(notification.UserId)
 			if uid.IsNil() {
 				if existing == nil || existing.UserId == "" {
-					logger.Warn("No userId found for this purchase provider subscription notification", zap.String("original_transaction_id", subscription.OriginalTransactionId))
+					logger.Warn("No userId found for this purchase provider refund notification", zap.String("transaction_id", purchase.TransactionId))
 					if notification.RequireUser {
 						w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
 						return
 					}
-					w.WriteHeader(http.StatusOK)
-					return
+					continue
 				}
 				uid = uuid.Must(uuid.FromString(existing.UserId))
 			}
 
-			refundTime := subscription.RefundTime
-			if refundTime.IsZero() && notification.Type == runtime.IAPNotificationRefunded {
+			refundTime := purchase.RefundTime
+			if refundTime.IsZero() {
 				refundTime = time.Now()
 			}
-			sub := &storageSubscription{
-				userID:                uid,
-				originalTransactionId: subscription.OriginalTransactionId,
-				store:                 api.StoreProvider(provider.storeCode),
-				productId:             subscription.ProductId,
-				purchaseTime:          subscription.PurchaseTime,
-				environment:           subscription.Environment,
-				expireTime:            subscription.ExpiryTime,
-				refundTime:            refundTime,
-				rawResponse:           subscription.RawResponse,
-				rawNotification:       string(body),
+			purchaseToStore := &storagePurchase{
+				userID:        uid,
+				store:         provider.storeCode,
+				productId:     purchase.ProductId,
+				transactionId: purchase.TransactionId,
+				rawResponse:   purchase.RawResponse,
+				purchaseTime:  purchase.PurchaseTime,
+				refundTime:    refundTime,
+				environment:   purchase.Environment,
 			}
 
-			if err = ExecuteInTx(r.Context(), db, func(tx *sql.Tx) error {
-				return upsertSubscription(r.Context(), tx, sub)
-			}); err != nil {
+			dbPurchases, err := upsertPurchases(r.Context(), db, []*storagePurchase{purchaseToStore})
+			if err != nil {
 				var pgErr *pgconn.PgError
 				if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
-					logger.Warn("User not found for this purchase provider subscription notification", zap.String("original_transaction_id", subscription.OriginalTransactionId))
-					w.WriteHeader(http.StatusOK)
-					return
+					logger.Warn("User not found for this purchase provider refund notification", zap.String("transaction_id", purchase.TransactionId))
+					continue
 				}
-				logger.Error("Failed to store purchase provider notification subscription data", zap.Error(err))
+				logger.Error("Failed to store purchase provider notification purchase data", zap.Error(err))
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 
-			if subscriptionHook != nil && notification.Type != 0 {
-				suid := sub.userID.String()
-				if sub.userID.IsNil() {
-					suid = ""
-				}
-				validatedSub := &api.ValidatedSubscription{
-					UserId:                suid,
-					ProductId:             sub.productId,
-					OriginalTransactionId: sub.originalTransactionId,
-					Store:                 sub.store,
-					Provider:              provider.name,
-					Source:                api.PurchaseSource_PLUGIN,
-					PurchaseTime:          timestamppb.New(sub.purchaseTime),
-					CreateTime:            timestamppb.New(sub.createTime),
-					UpdateTime:            timestamppb.New(sub.updateTime),
-					Environment:           sub.environment,
-					ExpiryTime:            timestamppb.New(sub.expireTime),
-					RefundTime:            timestamppb.New(sub.refundTime),
-					ProviderResponse:      sub.rawResponse,
-					ProviderNotification:  sub.rawNotification,
-					Active:                sub.Active(),
+			if purchaseHook != nil {
+				dbPurchase := dbPurchases[0]
+				validatedPurchase := &api.ValidatedPurchase{
+					UserId:           dbPurchase.userID.String(),
+					ProductId:        purchase.ProductId,
+					TransactionId:    purchase.TransactionId,
+					Store:            api.StoreProvider(provider.storeCode),
+					Provider:         provider.name,
+					Source:           api.PurchaseSource_PLUGIN,
+					CreateTime:       timestamppb.New(dbPurchase.createTime),
+					UpdateTime:       timestamppb.New(dbPurchase.updateTime),
+					PurchaseTime:     timestamppb.New(dbPurchase.purchaseTime),
+					RefundTime:       timestamppb.New(dbPurchase.refundTime),
+					ProviderResponse: purchase.RawResponse,
+					Environment:      purchase.Environment,
+					SeenBefore:       dbPurchase.seenBefore,
 				}
 
-				if err = subscriptionHook(r.Context(), provider.name, notification.Type, validatedSub, string(body)); err != nil {
-					logger.Error("Error invoking purchase provider subscription notification function", zap.Error(err), zap.String("original_transaction_id", sub.originalTransactionId))
+				if err = purchaseHook(r.Context(), provider.name, runtime.IAPNotificationRefunded, validatedPurchase, string(body)); err != nil {
+					logger.Error("Error invoking purchase provider notification function", zap.Error(err), zap.String("transaction_id", purchase.TransactionId))
 				}
 			}
 
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-
-		if notification.Purchase == nil {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-		if notification.Type != runtime.IAPNotificationRefunded {
-			logger.Warn("Purchase provider purchase notification is not a refund, ignoring", zap.String("notification_type", notification.Type.String()))
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-		purchase := notification.Purchase
-
-		existing, err := GetPurchaseByTransactionId(r.Context(), logger, db, registry, purchase.TransactionId)
-		if err != nil {
-			logger.Error("Failed to get purchase by transaction id", zap.Error(err))
-			w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
-			return
-		}
-		if existing != nil && existing.Provider != provider.name {
-			logger.Warn("Purchase provider refund notification transaction ID belongs to another store", zap.String("transaction_id", purchase.TransactionId))
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-
-		uid := uuid.FromStringOrNil(notification.UserId)
-		if uid.IsNil() {
-			if existing == nil || existing.UserId == "" {
-				logger.Warn("No userId found for this purchase provider refund notification", zap.String("transaction_id", purchase.TransactionId))
-				if notification.RequireUser {
-					w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
-					return
-				}
-				w.WriteHeader(http.StatusOK)
-				return
-			}
-			uid = uuid.Must(uuid.FromString(existing.UserId))
-		}
-
-		refundTime := purchase.RefundTime
-		if refundTime.IsZero() {
-			refundTime = time.Now()
-		}
-		purchaseToStore := &storagePurchase{
-			userID:        uid,
-			store:         provider.storeCode,
-			productId:     purchase.ProductId,
-			transactionId: purchase.TransactionId,
-			rawResponse:   purchase.RawResponse,
-			purchaseTime:  purchase.PurchaseTime,
-			refundTime:    refundTime,
-			environment:   purchase.Environment,
-		}
-
-		dbPurchases, err := upsertPurchases(r.Context(), db, []*storagePurchase{purchaseToStore})
-		if err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
-				logger.Warn("User not found for this purchase provider refund notification", zap.String("transaction_id", purchase.TransactionId))
-				w.WriteHeader(http.StatusOK)
-				return
-			}
-			logger.Error("Failed to store purchase provider notification purchase data", zap.Error(err))
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-
-		if hook != nil {
-			dbPurchase := dbPurchases[0]
-			validatedPurchase := &api.ValidatedPurchase{
-				UserId:           dbPurchase.userID.String(),
-				ProductId:        purchase.ProductId,
-				TransactionId:    purchase.TransactionId,
-				Store:            api.StoreProvider(provider.storeCode),
-				Provider:         provider.name,
-				Source:           api.PurchaseSource_PLUGIN,
-				CreateTime:       timestamppb.New(dbPurchase.createTime),
-				UpdateTime:       timestamppb.New(dbPurchase.updateTime),
-				PurchaseTime:     timestamppb.New(dbPurchase.purchaseTime),
-				RefundTime:       timestamppb.New(dbPurchase.refundTime),
-				ProviderResponse: purchase.RawResponse,
-				Environment:      purchase.Environment,
-				SeenBefore:       dbPurchase.seenBefore,
-			}
-
-			if err = hook(r.Context(), provider.name, runtime.IAPNotificationRefunded, validatedPurchase, string(body)); err != nil {
-				logger.Error("Error invoking purchase provider notification function", zap.Error(err), zap.String("transaction_id", purchase.TransactionId))
-			}
 		}
 
 		w.WriteHeader(http.StatusOK)

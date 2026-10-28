@@ -1197,12 +1197,12 @@ NotificationHandler is optionally implemented by a PurchaseProvider to receive s
 /v2/console/<name>/notifications.
 */
 type NotificationHandler interface {
-	// HandleNotification authenticates a notification and returns the update it carries, or nil to acknowledge and ignore it.
-	HandleNotification(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, body []byte, headers, query map[string][]string) (*ProviderNotification, error)
+	// HandleNotification authenticates a notification and returns the updates it carries, in order, or none to acknowledge and ignore it.
+	HandleNotification(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, body []byte, headers, query map[string][]string) ([]*ProviderNotification, error)
 }
 
 /*
-ProviderNotification is the update a notification carries: a refunded Purchase, or a Subscription change.
+ProviderNotification is one update a notification carries: a refunded Purchase, or a Subscription change.
 A Subscription with a zero Type is stored without calling the notification hook.
 */
 type ProviderNotification struct {

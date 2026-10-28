@@ -31,7 +31,7 @@ type RuntimePurchaseProviderFunction func(ctx context.Context, traceID string, p
 
 type RuntimeSubscriptionProviderFunction func(ctx context.Context, traceID string, payload, overrides map[string]any) ([]*runtime.ProviderSubscription, error, codes.Code)
 
-type RuntimeProviderNotificationHandlerFunction func(ctx context.Context, body []byte, headers, query map[string][]string) (*runtime.ProviderNotification, error)
+type RuntimeProviderNotificationHandlerFunction func(ctx context.Context, body []byte, headers, query map[string][]string) ([]*runtime.ProviderNotification, error)
 
 type RuntimePurchaseProviderFunctions struct {
 	name                 string

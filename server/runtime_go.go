@@ -4035,7 +4035,7 @@ func (ri *RuntimeGoInitializer) RegisterPurchaseProvider(provider runtime.Purcha
 
 	var notificationFunc RuntimeProviderNotificationHandlerFunction
 	if handler, ok := provider.(runtime.NotificationHandler); ok {
-		notificationFunc = func(ctx context.Context, body []byte, headers, query map[string][]string) (*runtime.ProviderNotification, error) {
+		notificationFunc = func(ctx context.Context, body []byte, headers, query map[string][]string) ([]*runtime.ProviderNotification, error) {
 			ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModePurchaseNotificationProvider, nil, nil, "", 0, "", "", nil, "", "", "", "")
 			return handler.HandleNotification(ctx, ri.logger.WithFields(map[string]any{"mode": RuntimeExecutionModePurchaseNotificationProvider.String(), "provider": name}), ri.db, ri.nk, body, headers, query)
 		}
