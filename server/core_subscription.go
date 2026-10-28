@@ -568,9 +568,6 @@ func ValidateSubscription(ctx context.Context, logger *zap.Logger, db *sql.DB, r
 	if provider == nil {
 		return nil, status.Error(codes.InvalidArgument, "IAP provider not found: "+providerName)
 	}
-	if provider.validateSubscription == nil {
-		return nil, status.Error(codes.InvalidArgument, "IAP provider does not validate subscriptions: "+providerName)
-	}
 
 	subscriptions, err, code := provider.validateSubscription(ctx, traceID, payload, overrides)
 	if err != nil {

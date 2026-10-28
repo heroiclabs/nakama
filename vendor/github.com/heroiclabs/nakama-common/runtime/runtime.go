@@ -1180,7 +1180,7 @@ type IAPProvider interface {
 	Name() string
 	// NotificationId is the path segment of the provider's notification endpoint. When empty, Name is used.
 	NotificationId() string
-	// Code identifies the provider's purchases in storage.
+	// Code identifies the provider's purchases and subscriptions in storage.
 	Code() int
 	// ValidatePurchase verifies the caller's payload, using any server-side overrides, and returns the purchases for Nakama to store.
 	ValidatePurchase(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, payload map[string]any, overrides map[string]any) ([]*IAPProviderPurchase, error)

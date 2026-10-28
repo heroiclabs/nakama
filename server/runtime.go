@@ -2987,7 +2987,7 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	}
 
 	for name, provider := range iapProviderRegistry.providersByName.Range {
-		startupLogger.Info("Registered Go runtime Purchase Provider", zap.String("provider", name), zap.Int("store_code", provider.storeCode))
+		startupLogger.Info("Registered Go runtime IAP Provider", zap.String("provider", name), zap.Int("store_code", provider.storeCode))
 	}
 
 	return &Runtime{
