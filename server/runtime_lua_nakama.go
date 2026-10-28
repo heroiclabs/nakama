@@ -8467,7 +8467,7 @@ func (n *RuntimeLuaNakamaModule) purchasesList(l *lua.LState) int {
 
 	cursor := l.OptString(3, "")
 
-	purchases, err := ListPurchases(l.Context(), n.logger, n.db, n.iapProviderRegistry, userID, limit, cursor, time.Time{}, time.Time{})
+	purchases, err := ListPurchases(l.Context(), n.logger, n.db, n.iapProviderRegistry, userID, limit, cursor, time.Time{}, time.Time{}, nil)
 	if err != nil {
 		l.RaiseError("error retrieving purchases: %v", err.Error())
 		return 0
@@ -8646,7 +8646,7 @@ func (n *RuntimeLuaNakamaModule) subscriptionsList(l *lua.LState) int {
 
 	cursor := l.OptString(3, "")
 
-	subscriptions, err := ListSubscriptions(l.Context(), n.logger, n.db, n.iapProviderRegistry, userID, limit, cursor, time.Time{}, time.Time{})
+	subscriptions, err := ListSubscriptions(l.Context(), n.logger, n.db, n.iapProviderRegistry, userID, limit, cursor, time.Time{}, time.Time{}, nil)
 	if err != nil {
 		l.RaiseError("error retrieving subscriptions: %v", err.Error())
 		return 0

@@ -6747,7 +6747,7 @@ func (n *RuntimeJavascriptNakamaModule) purchasesList(r *goja.Runtime) func(goja
 			cursor = getJsString(r, f.Argument(2))
 		}
 
-		purchases, err := ListPurchases(n.ctx, n.logger, n.db, n.iapProviderRegistry, userID, limit, cursor, time.Time{}, time.Time{})
+		purchases, err := ListPurchases(n.ctx, n.logger, n.db, n.iapProviderRegistry, userID, limit, cursor, time.Time{}, time.Time{}, nil)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error retrieving purchases: %s", err.Error())))
 		}
@@ -6941,7 +6941,7 @@ func (n *RuntimeJavascriptNakamaModule) subscriptionsList(r *goja.Runtime) func(
 			cursor = getJsString(r, f.Argument(2))
 		}
 
-		subscriptions, err := ListSubscriptions(n.ctx, n.logger, n.db, n.iapProviderRegistry, userID, limit, cursor, time.Time{}, time.Time{})
+		subscriptions, err := ListSubscriptions(n.ctx, n.logger, n.db, n.iapProviderRegistry, userID, limit, cursor, time.Time{}, time.Time{}, nil)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error retrieving purchases: %s", err.Error())))
 		}

@@ -57,7 +57,7 @@ type subscriptionsListCursor struct {
 	Before                time.Time
 }
 
-func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimeIAPProviderRegistry, userID string, limit int, cursor string, after, before time.Time) (*api.SubscriptionList, error) {
+func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimeIAPProviderRegistry, userID string, limit int, cursor string, after, before time.Time, storeFilter *int) (*api.SubscriptionList, error) {
 	var incomingCursor *subscriptionsListCursor
 	if cursor != "" {
 		cb, err := base64.URLEncoding.DecodeString(cursor)
@@ -119,6 +119,15 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, regi
 		} else {
 			params = append(params, before)
 			predicateConf += fmt.Sprintf(" AND purchase_time <= $%v", len(params))
+		}
+	}
+	if storeFilter != nil {
+		if len(params) == 0 {
+			params = append(params, *storeFilter)
+			predicateConf += fmt.Sprintf(" WHERE store = $%v", len(params))
+		} else {
+			params = append(params, *storeFilter)
+			predicateConf += fmt.Sprintf(" AND store = $%v", len(params))
 		}
 	}
 

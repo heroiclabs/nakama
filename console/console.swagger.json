@@ -2664,6 +2664,13 @@
             "in": "query",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "provider",
+            "description": "Optional IAP provider name, built-in store (APPLE_APP_STORE, GOOGLE_PLAY_STORE, HUAWEI_APP_GALLERY, FACEBOOK_INSTANT_STORE, SAMSUNG_GALAXY_STORE) or numeric store code to list purchases for.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -3367,6 +3374,13 @@
           {
             "name": "filter",
             "description": "Filter to use when searching for specific subscriptions.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "provider",
+            "description": "Optional IAP provider name, built-in store (APPLE_APP_STORE, GOOGLE_PLAY_STORE, HUAWEI_APP_GALLERY, FACEBOOK_INSTANT_STORE, SAMSUNG_GALAXY_STORE) or numeric store code to list subscriptions for.",
             "in": "query",
             "required": false,
             "type": "string"
@@ -4965,15 +4979,6 @@
       },
       "description": "A list of validated purchases stored by Nakama."
     },
-    "PurchaseSource": {
-      "type": "string",
-      "enum": [
-        "STORE",
-        "PLUGIN"
-      ],
-      "default": "STORE",
-      "description": "Purchase validation source.\n\n - STORE: A built-in store, named by the store field.\n - PLUGIN: A runtime-registered IAP provider, named by the provider field."
-    },
     "QueryStorageIndexBody": {
       "type": "object",
       "properties": {
@@ -5088,7 +5093,7 @@
           },
           "title": "JavaScript registered authentication providers"
         },
-        "go_purchase_providers": {
+        "go_iap_providers": {
           "type": "array",
           "items": {
             "type": "string"
@@ -5986,11 +5991,7 @@
         },
         "provider": {
           "type": "string",
-          "description": "Name of the provider that validated the purchase."
-        },
-        "source": {
-          "$ref": "#/definitions/PurchaseSource",
-          "description": "Whether a store or an IAP provider validated the purchase. For IAP providers, store holds the provider's code."
+          "description": "Name of the IAP provider that validated the purchase, empty for a built-in store. For IAP providers, store holds the provider's code."
         }
       },
       "description": "Validated Purchase stored by Nakama."
@@ -6057,11 +6058,7 @@
         },
         "provider": {
           "type": "string",
-          "description": "Name of the provider that validated the subscription."
-        },
-        "source": {
-          "$ref": "#/definitions/PurchaseSource",
-          "description": "Whether a store or an IAP provider validated the subscription. For IAP providers, store holds the provider's code."
+          "description": "Name of the IAP provider that validated the subscription, empty for a built-in store. For IAP providers, store holds the provider's code."
         }
       }
     },

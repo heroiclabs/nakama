@@ -227,7 +227,7 @@ func (s *ApiServer) ListSubscriptions(ctx context.Context, in *api.ListSubscript
 		limit = int(in.GetLimit().Value)
 	}
 
-	subscriptions, err := ListSubscriptions(ctx, logger, s.db, s.runtime.IAPProviderRegistry(), userID.String(), limit, in.Cursor, time.Time{}, time.Time{})
+	subscriptions, err := ListSubscriptions(ctx, logger, s.db, s.runtime.IAPProviderRegistry(), userID.String(), limit, in.Cursor, time.Time{}, time.Time{}, nil)
 	if err != nil {
 		return nil, err
 	}

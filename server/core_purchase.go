@@ -758,9 +758,10 @@ type purchasesListCursor struct {
 	IsNext        bool
 	After         time.Time
 	Before        time.Time
+	Store         *int
 }
 
-func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimeIAPProviderRegistry, userID string, limit int, cursor string, after, before time.Time) (*api.PurchaseList, error) {
+func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimeIAPProviderRegistry, userID string, limit int, cursor string, after, before time.Time, storeFilter *int) (*api.PurchaseList, error) {
 	var incomingCursor *purchasesListCursor
 	if cursor != "" {
 		cb, err := base64.URLEncoding.DecodeString(cursor)
@@ -779,6 +780,9 @@ func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, registry
 			return nil, ErrPurchasesListInvalidCursor
 		}
 		if !before.Equal(incomingCursor.Before) {
+			return nil, ErrPurchasesListInvalidCursor
+		}
+		if (storeFilter == nil) != (incomingCursor.Store == nil) || (storeFilter != nil && *storeFilter != *incomingCursor.Store) {
 			return nil, ErrPurchasesListInvalidCursor
 		}
 	}
@@ -849,6 +853,15 @@ FROM
 			query += fmt.Sprintf(" AND purchase_time <= $%v", len(params))
 		}
 	}
+	if storeFilter != nil {
+		if len(params) == 0 {
+			params = append(params, *storeFilter)
+			query += fmt.Sprintf(" WHERE store = $%v", len(params))
+		} else {
+			params = append(params, *storeFilter)
+			query += fmt.Sprintf(" AND store = $%v", len(params))
+		}
+	}
 
 	// Add order to query.
 	query += order
@@ -892,6 +905,7 @@ FROM
 				IsNext:        true,
 				After:         after,
 				Before:        before,
+				Store:         storeFilter,
 			}
 			break
 		}
@@ -933,6 +947,7 @@ FROM
 				IsNext:        false,
 				After:         after,
 				Before:        before,
+				Store:         storeFilter,
 			}
 		}
 	}
