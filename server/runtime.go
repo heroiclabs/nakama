@@ -219,10 +219,10 @@ type (
 	RuntimeAfterValidatePurchaseFacebookInstantFunction    func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseFacebookInstantRequest) error
 	RuntimeBeforeValidatePurchaseSamsungFunction           func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidatePurchaseSamsungRequest) (*api.ValidatePurchaseSamsungRequest, error, codes.Code)
 	RuntimeAfterValidatePurchaseSamsungFunction            func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseSamsungRequest) error
-	RuntimeBeforeValidatePurchaseFunction                  func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidatePurchaseRequest) (*api.ValidatePurchaseRequest, error, codes.Code)
-	RuntimeAfterValidatePurchaseFunction                   func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseRequest) error
-	RuntimeBeforeValidateSubscriptionFunction              func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidateSubscriptionRequest) (*api.ValidateSubscriptionRequest, error, codes.Code)
-	RuntimeAfterValidateSubscriptionFunction               func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidateSubscriptionResponse, in *api.ValidateSubscriptionRequest) error
+	RuntimeBeforeValidatePurchaseFunction                  func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidateIAPPurchaseRequest) (*api.ValidateIAPPurchaseRequest, error, codes.Code)
+	RuntimeAfterValidatePurchaseFunction                   func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidateIAPPurchaseResponse, in *api.ValidateIAPPurchaseRequest) error
+	RuntimeBeforeValidateSubscriptionFunction              func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidateIAPSubscriptionRequest) (*api.ValidateIAPSubscriptionRequest, error, codes.Code)
+	RuntimeAfterValidateSubscriptionFunction               func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidateIAPSubscriptionResponse, in *api.ValidateIAPSubscriptionRequest) error
 	RuntimeBeforeListSubscriptionsFunction                 func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ListSubscriptionsRequest) (*api.ListSubscriptionsRequest, error, codes.Code)
 	RuntimeAfterListSubscriptionsFunction                  func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.SubscriptionList, in *api.ListSubscriptionsRequest) error
 	RuntimeBeforeGetSubscriptionFunction                   func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.GetSubscriptionRequest) (*api.GetSubscriptionRequest, error, codes.Code)
@@ -577,7 +577,7 @@ type Runtime struct {
 	rpcFunctions map[string]RuntimeRpcFunction
 
 	authProviderRegistry     *RuntimeAuthenticateProviderRegistry
-	purchaseProviderRegistry *RuntimePurchaseProviderRegistry
+	purchaseProviderRegistry *RuntimeIAPProviderRegistry
 
 	beforeRtFunctions map[string]RuntimeBeforeRtFunction
 	afterRtFunctions  map[string]RuntimeAfterRtFunction
@@ -726,7 +726,7 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	matchProvider := NewMatchProvider()
 
 	authProviderRegistry := &RuntimeAuthenticateProviderRegistry{providers: MapOf[string, *RuntimeAuthenticateProviderFunctions]{}}
-	purchaseProviderRegistry := &RuntimePurchaseProviderRegistry{}
+	purchaseProviderRegistry := &RuntimeIAPProviderRegistry{}
 	var purchaseNotificationProviderFunction RuntimePurchaseNotificationProviderFunction
 	var subscriptionNotificationProviderFunction RuntimeSubscriptionNotificationProviderFunction
 
@@ -3098,7 +3098,7 @@ func (r *Runtime) Rpc(id string) RuntimeRpcFunction {
 	return r.rpcFunctions[id]
 }
 
-func (r *Runtime) PurchaseProviderRegistry() *RuntimePurchaseProviderRegistry {
+func (r *Runtime) PurchaseProviderRegistry() *RuntimeIAPProviderRegistry {
 	return r.purchaseProviderRegistry
 }
 

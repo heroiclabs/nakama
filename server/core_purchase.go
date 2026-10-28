@@ -580,7 +580,7 @@ func ValidatePurchaseSamsung(ctx context.Context, logger *zap.Logger, db *sql.DB
 	}, nil
 }
 
-func GetPurchaseByTransactionId(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimePurchaseProviderRegistry, transactionID string) (*api.ValidatedPurchase, error) {
+func GetPurchaseByTransactionId(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimeIAPProviderRegistry, transactionID string) (*api.ValidatedPurchase, error) {
 	var (
 		dbTransactionId string
 		dbUserId        uuid.UUID
@@ -643,10 +643,10 @@ func GetPurchaseByTransactionId(ctx context.Context, logger *zap.Logger, db *sql
 	return purchase, nil
 }
 
-func ValidatePurchase(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimePurchaseProviderRegistry, userID uuid.UUID, traceID, providerName string, payload, overrides map[string]any, persist bool) (*api.ValidatePurchaseResponse, error) {
+func ValidatePurchase(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimeIAPProviderRegistry, userID uuid.UUID, traceID, providerName string, payload, overrides map[string]any, persist bool) (*api.ValidateIAPPurchaseResponse, error) {
 	provider := registry.Get(providerName)
 	if provider == nil {
-		return nil, status.Error(codes.InvalidArgument, "Purchase provider not found: "+providerName)
+		return nil, status.Error(codes.InvalidArgument, "IAP provider not found: "+providerName)
 	}
 
 	purchases, err, code := provider.validate(ctx, traceID, payload, overrides)
@@ -655,7 +655,7 @@ func ValidatePurchase(ctx context.Context, logger *zap.Logger, db *sql.DB, regis
 	}
 
 	if len(purchases) == 0 {
-		logger.Warn("Purchase provider returned no purchases.", zap.String("provider", provider.name))
+		logger.Warn("IAP provider returned no purchases.", zap.String("provider", provider.name))
 		return nil, status.Error(codes.FailedPrecondition, "Invalid Receipt. No purchases found.")
 	}
 
@@ -664,7 +664,7 @@ func ValidatePurchase(ctx context.Context, logger *zap.Logger, db *sql.DB, regis
 	seenTransactionIDs := make(map[string]struct{}, len(purchases))
 	for _, purchase := range purchases {
 		if purchase == nil || purchase.TransactionId == "" {
-			logger.Error("Purchase provider returned a purchase without a transaction ID.", zap.String("provider", provider.name))
+			logger.Error("IAP provider returned a purchase without a transaction ID.", zap.String("provider", provider.name))
 			return nil, status.Error(codes.FailedPrecondition, "Invalid Receipt. Transaction ID is required.")
 		}
 
@@ -702,7 +702,7 @@ func ValidatePurchase(ctx context.Context, logger *zap.Logger, db *sql.DB, regis
 	}
 
 	if !persist {
-		return &api.ValidatePurchaseResponse{ValidatedPurchases: validatedPurchases}, nil
+		return &api.ValidateIAPPurchaseResponse{Purchases: validatedPurchases}, nil
 	}
 
 	ownStorePurchases := make([]*storagePurchase, 0, len(storagePurchases))
@@ -716,7 +716,7 @@ func ValidatePurchase(ctx context.Context, logger *zap.Logger, db *sql.DB, regis
 			ownStorePurchases = append(ownStorePurchases, purchaseToStore)
 			continue
 		}
-		logger.Warn("Purchase provider transaction ID belongs to another store, not storing.", zap.String("provider", provider.name), zap.String("transaction_id", purchaseToStore.transactionId))
+		logger.Warn("IAP provider transaction ID belongs to another store, not storing.", zap.String("provider", provider.name), zap.String("transaction_id", purchaseToStore.transactionId))
 		for _, validatedPurchase := range validatedPurchases {
 			if validatedPurchase.TransactionId == purchaseToStore.transactionId {
 				validatedPurchase.SeenBefore = true
@@ -724,7 +724,7 @@ func ValidatePurchase(ctx context.Context, logger *zap.Logger, db *sql.DB, regis
 		}
 	}
 	if len(ownStorePurchases) == 0 {
-		return &api.ValidatePurchaseResponse{ValidatedPurchases: validatedPurchases}, nil
+		return &api.ValidateIAPPurchaseResponse{Purchases: validatedPurchases}, nil
 	}
 
 	stored, err := upsertPurchases(ctx, db, ownStorePurchases)
@@ -750,7 +750,7 @@ func ValidatePurchase(ctx context.Context, logger *zap.Logger, db *sql.DB, regis
 		}
 	}
 
-	return &api.ValidatePurchaseResponse{ValidatedPurchases: validatedPurchases}, nil
+	return &api.ValidateIAPPurchaseResponse{Purchases: validatedPurchases}, nil
 }
 
 type purchasesListCursor struct {
@@ -762,7 +762,7 @@ type purchasesListCursor struct {
 	Before        time.Time
 }
 
-func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimePurchaseProviderRegistry, userID string, limit int, cursor string, after, before time.Time) (*api.PurchaseList, error) {
+func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimeIAPProviderRegistry, userID string, limit int, cursor string, after, before time.Time) (*api.PurchaseList, error) {
 	var incomingCursor *purchasesListCursor
 	if cursor != "" {
 		cb, err := base64.URLEncoding.DecodeString(cursor)
@@ -1097,19 +1097,19 @@ func parseMillisecondUnixTimestamp(t int64) time.Time {
 	return time.Unix(0, 0).Add(time.Duration(t) * time.Millisecond)
 }
 
-func purchaseProviderNotificationHandler(logger *zap.Logger, db *sql.DB, registry *RuntimePurchaseProviderRegistry, provider *RuntimePurchaseProviderFunctions, purchaseHook RuntimePurchaseNotificationProviderFunction, subscriptionHook RuntimeSubscriptionNotificationProviderFunction) http.HandlerFunc {
+func purchaseProviderNotificationHandler(logger *zap.Logger, db *sql.DB, registry *RuntimeIAPProviderRegistry, provider *RuntimeIAPProviderFunctions, purchaseHook RuntimePurchaseNotificationProviderFunction, subscriptionHook RuntimeSubscriptionNotificationProviderFunction) http.HandlerFunc {
 	logger = logger.With(zap.String("provider", provider.name))
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			logger.Error("Failed to read purchase provider notification body", zap.Error(err))
+			logger.Error("Failed to read IAP provider notification body", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
 		notifications, err := provider.notificationHandler(r.Context(), body, r.Header, r.URL.Query())
 		if err != nil {
-			logger.Error("Failed to handle purchase provider notification", zap.Error(err))
+			logger.Error("Failed to handle IAP provider notification", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -1120,7 +1120,7 @@ func purchaseProviderNotificationHandler(logger *zap.Logger, db *sql.DB, registr
 
 			if subscription := notification.Subscription; subscription != nil {
 				if subscription.OriginalTransactionId == "" {
-					logger.Error("Purchase provider subscription notification has no original transaction ID")
+					logger.Error("IAP provider subscription notification has no original transaction ID")
 					continue
 				}
 
@@ -1131,14 +1131,14 @@ func purchaseProviderNotificationHandler(logger *zap.Logger, db *sql.DB, registr
 					return
 				}
 				if existing != nil && existing.Store != api.StoreProvider(provider.storeCode) {
-					logger.Warn("Purchase provider subscription notification original transaction ID belongs to another store", zap.String("original_transaction_id", subscription.OriginalTransactionId))
+					logger.Warn("IAP provider subscription notification original transaction ID belongs to another store", zap.String("original_transaction_id", subscription.OriginalTransactionId))
 					continue
 				}
 
 				uid := uuid.FromStringOrNil(notification.UserId)
 				if uid.IsNil() {
 					if existing == nil || existing.UserId == "" {
-						logger.Warn("No userId found for this purchase provider subscription notification", zap.String("original_transaction_id", subscription.OriginalTransactionId))
+						logger.Warn("No userId found for this IAP provider subscription notification", zap.String("original_transaction_id", subscription.OriginalTransactionId))
 						if notification.RequireUser {
 							w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
 							return
@@ -1170,10 +1170,10 @@ func purchaseProviderNotificationHandler(logger *zap.Logger, db *sql.DB, registr
 				}); err != nil {
 					var pgErr *pgconn.PgError
 					if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
-						logger.Warn("User not found for this purchase provider subscription notification", zap.String("original_transaction_id", subscription.OriginalTransactionId))
+						logger.Warn("User not found for this IAP provider subscription notification", zap.String("original_transaction_id", subscription.OriginalTransactionId))
 						continue
 					}
-					logger.Error("Failed to store purchase provider notification subscription data", zap.Error(err))
+					logger.Error("Failed to store IAP provider notification subscription data", zap.Error(err))
 					w.WriteHeader(http.StatusInternalServerError)
 					return
 				}
@@ -1202,7 +1202,7 @@ func purchaseProviderNotificationHandler(logger *zap.Logger, db *sql.DB, registr
 					}
 
 					if err = subscriptionHook(r.Context(), provider.name, notification.Type, validatedSub, string(body)); err != nil {
-						logger.Error("Error invoking purchase provider subscription notification function", zap.Error(err), zap.String("original_transaction_id", sub.originalTransactionId))
+						logger.Error("Error invoking IAP provider subscription notification function", zap.Error(err), zap.String("original_transaction_id", sub.originalTransactionId))
 					}
 				}
 
@@ -1213,7 +1213,7 @@ func purchaseProviderNotificationHandler(logger *zap.Logger, db *sql.DB, registr
 				continue
 			}
 			if notification.Type != runtime.IAPNotificationRefunded {
-				logger.Warn("Purchase provider purchase notification is not a refund, ignoring", zap.String("notification_type", notification.Type.String()))
+				logger.Warn("IAP provider purchase notification is not a refund, ignoring", zap.String("notification_type", notification.Type.String()))
 				continue
 			}
 			purchase := notification.Purchase
@@ -1225,14 +1225,14 @@ func purchaseProviderNotificationHandler(logger *zap.Logger, db *sql.DB, registr
 				return
 			}
 			if existing != nil && existing.Provider != provider.name {
-				logger.Warn("Purchase provider refund notification transaction ID belongs to another store", zap.String("transaction_id", purchase.TransactionId))
+				logger.Warn("IAP provider refund notification transaction ID belongs to another store", zap.String("transaction_id", purchase.TransactionId))
 				continue
 			}
 
 			uid := uuid.FromStringOrNil(notification.UserId)
 			if uid.IsNil() {
 				if existing == nil || existing.UserId == "" {
-					logger.Warn("No userId found for this purchase provider refund notification", zap.String("transaction_id", purchase.TransactionId))
+					logger.Warn("No userId found for this IAP provider refund notification", zap.String("transaction_id", purchase.TransactionId))
 					if notification.RequireUser {
 						w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
 						return
@@ -1261,10 +1261,10 @@ func purchaseProviderNotificationHandler(logger *zap.Logger, db *sql.DB, registr
 			if err != nil {
 				var pgErr *pgconn.PgError
 				if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
-					logger.Warn("User not found for this purchase provider refund notification", zap.String("transaction_id", purchase.TransactionId))
+					logger.Warn("User not found for this IAP provider refund notification", zap.String("transaction_id", purchase.TransactionId))
 					continue
 				}
-				logger.Error("Failed to store purchase provider notification purchase data", zap.Error(err))
+				logger.Error("Failed to store IAP provider notification purchase data", zap.Error(err))
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
@@ -1288,7 +1288,7 @@ func purchaseProviderNotificationHandler(logger *zap.Logger, db *sql.DB, registr
 				}
 
 				if err = purchaseHook(r.Context(), provider.name, runtime.IAPNotificationRefunded, validatedPurchase, string(body)); err != nil {
-					logger.Error("Error invoking purchase provider notification function", zap.Error(err), zap.String("transaction_id", purchase.TransactionId))
+					logger.Error("Error invoking IAP provider notification function", zap.Error(err), zap.String("transaction_id", purchase.TransactionId))
 				}
 			}
 

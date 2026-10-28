@@ -3760,7 +3760,7 @@ func local_request_Nakama_UpdateGroup_0(ctx context.Context, marshaler runtime.M
 }
 
 func request_Nakama_ValidatePurchase_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq api.ValidatePurchaseRequest
+	var protoReq api.ValidateIAPPurchaseRequest
 	var metadata runtime.ServerMetadata
 
 	newReader, berr := utilities.IOReaderFactory(req.Body)
@@ -3794,7 +3794,7 @@ func request_Nakama_ValidatePurchase_0(ctx context.Context, marshaler runtime.Ma
 }
 
 func local_request_Nakama_ValidatePurchase_0(ctx context.Context, marshaler runtime.Marshaler, server NakamaServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq api.ValidatePurchaseRequest
+	var protoReq api.ValidateIAPPurchaseRequest
 	var metadata runtime.ServerMetadata
 
 	newReader, berr := utilities.IOReaderFactory(req.Body)
@@ -3828,7 +3828,7 @@ func local_request_Nakama_ValidatePurchase_0(ctx context.Context, marshaler runt
 }
 
 func request_Nakama_ValidateSubscription_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq api.ValidateSubscriptionRequest
+	var protoReq api.ValidateIAPSubscriptionRequest
 	var metadata runtime.ServerMetadata
 
 	newReader, berr := utilities.IOReaderFactory(req.Body)
@@ -3862,7 +3862,7 @@ func request_Nakama_ValidateSubscription_0(ctx context.Context, marshaler runtim
 }
 
 func local_request_Nakama_ValidateSubscription_0(ctx context.Context, marshaler runtime.Marshaler, server NakamaServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq api.ValidateSubscriptionRequest
+	var protoReq api.ValidateIAPSubscriptionRequest
 	var metadata runtime.ServerMetadata
 
 	newReader, berr := utilities.IOReaderFactory(req.Body)

@@ -2513,7 +2513,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/apiValidatePurchaseResponse"
+              "$ref": "#/definitions/apiValidateIAPPurchaseResponse"
             }
           },
           "default": {
@@ -2685,7 +2685,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/apiValidateSubscriptionResponse"
+              "$ref": "#/definitions/apiValidateIAPSubscriptionResponse"
             }
           },
           "default": {
@@ -5550,6 +5550,29 @@
         }
       },
       "description": "A collection of zero or more users."
+    },
+    "apiValidateIAPPurchaseResponse": {
+      "type": "object",
+      "properties": {
+        "purchases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/apiValidatedPurchase"
+          },
+          "description": "Validated purchases."
+        }
+      },
+      "description": "Validate a purchase with a runtime-registered IAP provider response."
+    },
+    "apiValidateIAPSubscriptionResponse": {
+      "type": "object",
+      "properties": {
+        "subscription": {
+          "$ref": "#/definitions/apiValidatedSubscription"
+        }
+      },
+      "description": "Validate a subscription with a runtime-registered IAP provider response."
     },
     "apiValidatePurchaseAppleRequest": {
       "type": "object",

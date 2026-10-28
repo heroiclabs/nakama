@@ -63,7 +63,7 @@ type RuntimeGoNakamaModule struct {
 	router                   MessageRouter
 	eventFn                  RuntimeEventCustomFunction
 	authProviderRegistry     *RuntimeAuthenticateProviderRegistry
-	purchaseProviderRegistry *RuntimePurchaseProviderRegistry
+	purchaseProviderRegistry *RuntimeIAPProviderRegistry
 	node                     string
 	matchCreateFn            RuntimeMatchCreateFunction
 	satori                   runtime.Satori
@@ -71,7 +71,7 @@ type RuntimeGoNakamaModule struct {
 	storageIndex             StorageIndex
 }
 
-func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, storageIndex StorageIndex, satoriClient runtime.Satori, authProviderRegistry *RuntimeAuthenticateProviderRegistry, purchaseProviderRegistry *RuntimePurchaseProviderRegistry) *RuntimeGoNakamaModule {
+func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, storageIndex StorageIndex, satoriClient runtime.Satori, authProviderRegistry *RuntimeAuthenticateProviderRegistry, purchaseProviderRegistry *RuntimeIAPProviderRegistry) *RuntimeGoNakamaModule {
 	return &RuntimeGoNakamaModule{
 		logger:                   logger,
 		db:                       db,
@@ -4685,16 +4685,16 @@ func (n *RuntimeGoNakamaModule) GetFleetManagerByName(name string) runtime.Fleet
 }
 
 // @group purchases
-// @summary Validates and stores a purchase with a registered purchase provider.
+// @summary Validates and stores a purchase with a registered IAP provider.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
-// @param provider(type=string) The name the purchase provider was registered under.
+// @param provider(type=string) The name the IAP provider was registered under.
 // @param userID(type=string) The user ID of the owner of the purchase.
 // @param payload(type=map[string]any) The opaque payload passed through to the provider.
 // @param persist(type=bool) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
 // @param overrides(type=map[string]any, optional=true) Optional credential overrides passed through to the provider.
-// @return validation(*api.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
+// @return validation(*api.ValidateIAPPurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) PurchaseValidate(ctx context.Context, provider, userID string, payload map[string]any, persist bool, overrides ...map[string]any) (*api.ValidatePurchaseResponse, error) {
+func (n *RuntimeGoNakamaModule) PurchaseValidate(ctx context.Context, provider, userID string, payload map[string]any, persist bool, overrides ...map[string]any) (*api.ValidateIAPPurchaseResponse, error) {
 	uid, err := uuid.FromString(userID)
 	if err != nil {
 		return nil, errors.New("user ID must be a valid id string")
@@ -4715,16 +4715,16 @@ func (n *RuntimeGoNakamaModule) PurchaseValidate(ctx context.Context, provider, 
 }
 
 // @group subscriptions
-// @summary Validates and stores a subscription with a registered purchase provider.
+// @summary Validates and stores a subscription with a registered IAP provider.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
-// @param provider(type=string) The name the purchase provider was registered under.
+// @param provider(type=string) The name the IAP provider was registered under.
 // @param userID(type=string) The user ID of the owner of the subscription.
 // @param payload(type=map[string]any) The opaque payload passed through to the provider.
 // @param persist(type=bool) Persist the subscription.
 // @param overrides(type=map[string]any, optional=true) Optional credential overrides passed through to the provider.
-// @return validation(*api.ValidateSubscriptionResponse) The resulting successfully validated subscription.
+// @return validation(*api.ValidateIAPSubscriptionResponse) The resulting successfully validated subscription.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) SubscriptionValidate(ctx context.Context, provider, userID string, payload map[string]any, persist bool, overrides ...map[string]any) (*api.ValidateSubscriptionResponse, error) {
+func (n *RuntimeGoNakamaModule) SubscriptionValidate(ctx context.Context, provider, userID string, payload map[string]any, persist bool, overrides ...map[string]any) (*api.ValidateIAPSubscriptionResponse, error) {
 	uid, err := uuid.FromString(userID)
 	if err != nil {
 		return nil, errors.New("user ID must be a valid id string")

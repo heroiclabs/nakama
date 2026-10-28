@@ -57,7 +57,7 @@ type subscriptionsListCursor struct {
 	Before                time.Time
 }
 
-func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimePurchaseProviderRegistry, userID string, limit int, cursor string, after, before time.Time) (*api.SubscriptionList, error) {
+func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimeIAPProviderRegistry, userID string, limit int, cursor string, after, before time.Time) (*api.SubscriptionList, error) {
 	var incomingCursor *subscriptionsListCursor
 	if cursor != "" {
 		cb, err := base64.URLEncoding.DecodeString(cursor)
@@ -555,13 +555,13 @@ func ValidateSubscriptionGoogle(ctx context.Context, logger *zap.Logger, db *sql
 	return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
 }
 
-func ValidateSubscription(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimePurchaseProviderRegistry, userID uuid.UUID, traceID, providerName string, payload, overrides map[string]any, persist bool) (*api.ValidateSubscriptionResponse, error) {
+func ValidateSubscription(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimeIAPProviderRegistry, userID uuid.UUID, traceID, providerName string, payload, overrides map[string]any, persist bool) (*api.ValidateIAPSubscriptionResponse, error) {
 	provider := registry.Get(providerName)
 	if provider == nil {
-		return nil, status.Error(codes.InvalidArgument, "Purchase provider not found: "+providerName)
+		return nil, status.Error(codes.InvalidArgument, "IAP provider not found: "+providerName)
 	}
 	if provider.validateSubscription == nil {
-		return nil, status.Error(codes.InvalidArgument, "Purchase provider does not validate subscriptions: "+providerName)
+		return nil, status.Error(codes.InvalidArgument, "IAP provider does not validate subscriptions: "+providerName)
 	}
 
 	subscriptions, err, code := provider.validateSubscription(ctx, traceID, payload, overrides)
@@ -570,7 +570,7 @@ func ValidateSubscription(ctx context.Context, logger *zap.Logger, db *sql.DB, r
 	}
 
 	if len(subscriptions) == 0 {
-		logger.Warn("Purchase provider returned no subscriptions.", zap.String("provider", provider.name))
+		logger.Warn("IAP provider returned no subscriptions.", zap.String("provider", provider.name))
 		return nil, status.Error(codes.FailedPrecondition, "Invalid Receipt. No subscriptions found.")
 	}
 
@@ -579,7 +579,7 @@ func ValidateSubscription(ctx context.Context, logger *zap.Logger, db *sql.DB, r
 	storageSubs := make([]*storageSubscription, 0, len(subscriptions))
 	for _, subscription := range subscriptions {
 		if subscription == nil || subscription.OriginalTransactionId == "" {
-			logger.Error("Purchase provider returned a subscription without an original transaction ID.", zap.String("provider", provider.name))
+			logger.Error("IAP provider returned a subscription without an original transaction ID.", zap.String("provider", provider.name))
 			return nil, status.Error(codes.FailedPrecondition, "Invalid Receipt. Original transaction ID is required.")
 		}
 
@@ -617,7 +617,7 @@ func ValidateSubscription(ctx context.Context, logger *zap.Logger, db *sql.DB, r
 	}
 
 	if !persist {
-		return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
+		return &api.ValidateIAPSubscriptionResponse{Subscription: validatedSub}, nil
 	}
 
 	ownStoreSubs := make([]*storageSubscription, 0, len(storageSubs))
@@ -628,13 +628,13 @@ func ValidateSubscription(ctx context.Context, logger *zap.Logger, db *sql.DB, r
 			return nil, err
 		}
 		if existing != nil && existing.Store != sub.store {
-			logger.Warn("Purchase provider original transaction ID belongs to another store, not storing.", zap.String("provider", provider.name), zap.String("original_transaction_id", sub.originalTransactionId))
+			logger.Warn("IAP provider original transaction ID belongs to another store, not storing.", zap.String("provider", provider.name), zap.String("original_transaction_id", sub.originalTransactionId))
 			continue
 		}
 		ownStoreSubs = append(ownStoreSubs, sub)
 	}
 	if len(ownStoreSubs) == 0 {
-		return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
+		return &api.ValidateIAPSubscriptionResponse{Subscription: validatedSub}, nil
 	}
 
 	if err = ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
@@ -652,7 +652,7 @@ func ValidateSubscription(ctx context.Context, logger *zap.Logger, db *sql.DB, r
 	}
 
 	if storageSub.createTime.IsZero() {
-		return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
+		return &api.ValidateIAPSubscriptionResponse{Subscription: validatedSub}, nil
 	}
 
 	suid := storageSub.userID.String()
@@ -669,10 +669,10 @@ func ValidateSubscription(ctx context.Context, logger *zap.Logger, db *sql.DB, r
 	validatedSub.ProviderNotification = storageSub.rawNotification
 	validatedSub.Active = storageSub.Active()
 
-	return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
+	return &api.ValidateIAPSubscriptionResponse{Subscription: validatedSub}, nil
 }
 
-func GetSubscriptionByProductId(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimePurchaseProviderRegistry, userID, productID string) (*api.ValidatedSubscription, error) {
+func GetSubscriptionByProductId(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimeIAPProviderRegistry, userID, productID string) (*api.ValidatedSubscription, error) {
 	var originalTransactionId string
 	var dbUserID uuid.UUID
 	var dbProductID string
@@ -743,7 +743,7 @@ WHERE
 	return subscription, nil
 }
 
-func getSubscriptionByOriginalTransactionId(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimePurchaseProviderRegistry, originalTransactionId string) (*api.ValidatedSubscription, error) {
+func getSubscriptionByOriginalTransactionId(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimeIAPProviderRegistry, originalTransactionId string) (*api.ValidatedSubscription, error) {
 	var (
 		dbUserId                uuid.UUID
 		dbStore                 api.StoreProvider

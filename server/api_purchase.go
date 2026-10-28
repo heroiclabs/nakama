@@ -307,7 +307,7 @@ func (s *ApiServer) ValidatePurchaseSamsung(ctx context.Context, in *api.Validat
 	return validation, err
 }
 
-func (s *ApiServer) ValidatePurchase(ctx context.Context, in *api.ValidatePurchaseRequest) (*api.ValidatePurchaseResponse, error) {
+func (s *ApiServer) ValidatePurchase(ctx context.Context, in *api.ValidateIAPPurchaseRequest) (*api.ValidateIAPPurchaseResponse, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 

@@ -142,7 +142,7 @@ func (s *ApiServer) ValidateSubscriptionGoogle(ctx context.Context, in *api.Vali
 	return validation, nil
 }
 
-func (s *ApiServer) ValidateSubscription(ctx context.Context, in *api.ValidateSubscriptionRequest) (*api.ValidateSubscriptionResponse, error) {
+func (s *ApiServer) ValidateSubscription(ctx context.Context, in *api.ValidateIAPSubscriptionRequest) (*api.ValidateIAPSubscriptionResponse, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 

@@ -1279,7 +1279,7 @@ message ValidatePurchaseSamsungRequest {
 }
 
 // Validate a purchase with a runtime-registered purchase provider.
-message ValidatePurchaseRequest {
+message ValidateIAPPurchaseRequest {
   // The name the provider was registered under during runtime initialization.
   string provider = 1;
   // Opaque JSON passed through to the registered provider.
@@ -1289,7 +1289,7 @@ message ValidatePurchaseRequest {
 }
 
 // Validate a subscription with a runtime-registered purchase provider.
-message ValidateSubscriptionRequest {
+message ValidateIAPSubscriptionRequest {
   // The name the provider was registered under during runtime initialization.
   string provider = 1;
   // Opaque JSON passed through to the registered provider.
@@ -1337,6 +1337,17 @@ message ValidatePurchaseResponse {
 // Validate Subscription response.
 message ValidateSubscriptionResponse {
   ValidatedSubscription validated_subscription = 1;
+}
+
+// Validate a purchase with a runtime-registered IAP provider response.
+message ValidateIAPPurchaseResponse {
+  // Validated purchases.
+  repeated ValidatedPurchase purchases = 1;
+}
+
+// Validate a subscription with a runtime-registered IAP provider response.
+message ValidateIAPSubscriptionResponse {
+  ValidatedSubscription subscription = 1;
 }
 
 // Validation Provider,
