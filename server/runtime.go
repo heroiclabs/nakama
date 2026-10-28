@@ -249,8 +249,8 @@ type (
 	RuntimePurchaseNotificationGoogleFunction     func(ctx context.Context, notificationType runtime.NotificationType, purchase *api.ValidatedPurchase, providerPayload *runtime.PurchaseV2GoogleResponse) error
 	RuntimeSubscriptionNotificationGoogleFunction func(ctx context.Context, notificationType runtime.NotificationType, subscription *api.ValidatedSubscription, providerPayload *runtime.SubscriptionV2GoogleResponse) error
 
-	RuntimePurchaseNotificationProviderFunction     func(ctx context.Context, provider string, notificationType runtime.NotificationType, purchase *api.ValidatedPurchase, providerPayload string) error
-	RuntimeSubscriptionNotificationProviderFunction func(ctx context.Context, provider string, notificationType runtime.NotificationType, subscription *api.ValidatedSubscription, providerPayload string) error
+	RuntimeIAPPurchaseNotificationFunction     func(ctx context.Context, provider string, notificationType runtime.NotificationType, purchase *api.ValidatedPurchase, providerPayload string) error
+	RuntimeIAPSubscriptionNotificationFunction func(ctx context.Context, provider string, notificationType runtime.NotificationType, subscription *api.ValidatedSubscription, providerPayload string) error
 
 	RuntimeStorageIndexFilterFunction func(ctx context.Context, write *StorageOpWrite) (bool, error)
 
@@ -291,9 +291,9 @@ const (
 	RuntimeExecutionModeStorageIndexFilter
 	RuntimeExecutionModeShutdown
 	RuntimeExecutionModeAuthenticateProvider
-	RuntimeExecutionModePurchaseProvider
-	RuntimeExecutionModePurchaseNotificationProvider
-	RuntimeExecutionModeSubscriptionNotificationProvider
+	RuntimeExecutionModeIAPProvider
+	RuntimeExecutionModeIAPPurchaseNotification
+	RuntimeExecutionModeIAPSubscriptionNotification
 )
 
 func (e RuntimeExecutionMode) String() string {
@@ -338,12 +338,12 @@ func (e RuntimeExecutionMode) String() string {
 		return "shutdown"
 	case RuntimeExecutionModeAuthenticateProvider:
 		return "authenticate_provider"
-	case RuntimeExecutionModePurchaseProvider:
-		return "purchase_provider"
-	case RuntimeExecutionModePurchaseNotificationProvider:
-		return "purchase_notification_provider"
-	case RuntimeExecutionModeSubscriptionNotificationProvider:
-		return "subscription_notification_provider"
+	case RuntimeExecutionModeIAPProvider:
+		return "iap_provider"
+	case RuntimeExecutionModeIAPPurchaseNotification:
+		return "iap_purchase_notification"
+	case RuntimeExecutionModeIAPSubscriptionNotification:
+		return "iap_subscription_notification"
 	}
 
 	return ""
@@ -576,8 +576,8 @@ type Runtime struct {
 
 	rpcFunctions map[string]RuntimeRpcFunction
 
-	authProviderRegistry     *RuntimeAuthenticateProviderRegistry
-	purchaseProviderRegistry *RuntimeIAPProviderRegistry
+	authProviderRegistry *RuntimeAuthenticateProviderRegistry
+	iapProviderRegistry  *RuntimeIAPProviderRegistry
 
 	beforeRtFunctions map[string]RuntimeBeforeRtFunction
 	afterRtFunctions  map[string]RuntimeAfterRtFunction
@@ -589,14 +589,14 @@ type Runtime struct {
 	matchmakerProcessorFunction RuntimeMatchmakerProcessorFunction
 	matchmakerOverrideFunction  RuntimeMatchmakerOverrideFunction
 
-	tournamentEndFunction                    RuntimeTournamentEndFunction
-	tournamentResetFunction                  RuntimeTournamentResetFunction
-	purchaseNotificationAppleFunction        RuntimePurchaseNotificationAppleFunction
-	subscriptionNotificationAppleFunction    RuntimeSubscriptionNotificationAppleFunction
-	purchaseNotificationGoogleFunction       RuntimePurchaseNotificationGoogleFunction
-	subscriptionNotificationGoogleFunction   RuntimeSubscriptionNotificationGoogleFunction
-	purchaseNotificationProviderFunction     RuntimePurchaseNotificationProviderFunction
-	subscriptionNotificationProviderFunction RuntimeSubscriptionNotificationProviderFunction
+	tournamentEndFunction                  RuntimeTournamentEndFunction
+	tournamentResetFunction                RuntimeTournamentResetFunction
+	purchaseNotificationAppleFunction      RuntimePurchaseNotificationAppleFunction
+	subscriptionNotificationAppleFunction  RuntimeSubscriptionNotificationAppleFunction
+	purchaseNotificationGoogleFunction     RuntimePurchaseNotificationGoogleFunction
+	subscriptionNotificationGoogleFunction RuntimeSubscriptionNotificationGoogleFunction
+	iapPurchaseNotificationFunction        RuntimeIAPPurchaseNotificationFunction
+	iapSubscriptionNotificationFunction    RuntimeIAPSubscriptionNotificationFunction
 
 	storageIndexFilterFunctions map[string]RuntimeStorageIndexFilterFunction
 
@@ -726,9 +726,9 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	matchProvider := NewMatchProvider()
 
 	authProviderRegistry := &RuntimeAuthenticateProviderRegistry{providers: MapOf[string, *RuntimeAuthenticateProviderFunctions]{}}
-	purchaseProviderRegistry := &RuntimeIAPProviderRegistry{}
-	var purchaseNotificationProviderFunction RuntimePurchaseNotificationProviderFunction
-	var subscriptionNotificationProviderFunction RuntimeSubscriptionNotificationProviderFunction
+	iapProviderRegistry := &RuntimeIAPProviderRegistry{}
+	var iapPurchaseNotificationFunction RuntimeIAPPurchaseNotificationFunction
+	var iapSubscriptionNotificationFunction RuntimeIAPSubscriptionNotificationFunction
 
 	satoriClient := satori.NewSatoriClient(
 		ctx,
@@ -796,21 +796,21 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		matchProvider,
 		fmCallbackHandler,
 		authProviderRegistry,
-		purchaseProviderRegistry,
-		&purchaseNotificationProviderFunction,
-		&subscriptionNotificationProviderFunction)
+		iapProviderRegistry,
+		&iapPurchaseNotificationFunction,
+		&iapSubscriptionNotificationFunction)
 	if err != nil {
 		startupLogger.Error("Error initialising Go runtime provider", zap.Error(err))
 		return nil, nil, err
 	}
 
-	luaModules, luaRPCFns, luaBeforeRtFns, luaAfterRtFns, luaBeforeReqFns, luaAfterReqFns, luaMatchmakerMatchedFn, luaTournamentEndFn, luaTournamentResetFn, luaLeaderboardResetFn, luaShutdownFn, luaPurchaseNotificationAppleFn, luaSubscriptionNotificationAppleFn, luaPurchaseNotificationGoogleFn, luaSubscriptionNotificationGoogleFn, luaIndexFilterFns, luaAuthProviderIDs, err := NewRuntimeProviderLua(ctx, logger, startupLogger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, satoriClient, allEventFns.eventFunction, runtimeConfig.Path, paths, matchProvider, storageIndex, authProviderRegistry, purchaseProviderRegistry)
+	luaModules, luaRPCFns, luaBeforeRtFns, luaAfterRtFns, luaBeforeReqFns, luaAfterReqFns, luaMatchmakerMatchedFn, luaTournamentEndFn, luaTournamentResetFn, luaLeaderboardResetFn, luaShutdownFn, luaPurchaseNotificationAppleFn, luaSubscriptionNotificationAppleFn, luaPurchaseNotificationGoogleFn, luaSubscriptionNotificationGoogleFn, luaIndexFilterFns, luaAuthProviderIDs, err := NewRuntimeProviderLua(ctx, logger, startupLogger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, satoriClient, allEventFns.eventFunction, runtimeConfig.Path, paths, matchProvider, storageIndex, authProviderRegistry, iapProviderRegistry)
 	if err != nil {
 		startupLogger.Error("Error initialising Lua runtime provider", zap.Error(err))
 		return nil, nil, err
 	}
 
-	jsModules, jsRPCFns, jsBeforeRtFns, jsAfterRtFns, jsBeforeReqFns, jsAfterReqFns, jsMatchmakerMatchedFn, jsTournamentEndFn, jsTournamentResetFn, jsLeaderboardResetFn, jsShutdownFn, jsPurchaseNotificationAppleFn, jsSubscriptionNotificationAppleFn, jsPurchaseNotificationGoogleFn, jsSubscriptionNotificationGoogleFn, jsIndexFilterFns, jsAuthProviderIDs, err := NewRuntimeProviderJS(ctx, logger, startupLogger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, satoriClient, allEventFns.eventFunction, runtimeConfig.Path, runtimeConfig.JsEntrypoint, matchProvider, storageIndex, authProviderRegistry, purchaseProviderRegistry)
+	jsModules, jsRPCFns, jsBeforeRtFns, jsAfterRtFns, jsBeforeReqFns, jsAfterReqFns, jsMatchmakerMatchedFn, jsTournamentEndFn, jsTournamentResetFn, jsLeaderboardResetFn, jsShutdownFn, jsPurchaseNotificationAppleFn, jsSubscriptionNotificationAppleFn, jsPurchaseNotificationGoogleFn, jsSubscriptionNotificationGoogleFn, jsIndexFilterFns, jsAuthProviderIDs, err := NewRuntimeProviderJS(ctx, logger, startupLogger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, satoriClient, allEventFns.eventFunction, runtimeConfig.Path, runtimeConfig.JsEntrypoint, matchProvider, storageIndex, authProviderRegistry, iapProviderRegistry)
 	if err != nil {
 		startupLogger.Error("Error initialising JavaScript runtime provider", zap.Error(err))
 		return nil, nil, err
@@ -2986,32 +2986,32 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		startupLogger.Info("Registered Go runtime Authenticate Provider function invocation", zap.String("provider", name))
 	}
 
-	for name, provider := range purchaseProviderRegistry.providersByName.Range {
+	for name, provider := range iapProviderRegistry.providersByName.Range {
 		startupLogger.Info("Registered Go runtime Purchase Provider", zap.String("provider", name), zap.Int("store_code", provider.storeCode))
 	}
 
 	return &Runtime{
-		matchCreateFunction:                      matchProvider.CreateMatch,
-		rpcFunctions:                             allRPCFunctions,
-		authProviderRegistry:                     authProviderRegistry,
-		purchaseProviderRegistry:                 purchaseProviderRegistry,
-		beforeRtFunctions:                        allBeforeRtFunctions,
-		afterRtFunctions:                         allAfterRtFunctions,
-		beforeReqFunctions:                       allBeforeReqFunctions,
-		afterReqFunctions:                        allAfterReqFunctions,
-		matchmakerMatchedFunction:                allMatchmakerMatchedFunction,
-		matchmakerOverrideFunction:               allMatchmakerOverrideFunction,
-		matchmakerProcessorFunction:              allMatchmakerProcessorFunction,
-		tournamentEndFunction:                    allTournamentEndFunction,
-		tournamentResetFunction:                  allTournamentResetFunction,
-		leaderboardResetFunction:                 allLeaderboardResetFunction,
-		purchaseNotificationAppleFunction:        allPurchaseNotificationAppleFunction,
-		subscriptionNotificationAppleFunction:    allSubscriptionNotificationAppleFunction,
-		purchaseNotificationGoogleFunction:       allPurchaseNotificationGoogleFunction,
-		subscriptionNotificationGoogleFunction:   allSubscriptionNotificationGoogleFunction,
-		purchaseNotificationProviderFunction:     purchaseNotificationProviderFunction,
-		subscriptionNotificationProviderFunction: subscriptionNotificationProviderFunction,
-		storageIndexFilterFunctions:              allStorageIndexFilterFunctions,
+		matchCreateFunction:                    matchProvider.CreateMatch,
+		rpcFunctions:                           allRPCFunctions,
+		authProviderRegistry:                   authProviderRegistry,
+		iapProviderRegistry:                    iapProviderRegistry,
+		beforeRtFunctions:                      allBeforeRtFunctions,
+		afterRtFunctions:                       allAfterRtFunctions,
+		beforeReqFunctions:                     allBeforeReqFunctions,
+		afterReqFunctions:                      allAfterReqFunctions,
+		matchmakerMatchedFunction:              allMatchmakerMatchedFunction,
+		matchmakerOverrideFunction:             allMatchmakerOverrideFunction,
+		matchmakerProcessorFunction:            allMatchmakerProcessorFunction,
+		tournamentEndFunction:                  allTournamentEndFunction,
+		tournamentResetFunction:                allTournamentResetFunction,
+		leaderboardResetFunction:               allLeaderboardResetFunction,
+		purchaseNotificationAppleFunction:      allPurchaseNotificationAppleFunction,
+		subscriptionNotificationAppleFunction:  allSubscriptionNotificationAppleFunction,
+		purchaseNotificationGoogleFunction:     allPurchaseNotificationGoogleFunction,
+		subscriptionNotificationGoogleFunction: allSubscriptionNotificationGoogleFunction,
+		iapPurchaseNotificationFunction:        iapPurchaseNotificationFunction,
+		iapSubscriptionNotificationFunction:    iapSubscriptionNotificationFunction,
+		storageIndexFilterFunctions:            allStorageIndexFilterFunctions,
 
 		httpHandlers:        httpHandlers,
 		consoleHttpHandlers: consoleHttpHandlers,
@@ -3098,8 +3098,8 @@ func (r *Runtime) Rpc(id string) RuntimeRpcFunction {
 	return r.rpcFunctions[id]
 }
 
-func (r *Runtime) PurchaseProviderRegistry() *RuntimeIAPProviderRegistry {
-	return r.purchaseProviderRegistry
+func (r *Runtime) IAPProviderRegistry() *RuntimeIAPProviderRegistry {
+	return r.iapProviderRegistry
 }
 
 func (r *Runtime) AuthenticateProviderRegistry() *RuntimeAuthenticateProviderRegistry {
@@ -3838,12 +3838,12 @@ func (r *Runtime) PurchaseNotificationApple() RuntimePurchaseNotificationAppleFu
 	return r.purchaseNotificationAppleFunction
 }
 
-func (r *Runtime) PurchaseNotificationProvider() RuntimePurchaseNotificationProviderFunction {
-	return r.purchaseNotificationProviderFunction
+func (r *Runtime) IAPPurchaseNotification() RuntimeIAPPurchaseNotificationFunction {
+	return r.iapPurchaseNotificationFunction
 }
 
-func (r *Runtime) SubscriptionNotificationProvider() RuntimeSubscriptionNotificationProviderFunction {
-	return r.subscriptionNotificationProviderFunction
+func (r *Runtime) IAPSubscriptionNotification() RuntimeIAPSubscriptionNotificationFunction {
+	return r.iapSubscriptionNotificationFunction
 }
 
 func (r *Runtime) SubscriptionNotificationApple() RuntimeSubscriptionNotificationAppleFunction {

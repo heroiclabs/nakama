@@ -702,7 +702,7 @@ func ValidatePurchase(ctx context.Context, logger *zap.Logger, db *sql.DB, regis
 	}
 
 	if !persist {
-		return &api.ValidateIAPPurchaseResponse{Purchases: validatedPurchases}, nil
+		return &api.ValidateIAPPurchaseResponse{Purchase: validatedPurchases}, nil
 	}
 
 	ownStorePurchases := make([]*storagePurchase, 0, len(storagePurchases))
@@ -724,7 +724,7 @@ func ValidatePurchase(ctx context.Context, logger *zap.Logger, db *sql.DB, regis
 		}
 	}
 	if len(ownStorePurchases) == 0 {
-		return &api.ValidateIAPPurchaseResponse{Purchases: validatedPurchases}, nil
+		return &api.ValidateIAPPurchaseResponse{Purchase: validatedPurchases}, nil
 	}
 
 	stored, err := upsertPurchases(ctx, db, ownStorePurchases)
@@ -750,7 +750,7 @@ func ValidatePurchase(ctx context.Context, logger *zap.Logger, db *sql.DB, regis
 		}
 	}
 
-	return &api.ValidateIAPPurchaseResponse{Purchases: validatedPurchases}, nil
+	return &api.ValidateIAPPurchaseResponse{Purchase: validatedPurchases}, nil
 }
 
 type purchasesListCursor struct {
@@ -1097,7 +1097,7 @@ func parseMillisecondUnixTimestamp(t int64) time.Time {
 	return time.Unix(0, 0).Add(time.Duration(t) * time.Millisecond)
 }
 
-func purchaseProviderNotificationHandler(logger *zap.Logger, db *sql.DB, registry *RuntimeIAPProviderRegistry, provider *RuntimeIAPProviderFunctions, purchaseHook RuntimePurchaseNotificationProviderFunction, subscriptionHook RuntimeSubscriptionNotificationProviderFunction) http.HandlerFunc {
+func iapProviderNotificationHandler(logger *zap.Logger, db *sql.DB, registry *RuntimeIAPProviderRegistry, provider *RuntimeIAPProviderFunctions, purchaseHook RuntimeIAPPurchaseNotificationFunction, subscriptionHook RuntimeIAPSubscriptionNotificationFunction) http.HandlerFunc {
 	logger = logger.With(zap.String("provider", provider.name))
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)

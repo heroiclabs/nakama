@@ -44,55 +44,55 @@ import (
 
 type RuntimeGoNakamaModule struct {
 	sync.RWMutex
-	logger                   *zap.Logger
-	db                       *sql.DB
-	protojsonMarshaler       *protojson.MarshalOptions
-	config                   Config
-	socialClient             *social.Client
-	leaderboardCache         LeaderboardCache
-	leaderboardRankCache     LeaderboardRankCache
-	leaderboardScheduler     LeaderboardScheduler
-	sessionRegistry          SessionRegistry
-	sessionCache             SessionCache
-	statusRegistry           StatusRegistry
-	matchRegistry            MatchRegistry
-	partyRegistry            PartyRegistry
-	tracker                  Tracker
-	metrics                  Metrics
-	streamManager            StreamManager
-	router                   MessageRouter
-	eventFn                  RuntimeEventCustomFunction
-	authProviderRegistry     *RuntimeAuthenticateProviderRegistry
-	purchaseProviderRegistry *RuntimeIAPProviderRegistry
-	node                     string
-	matchCreateFn            RuntimeMatchCreateFunction
-	satori                   runtime.Satori
-	fleetManagers            map[string]runtime.FleetManager
-	storageIndex             StorageIndex
+	logger               *zap.Logger
+	db                   *sql.DB
+	protojsonMarshaler   *protojson.MarshalOptions
+	config               Config
+	socialClient         *social.Client
+	leaderboardCache     LeaderboardCache
+	leaderboardRankCache LeaderboardRankCache
+	leaderboardScheduler LeaderboardScheduler
+	sessionRegistry      SessionRegistry
+	sessionCache         SessionCache
+	statusRegistry       StatusRegistry
+	matchRegistry        MatchRegistry
+	partyRegistry        PartyRegistry
+	tracker              Tracker
+	metrics              Metrics
+	streamManager        StreamManager
+	router               MessageRouter
+	eventFn              RuntimeEventCustomFunction
+	authProviderRegistry *RuntimeAuthenticateProviderRegistry
+	iapProviderRegistry  *RuntimeIAPProviderRegistry
+	node                 string
+	matchCreateFn        RuntimeMatchCreateFunction
+	satori               runtime.Satori
+	fleetManagers        map[string]runtime.FleetManager
+	storageIndex         StorageIndex
 }
 
-func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, storageIndex StorageIndex, satoriClient runtime.Satori, authProviderRegistry *RuntimeAuthenticateProviderRegistry, purchaseProviderRegistry *RuntimeIAPProviderRegistry) *RuntimeGoNakamaModule {
+func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, storageIndex StorageIndex, satoriClient runtime.Satori, authProviderRegistry *RuntimeAuthenticateProviderRegistry, iapProviderRegistry *RuntimeIAPProviderRegistry) *RuntimeGoNakamaModule {
 	return &RuntimeGoNakamaModule{
-		logger:                   logger,
-		db:                       db,
-		authProviderRegistry:     authProviderRegistry,
-		purchaseProviderRegistry: purchaseProviderRegistry,
-		protojsonMarshaler:       protojsonMarshaler,
-		config:                   config,
-		socialClient:             socialClient,
-		leaderboardCache:         leaderboardCache,
-		leaderboardRankCache:     leaderboardRankCache,
-		leaderboardScheduler:     leaderboardScheduler,
-		sessionRegistry:          sessionRegistry,
-		sessionCache:             sessionCache,
-		statusRegistry:           statusRegistry,
-		matchRegistry:            matchRegistry,
-		partyRegistry:            partyRegistry,
-		tracker:                  tracker,
-		metrics:                  metrics,
-		streamManager:            streamManager,
-		router:                   router,
-		storageIndex:             storageIndex,
+		logger:               logger,
+		db:                   db,
+		authProviderRegistry: authProviderRegistry,
+		iapProviderRegistry:  iapProviderRegistry,
+		protojsonMarshaler:   protojsonMarshaler,
+		config:               config,
+		socialClient:         socialClient,
+		leaderboardCache:     leaderboardCache,
+		leaderboardRankCache: leaderboardRankCache,
+		leaderboardScheduler: leaderboardScheduler,
+		sessionRegistry:      sessionRegistry,
+		sessionCache:         sessionCache,
+		statusRegistry:       statusRegistry,
+		matchRegistry:        matchRegistry,
+		partyRegistry:        partyRegistry,
+		tracker:              tracker,
+		metrics:              metrics,
+		streamManager:        streamManager,
+		router:               router,
+		storageIndex:         storageIndex,
 
 		node: config.GetName(),
 
@@ -3493,7 +3493,7 @@ func (n *RuntimeGoNakamaModule) PurchasesList(ctx context.Context, userID string
 		return nil, errors.New("limit must be a positive value <= 100")
 	}
 
-	return ListPurchases(ctx, n.logger, n.db, n.purchaseProviderRegistry, userID, limit, cursor, time.Time{}, time.Time{})
+	return ListPurchases(ctx, n.logger, n.db, n.iapProviderRegistry, userID, limit, cursor, time.Time{}, time.Time{})
 }
 
 // @group purchases
@@ -3507,7 +3507,7 @@ func (n *RuntimeGoNakamaModule) PurchaseGetByTransactionId(ctx context.Context, 
 		return nil, errors.New("expects a transaction id string.")
 	}
 
-	purchase, err := GetPurchaseByTransactionId(ctx, n.logger, n.db, n.purchaseProviderRegistry, transactionID)
+	purchase, err := GetPurchaseByTransactionId(ctx, n.logger, n.db, n.iapProviderRegistry, transactionID)
 	if err != nil {
 		return nil, err
 	}
@@ -3624,7 +3624,7 @@ func (n *RuntimeGoNakamaModule) SubscriptionsList(ctx context.Context, userID st
 		return nil, errors.New("limit must be a positive value <= 100")
 	}
 
-	return ListSubscriptions(ctx, n.logger, n.db, n.purchaseProviderRegistry, userID, limit, cursor, time.Time{}, time.Time{})
+	return ListSubscriptions(ctx, n.logger, n.db, n.iapProviderRegistry, userID, limit, cursor, time.Time{}, time.Time{})
 }
 
 // @group subscriptions
@@ -3643,7 +3643,7 @@ func (n *RuntimeGoNakamaModule) SubscriptionGetByProductId(ctx context.Context, 
 		return nil, errors.New("expects a product id string.")
 	}
 
-	return GetSubscriptionByProductId(ctx, n.logger, n.db, n.purchaseProviderRegistry, userID, productID)
+	return GetSubscriptionByProductId(ctx, n.logger, n.db, n.iapProviderRegistry, userID, productID)
 }
 
 // @group groups
@@ -4711,7 +4711,7 @@ func (n *RuntimeGoNakamaModule) PurchaseValidate(ctx context.Context, provider, 
 		providerOverrides = overrides[0]
 	}
 
-	return ValidatePurchase(ctx, n.logger, n.db, n.purchaseProviderRegistry, uid, "", provider, payload, providerOverrides, persist)
+	return ValidatePurchase(ctx, n.logger, n.db, n.iapProviderRegistry, uid, "", provider, payload, providerOverrides, persist)
 }
 
 // @group subscriptions
@@ -4741,5 +4741,5 @@ func (n *RuntimeGoNakamaModule) SubscriptionValidate(ctx context.Context, provid
 		providerOverrides = overrides[0]
 	}
 
-	return ValidateSubscription(ctx, n.logger, n.db, n.purchaseProviderRegistry, uid, "", provider, payload, providerOverrides, persist)
+	return ValidateSubscription(ctx, n.logger, n.db, n.iapProviderRegistry, uid, "", provider, payload, providerOverrides, persist)
 }

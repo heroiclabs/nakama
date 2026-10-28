@@ -4972,7 +4972,7 @@
         "PLUGIN"
       ],
       "default": "STORE",
-      "description": "Purchase validation source.\n\n - STORE: A built-in store, named by the store field.\n - PLUGIN: A runtime-registered purchase provider, named by the provider field."
+      "description": "Purchase validation source.\n\n - STORE: A built-in store, named by the store field.\n - PLUGIN: A runtime-registered IAP provider, named by the provider field."
     },
     "QueryStorageIndexBody": {
       "type": "object",
@@ -5093,7 +5093,7 @@
           "items": {
             "type": "string"
           },
-          "title": "Go registered purchase providers"
+          "title": "Go registered IAP providers"
         }
       },
       "title": "Runtime information"
@@ -5990,7 +5990,7 @@
         },
         "source": {
           "$ref": "#/definitions/PurchaseSource",
-          "description": "Whether a store or a purchase provider validated the purchase. For provider plugins, store holds the provider's code."
+          "description": "Whether a store or an IAP provider validated the purchase. For IAP providers, store holds the provider's code."
         }
       },
       "description": "Validated Purchase stored by Nakama."
@@ -6061,7 +6061,7 @@
         },
         "source": {
           "$ref": "#/definitions/PurchaseSource",
-          "description": "Whether a store or a purchase provider validated the subscription. For provider plugins, store holds the provider's code."
+          "description": "Whether a store or an IAP provider validated the subscription. For IAP providers, store holds the provider's code."
         }
       }
     },

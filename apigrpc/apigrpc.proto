@@ -714,7 +714,7 @@ service Nakama {
     };
   }
 
-  // Validate a purchase with a registered purchase provider
+  // Validate a purchase with a registered IAP provider
   rpc ValidatePurchase (api.ValidateIAPPurchaseRequest) returns (api.ValidateIAPPurchaseResponse) {
     option (google.api.http) = {
       post: "/v2/iap/purchase/{provider}",
@@ -722,7 +722,7 @@ service Nakama {
     };
   }
 
-  // Validate a subscription with a registered purchase provider
+  // Validate a subscription with a registered IAP provider
   rpc ValidateSubscription (api.ValidateIAPSubscriptionRequest) returns (api.ValidateIAPSubscriptionResponse) {
     option (google.api.http) = {
       post: "/v2/iap/subscription/{provider}",

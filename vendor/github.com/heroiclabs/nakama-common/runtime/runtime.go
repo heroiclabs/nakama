@@ -387,14 +387,14 @@ type Initializer interface {
 	// RegisterPurchaseNotificationApple
 	RegisterPurchaseNotificationApple(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, notificationType NotificationType, purchase *api.ValidatedPurchase, payload *AppleNotificationData) error) error
 
-	// RegisterPurchaseNotificationProvider
-	RegisterPurchaseNotificationProvider(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, provider string, notificationType NotificationType, purchase *api.ValidatedPurchase, providerPayload string) error) error
+	// RegisterIAPPurchaseNotification
+	RegisterIAPPurchaseNotification(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, provider string, notificationType NotificationType, purchase *api.ValidatedPurchase, providerPayload string) error) error
 
 	// RegisterSubscriptionNotificationApple
 	RegisterSubscriptionNotificationApple(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, notificationType NotificationType, subscription *api.ValidatedSubscription, payload *AppleNotificationData) error) error
 
-	// RegisterSubscriptionNotificationProvider
-	RegisterSubscriptionNotificationProvider(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, provider string, notificationType NotificationType, subscription *api.ValidatedSubscription, providerPayload string) error) error
+	// RegisterIAPSubscriptionNotification
+	RegisterIAPSubscriptionNotification(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, provider string, notificationType NotificationType, subscription *api.ValidatedSubscription, providerPayload string) error) error
 
 	// RegisterPurchaseNotificationGoogle
 	RegisterPurchaseNotificationGoogle(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, notificationType NotificationType, purchase *api.ValidatedPurchase, providerPayload *PurchaseV2GoogleResponse) error) error

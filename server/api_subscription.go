@@ -176,7 +176,7 @@ func (s *ApiServer) ValidateSubscription(ctx context.Context, in *api.ValidateIA
 		payload = in.Payload.AsMap()
 	}
 
-	validation, err := ValidateSubscription(ctx, logger, s.db, s.runtime.PurchaseProviderRegistry(), userID, traceID, in.Provider, payload, nil, persist)
+	validation, err := ValidateSubscription(ctx, logger, s.db, s.runtime.IAPProviderRegistry(), userID, traceID, in.Provider, payload, nil, persist)
 	if err != nil {
 		return nil, err
 	}
@@ -227,7 +227,7 @@ func (s *ApiServer) ListSubscriptions(ctx context.Context, in *api.ListSubscript
 		limit = int(in.GetLimit().Value)
 	}
 
-	subscriptions, err := ListSubscriptions(ctx, logger, s.db, s.runtime.PurchaseProviderRegistry(), userID.String(), limit, in.Cursor, time.Time{}, time.Time{})
+	subscriptions, err := ListSubscriptions(ctx, logger, s.db, s.runtime.IAPProviderRegistry(), userID.String(), limit, in.Cursor, time.Time{}, time.Time{})
 	if err != nil {
 		return nil, err
 	}
@@ -272,7 +272,7 @@ func (s *ApiServer) GetSubscription(ctx context.Context, in *api.GetSubscription
 		}
 	}
 
-	sub, err := GetSubscriptionByProductId(ctx, logger, s.db, s.runtime.PurchaseProviderRegistry(), userID.String(), in.ProductId)
+	sub, err := GetSubscriptionByProductId(ctx, logger, s.db, s.runtime.IAPProviderRegistry(), userID.String(), in.ProductId)
 	if err != nil {
 		if errors.Is(err, ErrSubscriptionNotFound) {
 			return nil, status.Error(codes.NotFound, err.Error())

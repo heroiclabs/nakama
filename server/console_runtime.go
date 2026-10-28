@@ -44,6 +44,6 @@ func (s *ConsoleServer) GetRuntime(ctx context.Context, in *emptypb.Empty) (*con
 		GoAuthenticateProviders:  s.runtimeInfo.GoAuthenticateProviders,
 		LuaAuthenticateProviders: s.runtimeInfo.LuaAuthenticateProviders,
 		JsAuthenticateProviders:  s.runtimeInfo.JavaScriptAuthenticateProviders,
-		GoPurchaseProviders:      s.runtime.PurchaseProviderRegistry().Names(),
+		GoPurchaseProviders:      s.runtime.IAPProviderRegistry().Names(),
 	}, nil
 }

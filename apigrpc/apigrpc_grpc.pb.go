@@ -180,9 +180,9 @@ type NakamaClient interface {
 	UpdateAccount(ctx context.Context, in *api.UpdateAccountRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Update fields in a given group.
 	UpdateGroup(ctx context.Context, in *api.UpdateGroupRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// Validate a purchase with a registered purchase provider
+	// Validate a purchase with a registered IAP provider
 	ValidatePurchase(ctx context.Context, in *api.ValidateIAPPurchaseRequest, opts ...grpc.CallOption) (*api.ValidateIAPPurchaseResponse, error)
-	// Validate a subscription with a registered purchase provider
+	// Validate a subscription with a registered IAP provider
 	ValidateSubscription(ctx context.Context, in *api.ValidateIAPSubscriptionRequest, opts ...grpc.CallOption) (*api.ValidateIAPSubscriptionResponse, error)
 	// Validate Apple IAP Receipt
 	ValidatePurchaseApple(ctx context.Context, in *api.ValidatePurchaseAppleRequest, opts ...grpc.CallOption) (*api.ValidatePurchaseResponse, error)
@@ -1184,9 +1184,9 @@ type NakamaServer interface {
 	UpdateAccount(context.Context, *api.UpdateAccountRequest) (*emptypb.Empty, error)
 	// Update fields in a given group.
 	UpdateGroup(context.Context, *api.UpdateGroupRequest) (*emptypb.Empty, error)
-	// Validate a purchase with a registered purchase provider
+	// Validate a purchase with a registered IAP provider
 	ValidatePurchase(context.Context, *api.ValidateIAPPurchaseRequest) (*api.ValidateIAPPurchaseResponse, error)
-	// Validate a subscription with a registered purchase provider
+	// Validate a subscription with a registered IAP provider
 	ValidateSubscription(context.Context, *api.ValidateIAPSubscriptionRequest) (*api.ValidateIAPSubscriptionResponse, error)
 	// Validate Apple IAP Receipt
 	ValidatePurchaseApple(context.Context, *api.ValidatePurchaseAppleRequest) (*api.ValidatePurchaseResponse, error)

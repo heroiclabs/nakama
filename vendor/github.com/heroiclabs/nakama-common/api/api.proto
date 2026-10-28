@@ -1278,7 +1278,7 @@ message ValidatePurchaseSamsungRequest {
   google.protobuf.BoolValue persist = 2;
 }
 
-// Validate a purchase with a runtime-registered purchase provider.
+// Validate a purchase with a runtime-registered IAP provider.
 message ValidateIAPPurchaseRequest {
   // The name the provider was registered under during runtime initialization.
   string provider = 1;
@@ -1288,7 +1288,7 @@ message ValidateIAPPurchaseRequest {
   google.protobuf.BoolValue persist = 3;
 }
 
-// Validate a subscription with a runtime-registered purchase provider.
+// Validate a subscription with a runtime-registered IAP provider.
 message ValidateIAPSubscriptionRequest {
   // The name the provider was registered under during runtime initialization.
   string provider = 1;
@@ -1324,7 +1324,7 @@ message ValidatedPurchase {
   bool seen_before = 11;
   // Name of the provider that validated the purchase.
   string provider = 12;
-  // Whether a store or a purchase provider validated the purchase. For provider plugins, store holds the provider's code.
+  // Whether a store or an IAP provider validated the purchase. For IAP providers, store holds the provider's code.
   PurchaseSource source = 13;
 }
 
@@ -1339,13 +1339,13 @@ message ValidateSubscriptionResponse {
   ValidatedSubscription validated_subscription = 1;
 }
 
-// Validate a purchase with a runtime-registered IAP provider response.
+// Purchases validated by a runtime-registered IAP provider.
 message ValidateIAPPurchaseResponse {
   // Validated purchases.
-  repeated ValidatedPurchase purchases = 1;
+  repeated ValidatedPurchase purchase = 1;
 }
 
-// Validate a subscription with a runtime-registered IAP provider response.
+// Subscription validated by a runtime-registered IAP provider.
 message ValidateIAPSubscriptionResponse {
   ValidatedSubscription subscription = 1;
 }
@@ -1368,7 +1368,7 @@ enum StoreProvider {
 enum PurchaseSource {
   // A built-in store, named by the store field.
   STORE = 0;
-  // A runtime-registered purchase provider, named by the provider field.
+  // A runtime-registered IAP provider, named by the provider field.
   PLUGIN = 1;
 }
 
@@ -1411,7 +1411,7 @@ message ValidatedSubscription {
   bool active = 13;
   // Name of the provider that validated the subscription.
   string provider = 14;
-  // Whether a store or a purchase provider validated the subscription. For provider plugins, store holds the provider's code.
+  // Whether a store or an IAP provider validated the subscription. For IAP providers, store holds the provider's code.
   PurchaseSource source = 15;
 }
 

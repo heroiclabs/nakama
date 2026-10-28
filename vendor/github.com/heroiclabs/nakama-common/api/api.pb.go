@@ -108,7 +108,7 @@ type PurchaseSource int32
 const (
 	// A built-in store, named by the store field.
 	PurchaseSource_STORE PurchaseSource = 0
-	// A runtime-registered purchase provider, named by the provider field.
+	// A runtime-registered IAP provider, named by the provider field.
 	PurchaseSource_PLUGIN PurchaseSource = 1
 )
 
@@ -7827,7 +7827,7 @@ func (x *ValidatePurchaseSamsungRequest) GetPersist() *wrapperspb.BoolValue {
 	return nil
 }
 
-// Validate a purchase with a runtime-registered purchase provider.
+// Validate a purchase with a runtime-registered IAP provider.
 type ValidateIAPPurchaseRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The name the provider was registered under during runtime initialization.
@@ -7891,7 +7891,7 @@ func (x *ValidateIAPPurchaseRequest) GetPersist() *wrapperspb.BoolValue {
 	return nil
 }
 
-// Validate a subscription with a runtime-registered purchase provider.
+// Validate a subscription with a runtime-registered IAP provider.
 type ValidateIAPSubscriptionRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The name the provider was registered under during runtime initialization.
@@ -7982,7 +7982,7 @@ type ValidatedPurchase struct {
 	SeenBefore bool `protobuf:"varint,11,opt,name=seen_before,json=seenBefore,proto3" json:"seen_before,omitempty"`
 	// Name of the provider that validated the purchase.
 	Provider string `protobuf:"bytes,12,opt,name=provider,proto3" json:"provider,omitempty"`
-	// Whether a store or a purchase provider validated the purchase. For provider plugins, store holds the provider's code.
+	// Whether a store or an IAP provider validated the purchase. For IAP providers, store holds the provider's code.
 	Source        PurchaseSource `protobuf:"varint,13,opt,name=source,proto3,enum=nakama.api.PurchaseSource" json:"source,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -8200,11 +8200,11 @@ func (x *ValidateSubscriptionResponse) GetValidatedSubscription() *ValidatedSubs
 	return nil
 }
 
-// Validate a purchase with a runtime-registered IAP provider response.
+// Purchases validated by a runtime-registered IAP provider.
 type ValidateIAPPurchaseResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Validated purchases.
-	Purchases     []*ValidatedPurchase `protobuf:"bytes,1,rep,name=purchases,proto3" json:"purchases,omitempty"`
+	Purchase      []*ValidatedPurchase `protobuf:"bytes,1,rep,name=purchase,proto3" json:"purchase,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -8239,14 +8239,14 @@ func (*ValidateIAPPurchaseResponse) Descriptor() ([]byte, []int) {
 	return file_api_proto_rawDescGZIP(), []int{112}
 }
 
-func (x *ValidateIAPPurchaseResponse) GetPurchases() []*ValidatedPurchase {
+func (x *ValidateIAPPurchaseResponse) GetPurchase() []*ValidatedPurchase {
 	if x != nil {
-		return x.Purchases
+		return x.Purchase
 	}
 	return nil
 }
 
-// Validate a subscription with a runtime-registered IAP provider response.
+// Subscription validated by a runtime-registered IAP provider.
 type ValidateIAPSubscriptionResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Subscription  *ValidatedSubscription `protobuf:"bytes,1,opt,name=subscription,proto3" json:"subscription,omitempty"`
@@ -8321,7 +8321,7 @@ type ValidatedSubscription struct {
 	Active bool `protobuf:"varint,13,opt,name=active,proto3" json:"active,omitempty"`
 	// Name of the provider that validated the subscription.
 	Provider string `protobuf:"bytes,14,opt,name=provider,proto3" json:"provider,omitempty"`
-	// Whether a store or a purchase provider validated the subscription. For provider plugins, store holds the provider's code.
+	// Whether a store or an IAP provider validated the subscription. For IAP providers, store holds the provider's code.
 	Source        PurchaseSource `protobuf:"varint,15,opt,name=source,proto3,enum=nakama.api.PurchaseSource" json:"source,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -10029,9 +10029,9 @@ const file_api_proto_rawDesc = "" +
 	"\x18ValidatePurchaseResponse\x12N\n" +
 	"\x13validated_purchases\x18\x01 \x03(\v2\x1d.nakama.api.ValidatedPurchaseR\x12validatedPurchases\"x\n" +
 	"\x1cValidateSubscriptionResponse\x12X\n" +
-	"\x16validated_subscription\x18\x01 \x01(\v2!.nakama.api.ValidatedSubscriptionR\x15validatedSubscription\"Z\n" +
-	"\x1bValidateIAPPurchaseResponse\x12;\n" +
-	"\tpurchases\x18\x01 \x03(\v2\x1d.nakama.api.ValidatedPurchaseR\tpurchases\"h\n" +
+	"\x16validated_subscription\x18\x01 \x01(\v2!.nakama.api.ValidatedSubscriptionR\x15validatedSubscription\"X\n" +
+	"\x1bValidateIAPPurchaseResponse\x129\n" +
+	"\bpurchase\x18\x01 \x03(\v2\x1d.nakama.api.ValidatedPurchaseR\bpurchase\"h\n" +
 	"\x1fValidateIAPSubscriptionResponse\x12E\n" +
 	"\fsubscription\x18\x01 \x01(\v2!.nakama.api.ValidatedSubscriptionR\fsubscription\"\xf7\x05\n" +
 	"\x15ValidatedSubscription\x12\x17\n" +
@@ -10470,7 +10470,7 @@ var file_api_proto_depIdxs = []int32{
 	1,   // 164: nakama.api.ValidatedPurchase.source:type_name -> nakama.api.PurchaseSource
 	116, // 165: nakama.api.ValidatePurchaseResponse.validated_purchases:type_name -> nakama.api.ValidatedPurchase
 	121, // 166: nakama.api.ValidateSubscriptionResponse.validated_subscription:type_name -> nakama.api.ValidatedSubscription
-	116, // 167: nakama.api.ValidateIAPPurchaseResponse.purchases:type_name -> nakama.api.ValidatedPurchase
+	116, // 167: nakama.api.ValidateIAPPurchaseResponse.purchase:type_name -> nakama.api.ValidatedPurchase
 	121, // 168: nakama.api.ValidateIAPSubscriptionResponse.subscription:type_name -> nakama.api.ValidatedSubscription
 	0,   // 169: nakama.api.ValidatedSubscription.store:type_name -> nakama.api.StoreProvider
 	149, // 170: nakama.api.ValidatedSubscription.purchase_time:type_name -> google.protobuf.Timestamp

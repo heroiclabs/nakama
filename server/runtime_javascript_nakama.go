@@ -83,16 +83,16 @@ type RuntimeJavascriptNakamaModule struct {
 	router               MessageRouter
 	storageIndex         StorageIndex
 
-	node                     string
-	matchCreateFn            RuntimeMatchCreateFunction
-	eventFn                  RuntimeEventCustomFunction
-	authProviderRegistry     *RuntimeAuthenticateProviderRegistry
-	purchaseProviderRegistry *RuntimeIAPProviderRegistry
+	node                 string
+	matchCreateFn        RuntimeMatchCreateFunction
+	eventFn              RuntimeEventCustomFunction
+	authProviderRegistry *RuntimeAuthenticateProviderRegistry
+	iapProviderRegistry  *RuntimeIAPProviderRegistry
 
 	satori runtime.Satori
 }
 
-func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, storageIndex StorageIndex, localCache *RuntimeJavascriptLocalCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, satoriClient runtime.Satori, eventFn RuntimeEventCustomFunction, matchCreateFn RuntimeMatchCreateFunction, authProviderRegistry *RuntimeAuthenticateProviderRegistry, purchaseProviderRegistry *RuntimeIAPProviderRegistry) *RuntimeJavascriptNakamaModule {
+func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, storageIndex StorageIndex, localCache *RuntimeJavascriptLocalCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, satoriClient runtime.Satori, eventFn RuntimeEventCustomFunction, matchCreateFn RuntimeMatchCreateFunction, authProviderRegistry *RuntimeAuthenticateProviderRegistry, iapProviderRegistry *RuntimeIAPProviderRegistry) *RuntimeJavascriptNakamaModule {
 	return &RuntimeJavascriptNakamaModule{
 		ctx:                  context.Background(),
 		logger:               logger,
@@ -118,11 +118,11 @@ func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonM
 		httpClientInsecure:   &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}},
 		storageIndex:         storageIndex,
 
-		node:                     config.GetName(),
-		eventFn:                  eventFn,
-		authProviderRegistry:     authProviderRegistry,
-		purchaseProviderRegistry: purchaseProviderRegistry,
-		matchCreateFn:            matchCreateFn,
+		node:                 config.GetName(),
+		eventFn:              eventFn,
+		authProviderRegistry: authProviderRegistry,
+		iapProviderRegistry:  iapProviderRegistry,
+		matchCreateFn:        matchCreateFn,
 
 		satori: satoriClient,
 	}
@@ -6708,7 +6708,7 @@ func (n *RuntimeJavascriptNakamaModule) purchaseGetByTransactionId(r *goja.Runti
 			panic(r.NewTypeError("expects a transaction id string"))
 		}
 
-		purchase, err := GetPurchaseByTransactionId(n.ctx, n.logger, n.db, n.purchaseProviderRegistry, transactionID)
+		purchase, err := GetPurchaseByTransactionId(n.ctx, n.logger, n.db, n.iapProviderRegistry, transactionID)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error retrieving purchase: %s", err.Error())))
 		}
@@ -6747,7 +6747,7 @@ func (n *RuntimeJavascriptNakamaModule) purchasesList(r *goja.Runtime) func(goja
 			cursor = getJsString(r, f.Argument(2))
 		}
 
-		purchases, err := ListPurchases(n.ctx, n.logger, n.db, n.purchaseProviderRegistry, userID, limit, cursor, time.Time{}, time.Time{})
+		purchases, err := ListPurchases(n.ctx, n.logger, n.db, n.iapProviderRegistry, userID, limit, cursor, time.Time{}, time.Time{})
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error retrieving purchases: %s", err.Error())))
 		}
@@ -6902,7 +6902,7 @@ func (n *RuntimeJavascriptNakamaModule) subscriptionGetByProductId(r *goja.Runti
 			panic(r.NewTypeError("expects a transaction id string"))
 		}
 
-		subscription, err := GetSubscriptionByProductId(n.ctx, n.logger, n.db, n.purchaseProviderRegistry, uid.String(), productID)
+		subscription, err := GetSubscriptionByProductId(n.ctx, n.logger, n.db, n.iapProviderRegistry, uid.String(), productID)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error retrieving purchase: %s", err.Error())))
 		}
@@ -6941,7 +6941,7 @@ func (n *RuntimeJavascriptNakamaModule) subscriptionsList(r *goja.Runtime) func(
 			cursor = getJsString(r, f.Argument(2))
 		}
 
-		subscriptions, err := ListSubscriptions(n.ctx, n.logger, n.db, n.purchaseProviderRegistry, userID, limit, cursor, time.Time{}, time.Time{})
+		subscriptions, err := ListSubscriptions(n.ctx, n.logger, n.db, n.iapProviderRegistry, userID, limit, cursor, time.Time{}, time.Time{})
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error retrieving purchases: %s", err.Error())))
 		}

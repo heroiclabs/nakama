@@ -51,29 +51,29 @@ type RuntimeGoInitializer struct {
 	nk      runtime.NakamaModule
 	config  Config
 
-	rpc                              map[string]RuntimeRpcFunction
-	authProviderRegistry             *RuntimeAuthenticateProviderRegistry
-	purchaseProviderRegistry         *RuntimeIAPProviderRegistry
-	purchaseNotificationProvider     *RuntimePurchaseNotificationProviderFunction
-	subscriptionNotificationProvider *RuntimeSubscriptionNotificationProviderFunction
-	beforeRt                         map[string]RuntimeBeforeRtFunction
-	afterRt                          map[string]RuntimeAfterRtFunction
-	beforeReq                        *RuntimeBeforeReqFunctions
-	afterReq                         *RuntimeAfterReqFunctions
-	matchmakerMatched                RuntimeMatchmakerMatchedFunction
-	tournamentEnd                    RuntimeTournamentEndFunction
-	tournamentReset                  RuntimeTournamentResetFunction
-	leaderboardReset                 RuntimeLeaderboardResetFunction
-	shutdownFunction                 RuntimeShutdownFunction
-	purchaseNotificationApple        RuntimePurchaseNotificationAppleFunction
-	subscriptionNotificationApple    RuntimeSubscriptionNotificationAppleFunction
-	purchaseNotificationGoogle       RuntimePurchaseNotificationGoogleFunction
-	subscriptionNotificationGoogle   RuntimeSubscriptionNotificationGoogleFunction
-	matchmakerOverride               RuntimeMatchmakerOverrideFunction
-	matchmakerProcessor              RuntimeMatchmakerProcessorFunction
-	storageIndexFunctions            map[string]RuntimeStorageIndexFilterFunction
-	httpHandlers                     []*RuntimeHttpHandler
-	consoleHttpHandlers              []*RuntimeHttpHandler
+	rpc                            map[string]RuntimeRpcFunction
+	authProviderRegistry           *RuntimeAuthenticateProviderRegistry
+	iapProviderRegistry            *RuntimeIAPProviderRegistry
+	iapPurchaseNotification        *RuntimeIAPPurchaseNotificationFunction
+	iapSubscriptionNotification    *RuntimeIAPSubscriptionNotificationFunction
+	beforeRt                       map[string]RuntimeBeforeRtFunction
+	afterRt                        map[string]RuntimeAfterRtFunction
+	beforeReq                      *RuntimeBeforeReqFunctions
+	afterReq                       *RuntimeAfterReqFunctions
+	matchmakerMatched              RuntimeMatchmakerMatchedFunction
+	tournamentEnd                  RuntimeTournamentEndFunction
+	tournamentReset                RuntimeTournamentResetFunction
+	leaderboardReset               RuntimeLeaderboardResetFunction
+	shutdownFunction               RuntimeShutdownFunction
+	purchaseNotificationApple      RuntimePurchaseNotificationAppleFunction
+	subscriptionNotificationApple  RuntimeSubscriptionNotificationAppleFunction
+	purchaseNotificationGoogle     RuntimePurchaseNotificationGoogleFunction
+	subscriptionNotificationGoogle RuntimeSubscriptionNotificationGoogleFunction
+	matchmakerOverride             RuntimeMatchmakerOverrideFunction
+	matchmakerProcessor            RuntimeMatchmakerProcessorFunction
+	storageIndexFunctions          map[string]RuntimeStorageIndexFilterFunction
+	httpHandlers                   []*RuntimeHttpHandler
+	consoleHttpHandlers            []*RuntimeHttpHandler
 
 	fleetManagers map[string]runtime.FleetManager
 
@@ -3786,12 +3786,12 @@ func (ri *RuntimeGoInitializer) RegisterMatch(name string, fn func(ctx context.C
 	return nil
 }
 
-func NewRuntimeProviderGo(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, storageIndex StorageIndex, satoriClient runtime.Satori, rootPath string, paths []string, eventQueue *RuntimeEventQueue, matchProvider *MatchProvider, fmCallbackHandler runtime.FmCallbackHandler, authProviderRegistry *RuntimeAuthenticateProviderRegistry, purchaseProviderRegistry *RuntimeIAPProviderRegistry, purchaseNotificationProvider *RuntimePurchaseNotificationProviderFunction, subscriptionNotificationProvider *RuntimeSubscriptionNotificationProviderFunction) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeMatchmakerOverrideFunction, RuntimeMatchmakerProcessorFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, RuntimeShutdownFunction, RuntimePurchaseNotificationAppleFunction, RuntimeSubscriptionNotificationAppleFunction, RuntimePurchaseNotificationGoogleFunction, RuntimeSubscriptionNotificationGoogleFunction, map[string]RuntimeStorageIndexFilterFunction, map[string]runtime.FleetManager, []*RuntimeHttpHandler, []*RuntimeHttpHandler, *RuntimeEventFunctions, func() []string, error) {
+func NewRuntimeProviderGo(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, storageIndex StorageIndex, satoriClient runtime.Satori, rootPath string, paths []string, eventQueue *RuntimeEventQueue, matchProvider *MatchProvider, fmCallbackHandler runtime.FmCallbackHandler, authProviderRegistry *RuntimeAuthenticateProviderRegistry, iapProviderRegistry *RuntimeIAPProviderRegistry, iapPurchaseNotification *RuntimeIAPPurchaseNotificationFunction, iapSubscriptionNotification *RuntimeIAPSubscriptionNotificationFunction) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeMatchmakerOverrideFunction, RuntimeMatchmakerProcessorFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, RuntimeShutdownFunction, RuntimePurchaseNotificationAppleFunction, RuntimeSubscriptionNotificationAppleFunction, RuntimePurchaseNotificationGoogleFunction, RuntimeSubscriptionNotificationGoogleFunction, map[string]RuntimeStorageIndexFilterFunction, map[string]runtime.FleetManager, []*RuntimeHttpHandler, []*RuntimeHttpHandler, *RuntimeEventFunctions, func() []string, error) {
 	runtimeLogger := NewRuntimeGoLogger(logger)
 	node := config.GetName()
 	env := config.GetRuntime().Environment
 
-	nk := NewRuntimeGoNakamaModule(logger, db, protojsonMarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, storageIndex, satoriClient, authProviderRegistry, purchaseProviderRegistry)
+	nk := NewRuntimeGoNakamaModule(logger, db, protojsonMarshaler, config, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, storageIndex, satoriClient, authProviderRegistry, iapProviderRegistry)
 
 	match := make(map[string]func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule) (runtime.Match, error))
 
@@ -3836,10 +3836,10 @@ func NewRuntimeProviderGo(ctx context.Context, logger, startupLogger *zap.Logger
 		nk:      nk,
 		config:  config,
 
-		authProviderRegistry:             authProviderRegistry,
-		purchaseProviderRegistry:         purchaseProviderRegistry,
-		purchaseNotificationProvider:     purchaseNotificationProvider,
-		subscriptionNotificationProvider: subscriptionNotificationProvider,
+		authProviderRegistry:        authProviderRegistry,
+		iapProviderRegistry:         iapProviderRegistry,
+		iapPurchaseNotification:     iapPurchaseNotification,
+		iapSubscriptionNotification: iapSubscriptionNotification,
 
 		rpc: make(map[string]RuntimeRpcFunction),
 
@@ -3998,7 +3998,7 @@ func (ri *RuntimeGoInitializer) RegisterIAPProvider(provider runtime.IAPProvider
 	name := strings.ToLower(provider.Name())
 
 	validateFunc := func(ctx context.Context, traceID string, payload, overrides map[string]any) ([]*runtime.IAPProviderPurchase, error, codes.Code) {
-		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModePurchaseProvider, nil, nil, traceID, 0, "", "", nil, "", "", "", "")
+		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeIAPProvider, nil, nil, traceID, 0, "", "", nil, "", "", "", "")
 		result, fnErr := provider.ValidatePurchase(ctx, RuntimeLoggerWithTraceId(ctx, ri.logger.WithField("provider", name)), ri.db, ri.nk, payload, overrides)
 		if fnErr != nil {
 			var runtimeErr *runtime.Error
@@ -4016,7 +4016,7 @@ func (ri *RuntimeGoInitializer) RegisterIAPProvider(provider runtime.IAPProvider
 	}
 
 	validateSubscriptionFunc := func(ctx context.Context, traceID string, payload, overrides map[string]any) ([]*runtime.IAPProviderSubscription, error, codes.Code) {
-		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModePurchaseProvider, nil, nil, traceID, 0, "", "", nil, "", "", "", "")
+		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeIAPProvider, nil, nil, traceID, 0, "", "", nil, "", "", "", "")
 		result, fnErr := provider.ValidateSubscription(ctx, RuntimeLoggerWithTraceId(ctx, ri.logger.WithField("provider", name)), ri.db, ri.nk, payload, overrides)
 		if fnErr != nil {
 			if runtimeErr, ok := errors.AsType[*runtime.Error](fnErr); ok {
@@ -4031,11 +4031,11 @@ func (ri *RuntimeGoInitializer) RegisterIAPProvider(provider runtime.IAPProvider
 	}
 
 	notificationFunc := func(ctx context.Context, body []byte, headers, query map[string][]string) ([]*runtime.IAPProviderNotification, error) {
-		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModePurchaseNotificationProvider, nil, nil, "", 0, "", "", nil, "", "", "", "")
-		return provider.HandleNotification(ctx, ri.logger.WithFields(map[string]any{"mode": RuntimeExecutionModePurchaseNotificationProvider.String(), "provider": name}), ri.db, ri.nk, body, headers, query)
+		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeIAPPurchaseNotification, nil, nil, "", 0, "", "", nil, "", "", "", "")
+		return provider.HandleNotification(ctx, ri.logger.WithFields(map[string]any{"mode": RuntimeExecutionModeIAPPurchaseNotification.String(), "provider": name}), ri.db, ri.nk, body, headers, query)
 	}
 
-	return ri.purchaseProviderRegistry.Register(name, provider.Code(), validateFunc, validateSubscriptionFunc, notificationFunc)
+	return ri.iapProviderRegistry.Register(name, provider.Code(), validateFunc, validateSubscriptionFunc, notificationFunc)
 }
 
 // @group purchases
@@ -4114,10 +4114,10 @@ func (ri *RuntimeGoInitializer) RegisterAfterValidateSubscription(fn func(ctx co
 // @summary Register a function to handle subscription notifications from IAP providers.
 // @param fn(type=function) The function to execute when an IAP provider subscription notification is received.
 // @return error(error) An optional error value if an error occurred.
-func (ri *RuntimeGoInitializer) RegisterSubscriptionNotificationProvider(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, provider string, notificationType runtime.NotificationType, subscription *api.ValidatedSubscription, providerPayload string) error) error {
-	*ri.subscriptionNotificationProvider = func(ctx context.Context, provider string, notificationType runtime.NotificationType, subscription *api.ValidatedSubscription, providerPayload string) error {
-		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeSubscriptionNotificationProvider, nil, nil, "", 0, "", "", nil, "", "", "", "")
-		return fn(ctx, ri.logger.WithFields(map[string]any{"mode": RuntimeExecutionModeSubscriptionNotificationProvider.String(), "provider": provider}), ri.db, ri.nk, provider, notificationType, subscription, providerPayload)
+func (ri *RuntimeGoInitializer) RegisterIAPSubscriptionNotification(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, provider string, notificationType runtime.NotificationType, subscription *api.ValidatedSubscription, providerPayload string) error) error {
+	*ri.iapSubscriptionNotification = func(ctx context.Context, provider string, notificationType runtime.NotificationType, subscription *api.ValidatedSubscription, providerPayload string) error {
+		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeIAPSubscriptionNotification, nil, nil, "", 0, "", "", nil, "", "", "", "")
+		return fn(ctx, ri.logger.WithFields(map[string]any{"mode": RuntimeExecutionModeIAPSubscriptionNotification.String(), "provider": provider}), ri.db, ri.nk, provider, notificationType, subscription, providerPayload)
 	}
 	return nil
 }
@@ -4126,10 +4126,10 @@ func (ri *RuntimeGoInitializer) RegisterSubscriptionNotificationProvider(fn func
 // @summary Register a function to handle IAP provider notifications.
 // @param fn(type=function) The function to execute when an IAP provider notification is received.
 // @return error(error) An optional error value if an error occurred.
-func (ri *RuntimeGoInitializer) RegisterPurchaseNotificationProvider(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, provider string, notificationType runtime.NotificationType, purchase *api.ValidatedPurchase, providerPayload string) error) error {
-	*ri.purchaseNotificationProvider = func(ctx context.Context, provider string, notificationType runtime.NotificationType, purchase *api.ValidatedPurchase, providerPayload string) error {
-		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModePurchaseNotificationProvider, nil, nil, "", 0, "", "", nil, "", "", "", "")
-		return fn(ctx, ri.logger.WithFields(map[string]any{"mode": RuntimeExecutionModePurchaseNotificationProvider.String(), "provider": provider}), ri.db, ri.nk, provider, notificationType, purchase, providerPayload)
+func (ri *RuntimeGoInitializer) RegisterIAPPurchaseNotification(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, provider string, notificationType runtime.NotificationType, purchase *api.ValidatedPurchase, providerPayload string) error) error {
+	*ri.iapPurchaseNotification = func(ctx context.Context, provider string, notificationType runtime.NotificationType, purchase *api.ValidatedPurchase, providerPayload string) error {
+		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeIAPPurchaseNotification, nil, nil, "", 0, "", "", nil, "", "", "", "")
+		return fn(ctx, ri.logger.WithFields(map[string]any{"mode": RuntimeExecutionModeIAPPurchaseNotification.String(), "provider": provider}), ri.db, ri.nk, provider, notificationType, purchase, providerPayload)
 	}
 	return nil
 }

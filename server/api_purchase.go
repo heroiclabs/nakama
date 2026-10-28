@@ -345,7 +345,7 @@ func (s *ApiServer) ValidatePurchase(ctx context.Context, in *api.ValidateIAPPur
 		payload = in.Payload.AsMap()
 	}
 
-	validation, err := ValidatePurchase(ctx, logger, s.db, s.runtime.PurchaseProviderRegistry(), userID, traceID, in.Provider, payload, nil, persist)
+	validation, err := ValidatePurchase(ctx, logger, s.db, s.runtime.IAPProviderRegistry(), userID, traceID, in.Provider, payload, nil, persist)
 	if err != nil {
 		return nil, err
 	}

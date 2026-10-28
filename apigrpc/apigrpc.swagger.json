@@ -2507,7 +2507,7 @@
     },
     "/v2/iap/purchase/{provider}": {
       "post": {
-        "summary": "Validate a purchase with a registered purchase provider",
+        "summary": "Validate a purchase with a registered IAP provider",
         "operationId": "Nakama_ValidatePurchase",
         "responses": {
           "200": {
@@ -2679,7 +2679,7 @@
     },
     "/v2/iap/subscription/{provider}": {
       "post": {
-        "summary": "Validate a subscription with a registered purchase provider",
+        "summary": "Validate a subscription with a registered IAP provider",
         "operationId": "Nakama_ValidateSubscription",
         "responses": {
           "200": {
@@ -4009,7 +4009,7 @@
           "description": "Persist the purchase so that seenBefore can be computed to protect against replay attacks."
         }
       },
-      "description": "Validate a purchase with a runtime-registered purchase provider."
+      "description": "Validate a purchase with a runtime-registered IAP provider."
     },
     "NakamaValidateSubscriptionBody": {
       "type": "object",
@@ -4023,7 +4023,7 @@
           "description": "Persist the subscription."
         }
       },
-      "description": "Validate a subscription with a runtime-registered purchase provider."
+      "description": "Validate a subscription with a runtime-registered IAP provider."
     },
     "UserGroupListUserGroup": {
       "type": "object",
@@ -4981,7 +4981,7 @@
         "PLUGIN"
       ],
       "default": "STORE",
-      "description": "Purchase validation source.\n\n - STORE: A built-in store, named by the store field.\n - PLUGIN: A runtime-registered purchase provider, named by the provider field."
+      "description": "Purchase validation source.\n\n - STORE: A built-in store, named by the store field.\n - PLUGIN: A runtime-registered IAP provider, named by the provider field."
     },
     "apiReadStorageObjectId": {
       "type": "object",
@@ -5554,7 +5554,7 @@
     "apiValidateIAPPurchaseResponse": {
       "type": "object",
       "properties": {
-        "purchases": {
+        "purchase": {
           "type": "array",
           "items": {
             "type": "object",
@@ -5563,7 +5563,7 @@
           "description": "Validated purchases."
         }
       },
-      "description": "Validate a purchase with a runtime-registered IAP provider response."
+      "description": "Purchases validated by a runtime-registered IAP provider."
     },
     "apiValidateIAPSubscriptionResponse": {
       "type": "object",
@@ -5572,7 +5572,7 @@
           "$ref": "#/definitions/apiValidatedSubscription"
         }
       },
-      "description": "Validate a subscription with a runtime-registered IAP provider response."
+      "description": "Subscription validated by a runtime-registered IAP provider."
     },
     "apiValidatePurchaseAppleRequest": {
       "type": "object",
@@ -5756,7 +5756,7 @@
         },
         "source": {
           "$ref": "#/definitions/apiPurchaseSource",
-          "description": "Whether a store or a purchase provider validated the purchase. For provider plugins, store holds the provider's code."
+          "description": "Whether a store or an IAP provider validated the purchase. For IAP providers, store holds the provider's code."
         }
       },
       "description": "Validated Purchase stored by Nakama."
@@ -5827,7 +5827,7 @@
         },
         "source": {
           "$ref": "#/definitions/apiPurchaseSource",
-          "description": "Whether a store or a purchase provider validated the subscription. For provider plugins, store holds the provider's code."
+          "description": "Whether a store or an IAP provider validated the subscription. For IAP providers, store holds the provider's code."
         }
       }
     },

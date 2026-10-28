@@ -5805,7 +5805,7 @@ type RuntimeInfo struct {
 	GoAuthenticateProviders []string `protobuf:"bytes,8,rep,name=go_authenticate_providers,json=goAuthenticateProviders,proto3" json:"go_authenticate_providers,omitempty"`
 	// JavaScript registered authentication providers
 	JsAuthenticateProviders []string `protobuf:"bytes,9,rep,name=js_authenticate_providers,json=jsAuthenticateProviders,proto3" json:"js_authenticate_providers,omitempty"`
-	// Go registered purchase providers
+	// Go registered IAP providers
 	GoPurchaseProviders []string `protobuf:"bytes,10,rep,name=go_purchase_providers,json=goPurchaseProviders,proto3" json:"go_purchase_providers,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
