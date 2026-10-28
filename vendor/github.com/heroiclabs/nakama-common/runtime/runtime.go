@@ -393,6 +393,9 @@ type Initializer interface {
 	// RegisterSubscriptionNotificationApple
 	RegisterSubscriptionNotificationApple(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, notificationType NotificationType, subscription *api.ValidatedSubscription, payload *AppleNotificationData) error) error
 
+	// RegisterSubscriptionNotificationProvider
+	RegisterSubscriptionNotificationProvider(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, provider string, notificationType NotificationType, subscription *api.ValidatedSubscription, providerPayload string) error) error
+
 	// RegisterPurchaseNotificationGoogle
 	RegisterPurchaseNotificationGoogle(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, notificationType NotificationType, purchase *api.ValidatedPurchase, providerPayload *PurchaseV2GoogleResponse) error) error
 
@@ -834,6 +837,12 @@ type Initializer interface {
 	// RegisterAfterValidatePurchase can be used to perform additional logic after validating a purchase with a registered purchase provider.
 	RegisterAfterValidatePurchase(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseRequest) error) error
 
+	// RegisterBeforeValidateSubscription can be used to perform additional logic before validating a subscription with a registered purchase provider.
+	RegisterBeforeValidateSubscription(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ValidateSubscriptionRequest) (*api.ValidateSubscriptionRequest, error)) error
+
+	// RegisterAfterValidateSubscription can be used to perform additional logic after validating a subscription with a registered purchase provider.
+	RegisterAfterValidateSubscription(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.ValidateSubscriptionResponse, in *api.ValidateSubscriptionRequest) error) error
+
 	// RegisterBeforeListSubscriptions can be used to perform additional logic before listing subscriptions.
 	RegisterBeforeListSubscriptions(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ListSubscriptionsRequest) (*api.ListSubscriptionsRequest, error)) error
 
@@ -1176,12 +1185,34 @@ type PurchaseProvider interface {
 }
 
 /*
-PurchaseNotificationHandler is optionally implemented by a PurchaseProvider to receive refund notifications at
+SubscriptionProvider is optionally implemented by a PurchaseProvider to validate subscriptions.
+*/
+type SubscriptionProvider interface {
+	// ValidateSubscription verifies the caller's payload, using any server-side overrides, and returns the subscriptions for Nakama to store. The first one is returned to the caller.
+	ValidateSubscription(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, payload map[string]any, overrides map[string]any) ([]*ProviderSubscription, error)
+}
+
+/*
+NotificationHandler is optionally implemented by a PurchaseProvider to receive store notifications at
 /v2/console/<name>/notifications.
 */
-type PurchaseNotificationHandler interface {
-	// HandlePurchaseNotification authenticates a refund notification and returns the refunded purchase and its user ID, if known.
-	HandlePurchaseNotification(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, body []byte, headers, query map[string][]string) (*ProviderPurchase, string, error)
+type NotificationHandler interface {
+	// HandleNotification authenticates a notification and returns the update it carries, or nil to acknowledge and ignore it.
+	HandleNotification(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, body []byte, headers, query map[string][]string) (*ProviderNotification, error)
+}
+
+/*
+ProviderNotification is the update a notification carries: a refunded Purchase, or a Subscription change.
+A Subscription with a zero Type is stored without calling the notification hook.
+*/
+type ProviderNotification struct {
+	Type         NotificationType
+	UserId       string
+	Purchase     *ProviderPurchase
+	Subscription *ProviderSubscription
+	// RequireUser makes Nakama answer with an error, so the store delivers the notification again, when neither
+	// UserId nor a stored row names the user.
+	RequireUser bool
 }
 
 type ProviderPurchase struct {
@@ -1191,6 +1222,16 @@ type ProviderPurchase struct {
 	RefundTime    time.Time
 	Environment   api.StoreEnvironment
 	RawResponse   string
+}
+
+type ProviderSubscription struct {
+	OriginalTransactionId string
+	ProductId             string
+	PurchaseTime          time.Time
+	ExpiryTime            time.Time
+	RefundTime            time.Time
+	Environment           api.StoreEnvironment
+	RawResponse           string
 }
 
 type NakamaModule interface {
@@ -1320,6 +1361,7 @@ type NakamaModule interface {
 	}) (*api.ValidateSubscriptionResponse, error)
 	SubscriptionsList(ctx context.Context, userID string, limit int, cursor string) (*api.SubscriptionList, error)
 	SubscriptionGetByProductId(ctx context.Context, userID, productID string) (*api.ValidatedSubscription, error)
+	SubscriptionValidate(ctx context.Context, provider, userID string, payload map[string]any, persist bool, overrides ...map[string]any) (*api.ValidateSubscriptionResponse, error)
 
 	TournamentCreate(ctx context.Context, id string, authoritative bool, sortOrder, operator, resetSchedule string, metadata map[string]interface{}, title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired, enableRanks bool) error
 	TournamentDelete(ctx context.Context, id string) error

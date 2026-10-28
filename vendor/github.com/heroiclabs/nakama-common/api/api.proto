@@ -1288,6 +1288,16 @@ message ValidatePurchaseRequest {
   google.protobuf.BoolValue persist = 3;
 }
 
+// Validate a subscription with a runtime-registered purchase provider.
+message ValidateSubscriptionRequest {
+  // The name the provider was registered under during runtime initialization.
+  string provider = 1;
+  // Opaque JSON passed through to the registered provider.
+  google.protobuf.Struct payload = 2;
+  // Persist the subscription.
+  google.protobuf.BoolValue persist = 3;
+}
+
 // Validated Purchase stored by Nakama.
 message ValidatedPurchase {
   // Purchase User ID.
@@ -1388,6 +1398,10 @@ message ValidatedSubscription {
   string provider_notification = 12;
   // Whether the subscription is currently active or not.
   bool active = 13;
+  // Name of the provider that validated the subscription.
+  string provider = 14;
+  // Whether a store or a purchase provider validated the subscription. For provider plugins, store holds the provider's code.
+  PurchaseSource source = 15;
 }
 
 // A list of validated purchases stored by Nakama.
