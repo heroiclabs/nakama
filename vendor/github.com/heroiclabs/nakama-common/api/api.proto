@@ -1322,10 +1322,8 @@ message ValidatedPurchase {
   StoreEnvironment environment = 10;
   // Whether the purchase had already been validated by Nakama before.
   bool seen_before = 11;
-  // Name of the provider that validated the purchase.
+  // Name of the IAP provider that validated the purchase, empty for a built-in store. For IAP providers, store holds the provider's code.
   string provider = 12;
-  // Whether a store or an IAP provider validated the purchase. For IAP providers, store holds the provider's code.
-  PurchaseSource source = 13;
 }
 
 // Validate IAP response.
@@ -1362,14 +1360,6 @@ enum StoreProvider {
   FACEBOOK_INSTANT_STORE = 3;
   // Samsung Galaxy Store
   SAMSUNG_GALAXY_STORE = 4;
-}
-
-// Purchase validation source.
-enum PurchaseSource {
-  // A built-in store, named by the store field.
-  STORE = 0;
-  // A runtime-registered IAP provider, named by the provider field.
-  PLUGIN = 1;
 }
 
 // Environment where a purchase/subscription took place,
@@ -1409,10 +1399,8 @@ message ValidatedSubscription {
   string provider_notification = 12;
   // Whether the subscription is currently active or not.
   bool active = 13;
-  // Name of the provider that validated the subscription.
+  // Name of the IAP provider that validated the subscription, empty for a built-in store. For IAP providers, store holds the provider's code.
   string provider = 14;
-  // Whether a store or an IAP provider validated the subscription. For IAP providers, store holds the provider's code.
-  PurchaseSource source = 15;
 }
 
 // A list of validated purchases stored by Nakama.

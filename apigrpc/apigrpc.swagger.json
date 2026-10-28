@@ -4974,15 +4974,6 @@
       },
       "description": "A list of realtime matches."
     },
-    "apiPurchaseSource": {
-      "type": "string",
-      "enum": [
-        "STORE",
-        "PLUGIN"
-      ],
-      "default": "STORE",
-      "description": "Purchase validation source.\n\n - STORE: A built-in store, named by the store field.\n - PLUGIN: A runtime-registered IAP provider, named by the provider field."
-    },
     "apiReadStorageObjectId": {
       "type": "object",
       "properties": {
@@ -5752,11 +5743,7 @@
         },
         "provider": {
           "type": "string",
-          "description": "Name of the provider that validated the purchase."
-        },
-        "source": {
-          "$ref": "#/definitions/apiPurchaseSource",
-          "description": "Whether a store or an IAP provider validated the purchase. For IAP providers, store holds the provider's code."
+          "description": "Name of the IAP provider that validated the purchase, empty for a built-in store. For IAP providers, store holds the provider's code."
         }
       },
       "description": "Validated Purchase stored by Nakama."
@@ -5823,11 +5810,7 @@
         },
         "provider": {
           "type": "string",
-          "description": "Name of the provider that validated the subscription."
-        },
-        "source": {
-          "$ref": "#/definitions/apiPurchaseSource",
-          "description": "Whether a store or an IAP provider validated the subscription. For IAP providers, store holds the provider's code."
+          "description": "Name of the IAP provider that validated the subscription, empty for a built-in store. For IAP providers, store holds the provider's code."
         }
       }
     },

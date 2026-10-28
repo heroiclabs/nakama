@@ -637,7 +637,6 @@ func GetPurchaseByTransactionId(ctx context.Context, logger *zap.Logger, db *sql
 	}
 	if name := registry.GetName(dbStore); name != "" {
 		purchase.Provider = name
-		purchase.Source = api.PurchaseSource_PLUGIN
 	}
 
 	return purchase, nil
@@ -679,7 +678,6 @@ func ValidatePurchase(ctx context.Context, logger *zap.Logger, db *sql.DB, regis
 			TransactionId:    purchase.TransactionId,
 			Store:            api.StoreProvider(provider.storeCode),
 			Provider:         provider.name,
-			Source:           api.PurchaseSource_PLUGIN,
 			PurchaseTime:     timestamppb.New(purchase.PurchaseTime),
 			ProviderResponse: purchase.RawResponse,
 			Environment:      purchase.Environment,
@@ -923,7 +921,6 @@ FROM
 
 		if name := registry.GetName(store); name != "" {
 			purchase.Provider = name
-			purchase.Source = api.PurchaseSource_PLUGIN
 		}
 
 		purchases = append(purchases, purchase)
@@ -1189,7 +1186,6 @@ func iapProviderNotificationHandler(logger *zap.Logger, db *sql.DB, registry *Ru
 						OriginalTransactionId: sub.originalTransactionId,
 						Store:                 sub.store,
 						Provider:              provider.name,
-						Source:                api.PurchaseSource_PLUGIN,
 						PurchaseTime:          timestamppb.New(sub.purchaseTime),
 						CreateTime:            timestamppb.New(sub.createTime),
 						UpdateTime:            timestamppb.New(sub.updateTime),
@@ -1277,7 +1273,6 @@ func iapProviderNotificationHandler(logger *zap.Logger, db *sql.DB, registry *Ru
 					TransactionId:    purchase.TransactionId,
 					Store:            api.StoreProvider(provider.storeCode),
 					Provider:         provider.name,
-					Source:           api.PurchaseSource_PLUGIN,
 					CreateTime:       timestamppb.New(dbPurchase.createTime),
 					UpdateTime:       timestamppb.New(dbPurchase.updateTime),
 					PurchaseTime:     timestamppb.New(dbPurchase.purchaseTime),

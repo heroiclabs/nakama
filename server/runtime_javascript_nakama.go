@@ -10514,10 +10514,9 @@ func validatedPurchaseToJsObject(purchase *api.ValidatedPurchase) map[string]any
 	}
 	validatedPurchaseMap["environment"] = purchase.Environment.String()
 	validatedPurchaseMap["seenBefore"] = purchase.SeenBefore
-	if purchase.Source == api.PurchaseSource_PLUGIN {
+	if purchase.Provider != "" {
 		validatedPurchaseMap["provider"] = purchase.Provider
 	}
-	validatedPurchaseMap["source"] = purchase.Source.String()
 
 	return validatedPurchaseMap
 }
@@ -10549,10 +10548,9 @@ func subscriptionToJsObject(subscription *api.ValidatedSubscription) map[string]
 	validatedSubMap["active"] = subscription.Active
 	validatedSubMap["providerResponse"] = subscription.ProviderResponse
 	validatedSubMap["providerNotification"] = subscription.ProviderNotification
-	if subscription.Source == api.PurchaseSource_PLUGIN {
+	if subscription.Provider != "" {
 		validatedSubMap["provider"] = subscription.Provider
 	}
-	validatedSubMap["source"] = subscription.Source.String()
 
 	return validatedSubMap
 }

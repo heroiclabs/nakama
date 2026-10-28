@@ -218,7 +218,6 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, regi
 		}
 		if name := registry.GetName(int(store)); name != "" {
 			subscription.Provider = name
-			subscription.Source = api.PurchaseSource_PLUGIN
 		}
 
 		subscriptions = append(subscriptions, subscription)
@@ -607,7 +606,6 @@ func ValidateSubscription(ctx context.Context, logger *zap.Logger, db *sql.DB, r
 		OriginalTransactionId: storageSub.originalTransactionId,
 		Store:                 storageSub.store,
 		Provider:              provider.name,
-		Source:                api.PurchaseSource_PLUGIN,
 		PurchaseTime:          timestamppb.New(storageSub.purchaseTime),
 		Environment:           storageSub.environment,
 		ExpiryTime:            timestamppb.New(storageSub.expireTime),
@@ -737,7 +735,6 @@ WHERE
 	}
 	if name := registry.GetName(int(store)); name != "" {
 		subscription.Provider = name
-		subscription.Source = api.PurchaseSource_PLUGIN
 	}
 
 	return subscription, nil
@@ -812,7 +809,6 @@ func getSubscriptionByOriginalTransactionId(ctx context.Context, logger *zap.Log
 	}
 	if name := registry.GetName(int(dbStore)); name != "" {
 		subscription.Provider = name
-		subscription.Source = api.PurchaseSource_PLUGIN
 	}
 
 	return subscription, nil

@@ -2993,10 +2993,9 @@ func purchaseToLuaTable(l *lua.LState, p *api.ValidatedPurchase) *lua.LTable {
 	}
 	validatedPurchaseTable.RawSetString("environment", lua.LString(p.Environment.String()))
 	validatedPurchaseTable.RawSetString("seen_before", lua.LBool(p.SeenBefore))
-	if p.Source == api.PurchaseSource_PLUGIN {
+	if p.Provider != "" {
 		validatedPurchaseTable.RawSetString("provider", lua.LString(p.Provider))
 	}
-	validatedPurchaseTable.RawSetString("source", lua.LString(p.Source.String()))
 
 	return validatedPurchaseTable
 }
@@ -3031,10 +3030,9 @@ func subscriptionToLuaTable(l *lua.LState, p *api.ValidatedSubscription) *lua.LT
 	validatedSubscriptionTable.RawSetString("active", lua.LBool(p.Active))
 	validatedSubscriptionTable.RawSetString("provider_response", lua.LString(p.ProviderResponse))
 	validatedSubscriptionTable.RawSetString("provider_notification", lua.LString(p.ProviderNotification))
-	if p.Source == api.PurchaseSource_PLUGIN {
+	if p.Provider != "" {
 		validatedSubscriptionTable.RawSetString("provider", lua.LString(p.Provider))
 	}
-	validatedSubscriptionTable.RawSetString("source", lua.LString(p.Source.String()))
 
 	return validatedSubscriptionTable
 }
