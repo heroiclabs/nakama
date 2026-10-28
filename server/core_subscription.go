@@ -57,7 +57,7 @@ type subscriptionsListCursor struct {
 	Before                time.Time
 }
 
-func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, userID string, limit int, cursor string, after, before time.Time) (*api.SubscriptionList, error) {
+func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimePurchaseProviderRegistry, userID string, limit int, cursor string, after, before time.Time) (*api.SubscriptionList, error) {
 	var incomingCursor *subscriptionsListCursor
 	if cursor != "" {
 		cb, err := base64.URLEncoding.DecodeString(cursor)
@@ -215,6 +215,10 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 			Environment:           environment,
 			ProviderResponse:      rawResponse,
 			ProviderNotification:  rawNotification,
+		}
+		if name := registry.GetName(int(store)); name != "" {
+			subscription.Provider = name
+			subscription.Source = api.PurchaseSource_PLUGIN
 		}
 
 		subscriptions = append(subscriptions, subscription)
@@ -551,7 +555,124 @@ func ValidateSubscriptionGoogle(ctx context.Context, logger *zap.Logger, db *sql
 	return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
 }
 
-func GetSubscriptionByProductId(ctx context.Context, logger *zap.Logger, db *sql.DB, userID, productID string) (*api.ValidatedSubscription, error) {
+func ValidateSubscription(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimePurchaseProviderRegistry, userID uuid.UUID, traceID, providerName string, payload, overrides map[string]any, persist bool) (*api.ValidateSubscriptionResponse, error) {
+	provider := registry.Get(providerName)
+	if provider == nil {
+		return nil, status.Error(codes.InvalidArgument, "Purchase provider not found: "+providerName)
+	}
+	if provider.validateSubscription == nil {
+		return nil, status.Error(codes.InvalidArgument, "Purchase provider does not validate subscriptions: "+providerName)
+	}
+
+	subscriptions, err, code := provider.validateSubscription(ctx, traceID, payload, overrides)
+	if err != nil {
+		return nil, status.Error(code, err.Error())
+	}
+
+	if len(subscriptions) == 0 {
+		logger.Warn("Purchase provider returned no subscriptions.", zap.String("provider", provider.name))
+		return nil, status.Error(codes.FailedPrecondition, "Invalid Receipt. No subscriptions found.")
+	}
+
+	// Every subscription is stored in the order the provider listed them, repeats included, so the last
+	// entry for an original transaction ID is the one that stays, as with Apple's legacy receipts.
+	storageSubs := make([]*storageSubscription, 0, len(subscriptions))
+	for _, subscription := range subscriptions {
+		if subscription == nil || subscription.OriginalTransactionId == "" {
+			logger.Error("Purchase provider returned a subscription without an original transaction ID.", zap.String("provider", provider.name))
+			return nil, status.Error(codes.FailedPrecondition, "Invalid Receipt. Original transaction ID is required.")
+		}
+
+		refundTime := subscription.RefundTime
+		if refundTime.IsZero() {
+			refundTime = time.Unix(0, 0)
+		}
+		storageSubs = append(storageSubs, &storageSubscription{
+			userID:                userID,
+			originalTransactionId: subscription.OriginalTransactionId,
+			store:                 api.StoreProvider(provider.storeCode),
+			productId:             subscription.ProductId,
+			purchaseTime:          subscription.PurchaseTime,
+			environment:           subscription.Environment,
+			expireTime:            subscription.ExpiryTime,
+			refundTime:            refundTime,
+			rawResponse:           subscription.RawResponse,
+		})
+	}
+
+	storageSub := storageSubs[0]
+	validatedSub := &api.ValidatedSubscription{
+		UserId:                userID.String(),
+		ProductId:             storageSub.productId,
+		OriginalTransactionId: storageSub.originalTransactionId,
+		Store:                 storageSub.store,
+		Provider:              provider.name,
+		Source:                api.PurchaseSource_PLUGIN,
+		PurchaseTime:          timestamppb.New(storageSub.purchaseTime),
+		Environment:           storageSub.environment,
+		ExpiryTime:            timestamppb.New(storageSub.expireTime),
+		RefundTime:            timestamppb.New(storageSub.refundTime),
+		ProviderResponse:      storageSub.rawResponse,
+		Active:                storageSub.Active(),
+	}
+
+	if !persist {
+		return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
+	}
+
+	ownStoreSubs := make([]*storageSubscription, 0, len(storageSubs))
+	for _, sub := range storageSubs {
+		existing, err := getSubscriptionByOriginalTransactionId(ctx, logger, db, registry, sub.originalTransactionId)
+		if err != nil {
+			logger.Error("Error looking up subscription from provider", zap.String("provider", provider.name), zap.Error(err))
+			return nil, err
+		}
+		if existing != nil && existing.Store != sub.store {
+			logger.Warn("Purchase provider original transaction ID belongs to another store, not storing.", zap.String("provider", provider.name), zap.String("original_transaction_id", sub.originalTransactionId))
+			continue
+		}
+		ownStoreSubs = append(ownStoreSubs, sub)
+	}
+	if len(ownStoreSubs) == 0 {
+		return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
+	}
+
+	if err = ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
+		for _, sub := range ownStoreSubs {
+			if err := upsertSubscription(ctx, tx, sub); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		if !errors.Is(err, context.Canceled) {
+			logger.Error("Error storing subscription from provider", zap.String("provider", provider.name), zap.Error(err))
+		}
+		return nil, err
+	}
+
+	if storageSub.createTime.IsZero() {
+		return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
+	}
+
+	suid := storageSub.userID.String()
+	if storageSub.userID.IsNil() {
+		suid = ""
+	}
+
+	validatedSub.UserId = suid
+	validatedSub.CreateTime = timestamppb.New(storageSub.createTime)
+	validatedSub.UpdateTime = timestamppb.New(storageSub.updateTime)
+	validatedSub.ExpiryTime = timestamppb.New(storageSub.expireTime)
+	validatedSub.RefundTime = timestamppb.New(storageSub.refundTime)
+	validatedSub.ProviderResponse = storageSub.rawResponse
+	validatedSub.ProviderNotification = storageSub.rawNotification
+	validatedSub.Active = storageSub.Active()
+
+	return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
+}
+
+func GetSubscriptionByProductId(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimePurchaseProviderRegistry, userID, productID string) (*api.ValidatedSubscription, error) {
 	var originalTransactionId string
 	var dbUserID uuid.UUID
 	var dbProductID string
@@ -600,7 +721,7 @@ WHERE
 		suid = ""
 	}
 
-	return &api.ValidatedSubscription{
+	subscription := &api.ValidatedSubscription{
 		UserId:                suid,
 		ProductId:             productID,
 		OriginalTransactionId: originalTransactionId,
@@ -613,10 +734,16 @@ WHERE
 		Active:                active,
 		ProviderResponse:      rawResponse,
 		ProviderNotification:  rawNotification,
-	}, nil
+	}
+	if name := registry.GetName(int(store)); name != "" {
+		subscription.Provider = name
+		subscription.Source = api.PurchaseSource_PLUGIN
+	}
+
+	return subscription, nil
 }
 
-func getSubscriptionByOriginalTransactionId(ctx context.Context, logger *zap.Logger, db *sql.DB, originalTransactionId string) (*api.ValidatedSubscription, error) {
+func getSubscriptionByOriginalTransactionId(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimePurchaseProviderRegistry, originalTransactionId string) (*api.ValidatedSubscription, error) {
 	var (
 		dbUserId                uuid.UUID
 		dbStore                 api.StoreProvider
@@ -668,7 +795,7 @@ func getSubscriptionByOriginalTransactionId(ctx context.Context, logger *zap.Log
 		suid = ""
 	}
 
-	return &api.ValidatedSubscription{
+	subscription := &api.ValidatedSubscription{
 		UserId:                suid,
 		ProductId:             dbProductId,
 		OriginalTransactionId: dbOriginalTransactionId,
@@ -682,7 +809,13 @@ func getSubscriptionByOriginalTransactionId(ctx context.Context, logger *zap.Log
 		ProviderResponse:      dbRawResponse,
 		ProviderNotification:  dbRawNotification,
 		Active:                active,
-	}, nil
+	}
+	if name := registry.GetName(int(dbStore)); name != "" {
+		subscription.Provider = name
+		subscription.Source = api.PurchaseSource_PLUGIN
+	}
+
+	return subscription, nil
 }
 
 type storageSubscription struct {
@@ -875,7 +1008,7 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 
 			if uid.IsNil() {
 				// No user ID was found in receipt, lookup a validated subscription.
-				s, err := getSubscriptionByOriginalTransactionId(r.Context(), logger, db, transactionInfo.OriginalTransactionId)
+				s, err := getSubscriptionByOriginalTransactionId(r.Context(), logger, db, nil, transactionInfo.OriginalTransactionId)
 				if err != nil || s == nil {
 					w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
 					return
@@ -988,7 +1121,7 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 					uid = tokenUID
 				}
 			} else {
-				s, err := getSubscriptionByOriginalTransactionId(r.Context(), logger, db, renewalInfo.OriginalTransactionId)
+				s, err := getSubscriptionByOriginalTransactionId(r.Context(), logger, db, nil, renewalInfo.OriginalTransactionId)
 				if err != nil {
 					logger.Error("Failed to get subscription by original transaction id", zap.Error(err))
 					w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
@@ -1109,7 +1242,7 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 			if transactionInfo.ExpiresDate != 0 {
 				// This is a subscription related refund.
 				if uid.IsNil() {
-					s, err := getSubscriptionByOriginalTransactionId(r.Context(), logger, db, transactionInfo.OriginalTransactionId)
+					s, err := getSubscriptionByOriginalTransactionId(r.Context(), logger, db, nil, transactionInfo.OriginalTransactionId)
 					if err != nil {
 						logger.Error("Failed to get subscription by original transaction id", zap.Error(err))
 						w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
@@ -1367,7 +1500,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 			}
 
 			if uid == nil {
-				s, err := getSubscriptionByOriginalTransactionId(r.Context(), loggerWithNotification, db, transactionId)
+				s, err := getSubscriptionByOriginalTransactionId(r.Context(), loggerWithNotification, db, nil, transactionId)
 				if err != nil {
 					loggerWithNotification.Error("Failed to get subscription by original transaction id", zap.Error(err))
 					w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
@@ -1493,7 +1626,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 				}
 
 				if uid == nil {
-					s, err := getSubscriptionByOriginalTransactionId(r.Context(), loggerWithNotification, db, transactionId)
+					s, err := getSubscriptionByOriginalTransactionId(r.Context(), loggerWithNotification, db, nil, transactionId)
 					if err != nil {
 						loggerWithNotification.Error("Failed to get subscription by original transaction id", zap.Error(err))
 						w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.

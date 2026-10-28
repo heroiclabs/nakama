@@ -241,7 +241,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 			continue
 		}
 		endpoint := fmt.Sprintf("/v2/console/%s/notifications", name)
-		grpcGatewayRouter.HandleFunc(endpoint, purchaseProviderNotificationHandler(logger, db, purchaseProviderRegistry, provider, runtime.PurchaseNotificationProvider()))
+		grpcGatewayRouter.HandleFunc(endpoint, purchaseProviderNotificationHandler(logger, db, purchaseProviderRegistry, provider, runtime.PurchaseNotificationProvider(), runtime.SubscriptionNotificationProvider()))
 		logger.Info("Registered endpoint for purchase provider notifications callback", zap.String("provider", name), zap.String("endpoint", endpoint))
 	}
 

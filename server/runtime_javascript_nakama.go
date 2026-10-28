@@ -6902,7 +6902,7 @@ func (n *RuntimeJavascriptNakamaModule) subscriptionGetByProductId(r *goja.Runti
 			panic(r.NewTypeError("expects a transaction id string"))
 		}
 
-		subscription, err := GetSubscriptionByProductId(n.ctx, n.logger, n.db, uid.String(), productID)
+		subscription, err := GetSubscriptionByProductId(n.ctx, n.logger, n.db, n.purchaseProviderRegistry, uid.String(), productID)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error retrieving purchase: %s", err.Error())))
 		}
@@ -6941,7 +6941,7 @@ func (n *RuntimeJavascriptNakamaModule) subscriptionsList(r *goja.Runtime) func(
 			cursor = getJsString(r, f.Argument(2))
 		}
 
-		subscriptions, err := ListSubscriptions(n.ctx, n.logger, n.db, userID, limit, cursor, time.Time{}, time.Time{})
+		subscriptions, err := ListSubscriptions(n.ctx, n.logger, n.db, n.purchaseProviderRegistry, userID, limit, cursor, time.Time{}, time.Time{})
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error retrieving purchases: %s", err.Error())))
 		}
@@ -10549,6 +10549,10 @@ func subscriptionToJsObject(subscription *api.ValidatedSubscription) map[string]
 	validatedSubMap["active"] = subscription.Active
 	validatedSubMap["providerResponse"] = subscription.ProviderResponse
 	validatedSubMap["providerNotification"] = subscription.ProviderNotification
+	if subscription.Source == api.PurchaseSource_PLUGIN {
+		validatedSubMap["provider"] = subscription.Provider
+	}
+	validatedSubMap["source"] = subscription.Source.String()
 
 	return validatedSubMap
 }

@@ -29,13 +29,16 @@ import (
 
 type RuntimePurchaseProviderFunction func(ctx context.Context, traceID string, payload, overrides map[string]any) ([]*runtime.ProviderPurchase, error, codes.Code)
 
-type RuntimePurchaseNotificationHandlerFunction func(ctx context.Context, body []byte, headers, query map[string][]string) (*runtime.ProviderPurchase, string, error)
+type RuntimeSubscriptionProviderFunction func(ctx context.Context, traceID string, payload, overrides map[string]any) ([]*runtime.ProviderSubscription, error, codes.Code)
+
+type RuntimeProviderNotificationHandlerFunction func(ctx context.Context, body []byte, headers, query map[string][]string) (*runtime.ProviderNotification, error)
 
 type RuntimePurchaseProviderFunctions struct {
-	name                string
-	storeCode           int
-	validate            RuntimePurchaseProviderFunction
-	notificationHandler RuntimePurchaseNotificationHandlerFunction
+	name                 string
+	storeCode            int
+	validate             RuntimePurchaseProviderFunction
+	validateSubscription RuntimeSubscriptionProviderFunction
+	notificationHandler  RuntimeProviderNotificationHandlerFunction
 }
 
 type RuntimePurchaseProviderRegistry struct {
@@ -43,7 +46,7 @@ type RuntimePurchaseProviderRegistry struct {
 	providersByCode MapOf[int, *RuntimePurchaseProviderFunctions]
 }
 
-func (r *RuntimePurchaseProviderRegistry) Register(name string, code int, validate RuntimePurchaseProviderFunction, notificationHandler RuntimePurchaseNotificationHandlerFunction) error {
+func (r *RuntimePurchaseProviderRegistry) Register(name string, code int, validate RuntimePurchaseProviderFunction, validateSubscription RuntimeSubscriptionProviderFunction, notificationHandler RuntimeProviderNotificationHandlerFunction) error {
 	if !authenticationProviderNameRegex.MatchString(name) {
 		return errors.New("expects provider name to be valid, must be 1-128 bytes and contain only [a-zA-Z0-9_-]")
 	}
@@ -57,7 +60,7 @@ func (r *RuntimePurchaseProviderRegistry) Register(name string, code int, valida
 	if _, builtIn := api.StoreProvider_name[int32(code)]; builtIn {
 		return fmt.Errorf("purchase provider code %d is used by a built-in store: %s", code, name)
 	}
-	provider := &RuntimePurchaseProviderFunctions{name: name, storeCode: code, validate: validate, notificationHandler: notificationHandler}
+	provider := &RuntimePurchaseProviderFunctions{name: name, storeCode: code, validate: validate, validateSubscription: validateSubscription, notificationHandler: notificationHandler}
 	if _, dup := r.providersByName.LoadOrStore(name, provider); dup {
 		return fmt.Errorf("purchase provider already registered: %s", name)
 	}

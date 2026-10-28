@@ -3624,7 +3624,7 @@ func (n *RuntimeGoNakamaModule) SubscriptionsList(ctx context.Context, userID st
 		return nil, errors.New("limit must be a positive value <= 100")
 	}
 
-	return ListSubscriptions(ctx, n.logger, n.db, userID, limit, cursor, time.Time{}, time.Time{})
+	return ListSubscriptions(ctx, n.logger, n.db, n.purchaseProviderRegistry, userID, limit, cursor, time.Time{}, time.Time{})
 }
 
 // @group subscriptions
@@ -3643,7 +3643,7 @@ func (n *RuntimeGoNakamaModule) SubscriptionGetByProductId(ctx context.Context, 
 		return nil, errors.New("expects a product id string.")
 	}
 
-	return GetSubscriptionByProductId(ctx, n.logger, n.db, userID, productID)
+	return GetSubscriptionByProductId(ctx, n.logger, n.db, n.purchaseProviderRegistry, userID, productID)
 }
 
 // @group groups
@@ -4712,4 +4712,34 @@ func (n *RuntimeGoNakamaModule) PurchaseValidate(ctx context.Context, provider, 
 	}
 
 	return ValidatePurchase(ctx, n.logger, n.db, n.purchaseProviderRegistry, uid, "", provider, payload, providerOverrides, persist)
+}
+
+// @group subscriptions
+// @summary Validates and stores a subscription with a registered purchase provider.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param provider(type=string) The name the purchase provider was registered under.
+// @param userID(type=string) The user ID of the owner of the subscription.
+// @param payload(type=map[string]any) The opaque payload passed through to the provider.
+// @param persist(type=bool) Persist the subscription.
+// @param overrides(type=map[string]any, optional=true) Optional credential overrides passed through to the provider.
+// @return validation(*api.ValidateSubscriptionResponse) The resulting successfully validated subscription.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) SubscriptionValidate(ctx context.Context, provider, userID string, payload map[string]any, persist bool, overrides ...map[string]any) (*api.ValidateSubscriptionResponse, error) {
+	uid, err := uuid.FromString(userID)
+	if err != nil {
+		return nil, errors.New("user ID must be a valid id string")
+	}
+
+	if len(provider) < 1 {
+		return nil, errors.New("provider cannot be empty string")
+	}
+
+	var providerOverrides map[string]any
+	if len(overrides) > 1 {
+		return nil, errors.New("expects a single overrides parameter")
+	} else if len(overrides) == 1 {
+		providerOverrides = overrides[0]
+	}
+
+	return ValidateSubscription(ctx, n.logger, n.db, n.purchaseProviderRegistry, uid, "", provider, payload, providerOverrides, persist)
 }

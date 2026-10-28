@@ -3031,6 +3031,10 @@ func subscriptionToLuaTable(l *lua.LState, p *api.ValidatedSubscription) *lua.LT
 	validatedSubscriptionTable.RawSetString("active", lua.LBool(p.Active))
 	validatedSubscriptionTable.RawSetString("provider_response", lua.LString(p.ProviderResponse))
 	validatedSubscriptionTable.RawSetString("provider_notification", lua.LString(p.ProviderNotification))
+	if p.Source == api.PurchaseSource_PLUGIN {
+		validatedSubscriptionTable.RawSetString("provider", lua.LString(p.Provider))
+	}
+	validatedSubscriptionTable.RawSetString("source", lua.LString(p.Source.String()))
 
 	return validatedSubscriptionTable
 }
@@ -8610,7 +8614,7 @@ func (n *RuntimeLuaNakamaModule) subscriptionGetByProductId(l *lua.LState) int {
 		return 0
 	}
 
-	subscription, err := GetSubscriptionByProductId(l.Context(), n.logger, n.db, uid.String(), productID)
+	subscription, err := GetSubscriptionByProductId(l.Context(), n.logger, n.db, n.purchaseProviderRegistry, uid.String(), productID)
 	if err != nil {
 		l.RaiseError("error retrieving subscription: %v", err.Error())
 		return 0
@@ -8644,7 +8648,7 @@ func (n *RuntimeLuaNakamaModule) subscriptionsList(l *lua.LState) int {
 
 	cursor := l.OptString(3, "")
 
-	subscriptions, err := ListSubscriptions(l.Context(), n.logger, n.db, userID, limit, cursor, time.Time{}, time.Time{})
+	subscriptions, err := ListSubscriptions(l.Context(), n.logger, n.db, n.purchaseProviderRegistry, userID, limit, cursor, time.Time{}, time.Time{})
 	if err != nil {
 		l.RaiseError("error retrieving subscriptions: %v", err.Error())
 		return 0
