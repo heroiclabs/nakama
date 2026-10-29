@@ -1116,6 +1116,11 @@ func iapProviderNotificationHandler(logger *zap.Logger, db *sql.DB, registry *Ru
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
+			if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+				logger.Warn("IAP provider notification body is too large", zap.Error(err))
+				w.WriteHeader(http.StatusRequestEntityTooLarge)
+				return
+			}
 			logger.Error("Failed to read IAP provider notification body", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return

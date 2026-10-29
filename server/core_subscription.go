@@ -959,6 +959,11 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
+			if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+				logger.Warn("App Store notification body is too large", zap.Error(err))
+				w.WriteHeader(http.StatusRequestEntityTooLarge)
+				return
+			}
 			logger.Error("Failed to decode App Store notification body", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -1445,6 +1450,11 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
+			if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+				logger.Warn("Google Play Billing notification body is too large", zap.Error(err))
+				w.WriteHeader(http.StatusRequestEntityTooLarge)
+				return
+			}
 			logger.Error("Failed to decode App Store notification body", zap.Error(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
