@@ -36,16 +36,12 @@ type RuntimeIAPProviderSubscriptionFunction func(ctx context.Context, traceID st
 type RuntimeIAPProviderNotificationFunction func(ctx context.Context, body []byte, headers, query map[string][]string) ([]*runtime.IAPProviderNotification, error)
 
 type RuntimeIAPProviderFunctions struct {
-	name                       string
-	notificationEndpointId     string
-	storeCode                  int
-	validatePurchase           RuntimeIAPProviderPurchaseFunction
-	validateSubscription       RuntimeIAPProviderSubscriptionFunction
-	notificationHandler        RuntimeIAPProviderNotificationFunction
-	beforeValidatePurchase     RuntimeBeforeValidatePurchaseFunction
-	afterValidatePurchase      RuntimeAfterValidatePurchaseFunction
-	beforeValidateSubscription RuntimeBeforeValidateSubscriptionFunction
-	afterValidateSubscription  RuntimeAfterValidateSubscriptionFunction
+	name                   string
+	notificationEndpointId string
+	storeCode              int
+	validatePurchase       RuntimeIAPProviderPurchaseFunction
+	validateSubscription   RuntimeIAPProviderSubscriptionFunction
+	notificationHandler    RuntimeIAPProviderNotificationFunction
 }
 
 type RuntimeIAPProviderRegistry struct {

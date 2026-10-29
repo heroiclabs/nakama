@@ -57,13 +57,9 @@ func (s *ApiServer) ValidateSubscription(ctx context.Context, in *api.ValidateIA
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 
-	beforeHook := s.runtime.BeforeValidateSubscription()
-	if provider := s.runtime.IAPProviderRegistry().Get(in.Provider); provider != nil && provider.beforeValidateSubscription != nil {
-		beforeHook = provider.beforeValidateSubscription
-	}
-	if beforeHook != nil {
+	if fn := s.runtime.BeforeValidateSubscription(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := beforeHook(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -100,13 +96,9 @@ func (s *ApiServer) ValidateSubscription(ctx context.Context, in *api.ValidateIA
 		return nil, err
 	}
 
-	afterHook := s.runtime.AfterValidateSubscription()
-	if provider := s.runtime.IAPProviderRegistry().Get(in.Provider); provider != nil && provider.afterValidateSubscription != nil {
-		afterHook = provider.afterValidateSubscription
-	}
-	if afterHook != nil {
+	if fn := s.runtime.AfterValidateSubscription(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
-			return afterHook(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, validation, in)
+			return fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, validation, in)
 		}
 
 		traceApiAfter(ctx, logger, s.config, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)

@@ -94,13 +94,9 @@ func (s *ApiServer) ValidatePurchase(ctx context.Context, in *api.ValidateIAPPur
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 
-	beforeHook := s.runtime.BeforeValidatePurchase()
-	if provider := s.runtime.IAPProviderRegistry().Get(in.Provider); provider != nil && provider.beforeValidatePurchase != nil {
-		beforeHook = provider.beforeValidatePurchase
-	}
-	if beforeHook != nil {
+	if fn := s.runtime.BeforeValidatePurchase(); fn != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := beforeHook(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -137,13 +133,9 @@ func (s *ApiServer) ValidatePurchase(ctx context.Context, in *api.ValidateIAPPur
 		return nil, err
 	}
 
-	afterHook := s.runtime.AfterValidatePurchase()
-	if provider := s.runtime.IAPProviderRegistry().Get(in.Provider); provider != nil && provider.afterValidatePurchase != nil {
-		afterHook = provider.afterValidatePurchase
-	}
-	if afterHook != nil {
+	if fn := s.runtime.AfterValidatePurchase(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
-			return afterHook(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, validation, in)
+			return fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, validation, in)
 		}
 
 		traceApiAfter(ctx, logger, s.config, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
