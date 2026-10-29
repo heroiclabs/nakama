@@ -30,10 +30,16 @@ import (
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/apple"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/facebookinstant"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/google"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/huawei"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/samsung"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -3868,6 +3874,19 @@ func NewRuntimeProviderGo(ctx context.Context, logger, startupLogger *zap.Logger
 	// The baseline context that will be passed to all InitModule calls.
 	ctx = NewRuntimeGoContext(ctx, node, version, env, RuntimeExecutionModeRunOnce, nil, nil, "", 0, "", "", nil, "", "", "", "")
 
+	builtInIAPProviders := []runtime.IAPProvider{
+		&apple.Provider{Config: config.GetIAP().GetApple(), Client: httpc},
+		&facebookinstant.Provider{Config: config.GetIAP().GetFacebookInstant()},
+		&google.Provider{Config: config.GetIAP().GetGoogle(), Client: httpc},
+		&huawei.Provider{Config: config.GetIAP().GetHuawei(), Client: httpc},
+		&samsung.Provider{Config: config.GetIAP().GetSamsung(), Client: httpc},
+	}
+	for _, provider := range builtInIAPProviders {
+		if err := initializer.RegisterIAPProvider(provider); err != nil {
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		}
+	}
+
 	startupLogger.Info("Initialising Go runtime provider", zap.String("path", rootPath))
 
 	modulePaths := make([]string, 0)
@@ -4001,6 +4020,9 @@ func (ri *RuntimeGoInitializer) RegisterIAPProvider(provider runtime.IAPProvider
 		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeIAPProvider, nil, nil, traceID, 0, "", "", nil, "", "", "", "")
 		result, fnErr := provider.ValidatePurchase(ctx, RuntimeLoggerWithTraceId(ctx, ri.logger.WithField("provider", name)), ri.db, ri.nk, payload, overrides)
 		if fnErr != nil {
+			if _, ok := status.FromError(fnErr); ok {
+				return result, fnErr, status.Code(fnErr)
+			}
 			var runtimeErr *runtime.Error
 			if errors.As(fnErr, &runtimeErr) {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
@@ -4019,6 +4041,9 @@ func (ri *RuntimeGoInitializer) RegisterIAPProvider(provider runtime.IAPProvider
 		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeIAPProvider, nil, nil, traceID, 0, "", "", nil, "", "", "", "")
 		result, fnErr := provider.ValidateSubscription(ctx, RuntimeLoggerWithTraceId(ctx, ri.logger.WithField("provider", name)), ri.db, ri.nk, payload, overrides)
 		if fnErr != nil {
+			if _, ok := status.FromError(fnErr); ok {
+				return result, fnErr, status.Code(fnErr)
+			}
 			if runtimeErr, ok := errors.AsType[*runtime.Error](fnErr); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					return result, runtimeErr, codes.Internal

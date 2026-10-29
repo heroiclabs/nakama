@@ -35,6 +35,11 @@ import (
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/apple"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/facebookinstant"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/google"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/huawei"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/samsung"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -3320,10 +3325,11 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateApple(ctx context.Context, userI
 		return nil, errors.New("receipt cannot be empty string")
 	}
 
-	validation, err := ValidatePurchasesApple(ctx, n.logger, n.db, uid, password, receipt, persist)
+	validated, err := ValidatePurchase(ctx, n.logger, n.db, n.iapProviderRegistry, uid, "", apple.Name, map[string]any{"receipt": receipt}, map[string]any{"shared_password": password}, persist)
 	if err != nil {
 		return nil, err
 	}
+	validation := &api.ValidatePurchaseResponse{ValidatedPurchases: validated.Purchase}
 
 	return validation, nil
 }
@@ -3373,10 +3379,11 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateGoogle(ctx context.Context, user
 		PrivateKey:  privateKey,
 	}
 
-	validation, err := ValidatePurchaseGoogle(ctx, n.logger, n.db, uid, configOverride, receipt, persist)
+	validated, err := ValidatePurchase(ctx, n.logger, n.db, n.iapProviderRegistry, uid, "", google.Name, map[string]any{"purchase": receipt}, map[string]any{"client_email": configOverride.ClientEmail, "private_key": configOverride.PrivateKey}, persist)
 	if err != nil {
 		return nil, err
 	}
+	validation := &api.ValidatePurchaseResponse{ValidatedPurchases: validated.Purchase}
 
 	return validation, nil
 }
@@ -3410,10 +3417,11 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateHuawei(ctx context.Context, user
 		return nil, errors.New("receipt cannot be empty string")
 	}
 
-	validation, err := ValidatePurchaseHuawei(ctx, n.logger, n.db, uid, n.config.GetIAP().Huawei, receipt, signature, persist)
+	validated, err := ValidatePurchase(ctx, n.logger, n.db, n.iapProviderRegistry, uid, "", huawei.Name, map[string]any{"purchase": receipt, "signature": signature}, nil, persist)
 	if err != nil {
 		return nil, err
 	}
+	validation := &api.ValidatePurchaseResponse{ValidatedPurchases: validated.Purchase}
 
 	return validation, nil
 }
@@ -3440,10 +3448,11 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateFacebookInstant(ctx context.Cont
 		return nil, errors.New("signedRequest cannot be empty string")
 	}
 
-	validation, err := ValidatePurchaseFacebookInstant(ctx, n.logger, n.db, uid, n.config.GetIAP().FacebookInstant, signedRequest, persist)
+	validated, err := ValidatePurchase(ctx, n.logger, n.db, n.iapProviderRegistry, uid, "", facebookinstant.Name, map[string]any{"signed_request": signedRequest}, nil, persist)
 	if err != nil {
 		return nil, err
 	}
+	validation := &api.ValidatePurchaseResponse{ValidatedPurchases: validated.Purchase}
 
 	return validation, nil
 }
@@ -3466,10 +3475,11 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateSamsung(ctx context.Context, use
 		return nil, errors.New("purchaseId cannot be empty string")
 	}
 
-	validation, err := ValidatePurchaseSamsung(ctx, n.logger, n.db, uid, n.config.GetIAP().Samsung, purchaseId, persist)
+	validated, err := ValidatePurchase(ctx, n.logger, n.db, n.iapProviderRegistry, uid, "", samsung.Name, map[string]any{"purchase_id": purchaseId}, nil, persist)
 	if err != nil {
 		return nil, err
 	}
+	validation := &api.ValidatePurchaseResponse{ValidatedPurchases: validated.Purchase}
 
 	return validation, nil
 }
@@ -3544,10 +3554,11 @@ func (n *RuntimeGoNakamaModule) SubscriptionValidateApple(ctx context.Context, u
 		return nil, errors.New("receipt cannot be empty string")
 	}
 
-	validation, err := ValidateSubscriptionApple(ctx, n.logger, n.db, uid, password, receipt, persist)
+	validated, err := ValidateSubscription(ctx, n.logger, n.db, n.iapProviderRegistry, uid, "", apple.Name, map[string]any{"receipt": receipt}, map[string]any{"shared_password": password}, persist)
 	if err != nil {
 		return nil, err
 	}
+	validation := &api.ValidateSubscriptionResponse{ValidatedSubscription: validated.Subscription}
 
 	return validation, nil
 }
@@ -3597,10 +3608,11 @@ func (n *RuntimeGoNakamaModule) SubscriptionValidateGoogle(ctx context.Context, 
 		PrivateKey:  privateKey,
 	}
 
-	validation, err := ValidateSubscriptionGoogle(ctx, n.logger, n.db, uid, configOverride, receipt, persist)
+	validated, err := ValidateSubscription(ctx, n.logger, n.db, n.iapProviderRegistry, uid, "", google.Name, map[string]any{"receipt": receipt}, map[string]any{"client_email": configOverride.ClientEmail, "private_key": configOverride.PrivateKey}, persist)
 	if err != nil {
 		return nil, err
 	}
+	validation := &api.ValidateSubscriptionResponse{ValidatedSubscription: validated.Subscription}
 
 	return validation, nil
 }

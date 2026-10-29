@@ -214,34 +214,17 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 	grpcGatewayRouter := mux.NewRouter()
 	grpcGatewayRouter.HandleFunc("/v2/console/storage/import", s.importStorage)
 
-	// Register public subscription callback endpoints
-	if config.GetIAP().Apple.NotificationsEndpointId != "" {
-		handler := appleNotificationHandler(logger, db, runtime.PurchaseNotificationApple(), runtime.SubscriptionNotificationApple())
-		endpoint := fmt.Sprintf("/v2/console/apple/subscriptions/%s", config.GetIAP().Apple.NotificationsEndpointId) // For backwards compatibility.
-		grpcGatewayRouter.HandleFunc(endpoint, handler)
-		logger.Info("Registered endpoint for Apple subscription notifications callback", zap.String("endpoint", endpoint))
-		endpoint = fmt.Sprintf("/v2/console/apple/notifications/%s", config.GetIAP().Apple.NotificationsEndpointId)
-		grpcGatewayRouter.HandleFunc(endpoint, handler)
-		logger.Info("Registered endpoint for Apple subscription notifications callback", zap.String("endpoint", endpoint))
-	}
-
-	if config.GetIAP().Google.NotificationsEndpointId != "" {
-		handler := googleNotificationHandler(logger, db, config.GetIAP().Google, runtime.PurchaseNotificationGoogle(), runtime.SubscriptionNotificationGoogle())
-		endpoint := fmt.Sprintf("/v2/console/google/subscriptions/%s", config.GetIAP().Google.NotificationsEndpointId) // For backwards compatibility.
-		grpcGatewayRouter.HandleFunc(endpoint, handler)
-		logger.Info("Registered endpoint for Google subscription notifications callback", zap.String("endpoint", endpoint))
-		endpoint = fmt.Sprintf("/v2/console/google/notifications/%s", config.GetIAP().Google.NotificationsEndpointId)
-		grpcGatewayRouter.HandleFunc(endpoint, handler)
-		logger.Info("Registered endpoint for Google subscription notifications callback", zap.String("endpoint", endpoint))
-	}
-
 	iapProviderRegistry := runtime.IAPProviderRegistry()
 	for name, provider := range iapProviderRegistry.providersByName.Range {
 		if provider.notificationHandler == nil {
 			continue
 		}
-		endpoint := fmt.Sprintf("/v2/console/%s/notifications", provider.notificationId)
-		grpcGatewayRouter.HandleFunc(endpoint, iapProviderNotificationHandler(logger, db, iapProviderRegistry, provider, runtime.IAPPurchaseNotification(), runtime.IAPSubscriptionNotification()))
+		handler := iapProviderNotificationHandler(logger, db, iapProviderRegistry, provider, runtime.IAPPurchaseNotification(), runtime.IAPSubscriptionNotification())
+		endpoint := fmt.Sprintf("/v2/console/%s/subscriptions/%s", name, provider.notificationId) // For backwards compatibility.
+		grpcGatewayRouter.HandleFunc(endpoint, handler)
+		logger.Info("Registered endpoint for IAP provider notifications callback", zap.String("provider", name), zap.String("endpoint", endpoint))
+		endpoint = fmt.Sprintf("/v2/console/%s/notifications/%s", name, provider.notificationId)
+		grpcGatewayRouter.HandleFunc(endpoint, handler)
 		logger.Info("Registered endpoint for IAP provider notifications callback", zap.String("provider", name), zap.String("endpoint", endpoint))
 	}
 

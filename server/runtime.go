@@ -32,11 +32,17 @@ import (
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/apple"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/facebookinstant"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/google"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/huawei"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/samsung"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 var (
@@ -2988,6 +2994,163 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 
 	for name, provider := range iapProviderRegistry.providersByName.Range {
 		startupLogger.Info("Registered Go runtime IAP Provider", zap.String("provider", name), zap.Int("store_code", provider.storeCode))
+	}
+
+	if provider := iapProviderRegistry.Get(facebookinstant.Name); provider != nil {
+		if fn := allBeforeReqFunctions.beforeValidatePurchaseFacebookInstantFunction; fn != nil {
+			provider.beforeValidatePurchase = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidateIAPPurchaseRequest) (*api.ValidateIAPPurchaseRequest, error, codes.Code) {
+				signedRequest, _ := in.Payload.AsMap()["signed_request"].(string)
+				result, err, code := fn(ctx, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, &api.ValidatePurchaseFacebookInstantRequest{SignedRequest: signedRequest, Persist: in.Persist})
+				if err != nil || result == nil {
+					return nil, err, code
+				}
+				payload, err := structpb.NewStruct(map[string]any{"signed_request": result.SignedRequest})
+				if err != nil {
+					return nil, err, codes.Internal
+				}
+				return &api.ValidateIAPPurchaseRequest{Provider: in.Provider, Payload: payload, Persist: result.Persist}, nil, codes.OK
+			}
+		}
+		if fn := allAfterReqFunctions.afterValidatePurchaseFacebookInstantFunction; fn != nil {
+			provider.afterValidatePurchase = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidateIAPPurchaseResponse, in *api.ValidateIAPPurchaseRequest) error {
+				signedRequest, _ := in.Payload.AsMap()["signed_request"].(string)
+				return fn(ctx, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, &api.ValidatePurchaseResponse{ValidatedPurchases: out.Purchase}, &api.ValidatePurchaseFacebookInstantRequest{SignedRequest: signedRequest, Persist: in.Persist})
+			}
+		}
+	}
+
+	if provider := iapProviderRegistry.Get(samsung.Name); provider != nil {
+		if fn := allBeforeReqFunctions.beforeValidatePurchaseSamsungFunction; fn != nil {
+			provider.beforeValidatePurchase = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidateIAPPurchaseRequest) (*api.ValidateIAPPurchaseRequest, error, codes.Code) {
+				purchaseId, _ := in.Payload.AsMap()["purchase_id"].(string)
+				result, err, code := fn(ctx, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, &api.ValidatePurchaseSamsungRequest{PurchaseId: purchaseId, Persist: in.Persist})
+				if err != nil || result == nil {
+					return nil, err, code
+				}
+				payload, err := structpb.NewStruct(map[string]any{"purchase_id": result.PurchaseId})
+				if err != nil {
+					return nil, err, codes.Internal
+				}
+				return &api.ValidateIAPPurchaseRequest{Provider: in.Provider, Payload: payload, Persist: result.Persist}, nil, codes.OK
+			}
+		}
+		if fn := allAfterReqFunctions.afterValidatePurchaseSamsungFunction; fn != nil {
+			provider.afterValidatePurchase = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidateIAPPurchaseResponse, in *api.ValidateIAPPurchaseRequest) error {
+				purchaseId, _ := in.Payload.AsMap()["purchase_id"].(string)
+				return fn(ctx, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, &api.ValidatePurchaseResponse{ValidatedPurchases: out.Purchase}, &api.ValidatePurchaseSamsungRequest{PurchaseId: purchaseId, Persist: in.Persist})
+			}
+		}
+	}
+
+	if provider := iapProviderRegistry.Get(huawei.Name); provider != nil {
+		if fn := allBeforeReqFunctions.beforeValidatePurchaseHuaweiFunction; fn != nil {
+			provider.beforeValidatePurchase = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidateIAPPurchaseRequest) (*api.ValidateIAPPurchaseRequest, error, codes.Code) {
+				purchase, _ := in.Payload.AsMap()["purchase"].(string)
+				signature, _ := in.Payload.AsMap()["signature"].(string)
+				result, err, code := fn(ctx, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, &api.ValidatePurchaseHuaweiRequest{Purchase: purchase, Signature: signature, Persist: in.Persist})
+				if err != nil || result == nil {
+					return nil, err, code
+				}
+				payload, err := structpb.NewStruct(map[string]any{"purchase": result.Purchase, "signature": result.Signature})
+				if err != nil {
+					return nil, err, codes.Internal
+				}
+				return &api.ValidateIAPPurchaseRequest{Provider: in.Provider, Payload: payload, Persist: result.Persist}, nil, codes.OK
+			}
+		}
+		if fn := allAfterReqFunctions.afterValidatePurchaseHuaweiFunction; fn != nil {
+			provider.afterValidatePurchase = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidateIAPPurchaseResponse, in *api.ValidateIAPPurchaseRequest) error {
+				purchase, _ := in.Payload.AsMap()["purchase"].(string)
+				signature, _ := in.Payload.AsMap()["signature"].(string)
+				return fn(ctx, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, &api.ValidatePurchaseResponse{ValidatedPurchases: out.Purchase}, &api.ValidatePurchaseHuaweiRequest{Purchase: purchase, Signature: signature, Persist: in.Persist})
+			}
+		}
+	}
+
+	if provider := iapProviderRegistry.Get(google.Name); provider != nil {
+		if fn := allBeforeReqFunctions.beforeValidatePurchaseGoogleFunction; fn != nil {
+			provider.beforeValidatePurchase = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidateIAPPurchaseRequest) (*api.ValidateIAPPurchaseRequest, error, codes.Code) {
+				purchase, _ := in.Payload.AsMap()["purchase"].(string)
+				result, err, code := fn(ctx, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, &api.ValidatePurchaseGoogleRequest{Purchase: purchase, Persist: in.Persist})
+				if err != nil || result == nil {
+					return nil, err, code
+				}
+				payload, err := structpb.NewStruct(map[string]any{"purchase": result.Purchase})
+				if err != nil {
+					return nil, err, codes.Internal
+				}
+				return &api.ValidateIAPPurchaseRequest{Provider: in.Provider, Payload: payload, Persist: result.Persist}, nil, codes.OK
+			}
+		}
+		if fn := allAfterReqFunctions.afterValidatePurchaseGoogleFunction; fn != nil {
+			provider.afterValidatePurchase = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidateIAPPurchaseResponse, in *api.ValidateIAPPurchaseRequest) error {
+				purchase, _ := in.Payload.AsMap()["purchase"].(string)
+				return fn(ctx, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, &api.ValidatePurchaseResponse{ValidatedPurchases: out.Purchase}, &api.ValidatePurchaseGoogleRequest{Purchase: purchase, Persist: in.Persist})
+			}
+		}
+		if fn := allBeforeReqFunctions.beforeValidateSubscriptionGoogleFunction; fn != nil {
+			provider.beforeValidateSubscription = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidateIAPSubscriptionRequest) (*api.ValidateIAPSubscriptionRequest, error, codes.Code) {
+				receipt, _ := in.Payload.AsMap()["receipt"].(string)
+				result, err, code := fn(ctx, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, &api.ValidateSubscriptionGoogleRequest{Receipt: receipt, Persist: in.Persist})
+				if err != nil || result == nil {
+					return nil, err, code
+				}
+				payload, err := structpb.NewStruct(map[string]any{"receipt": result.Receipt})
+				if err != nil {
+					return nil, err, codes.Internal
+				}
+				return &api.ValidateIAPSubscriptionRequest{Provider: in.Provider, Payload: payload, Persist: result.Persist}, nil, codes.OK
+			}
+		}
+		if fn := allAfterReqFunctions.afterValidateSubscriptionGoogleFunction; fn != nil {
+			provider.afterValidateSubscription = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidateIAPSubscriptionResponse, in *api.ValidateIAPSubscriptionRequest) error {
+				receipt, _ := in.Payload.AsMap()["receipt"].(string)
+				return fn(ctx, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, &api.ValidateSubscriptionResponse{ValidatedSubscription: out.Subscription}, &api.ValidateSubscriptionGoogleRequest{Receipt: receipt, Persist: in.Persist})
+			}
+		}
+	}
+
+	if provider := iapProviderRegistry.Get(apple.Name); provider != nil {
+		if fn := allBeforeReqFunctions.beforeValidatePurchaseAppleFunction; fn != nil {
+			provider.beforeValidatePurchase = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidateIAPPurchaseRequest) (*api.ValidateIAPPurchaseRequest, error, codes.Code) {
+				receipt, _ := in.Payload.AsMap()["receipt"].(string)
+				result, err, code := fn(ctx, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, &api.ValidatePurchaseAppleRequest{Receipt: receipt, Persist: in.Persist})
+				if err != nil || result == nil {
+					return nil, err, code
+				}
+				payload, err := structpb.NewStruct(map[string]any{"receipt": result.Receipt})
+				if err != nil {
+					return nil, err, codes.Internal
+				}
+				return &api.ValidateIAPPurchaseRequest{Provider: in.Provider, Payload: payload, Persist: result.Persist}, nil, codes.OK
+			}
+		}
+		if fn := allAfterReqFunctions.afterValidatePurchaseAppleFunction; fn != nil {
+			provider.afterValidatePurchase = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidateIAPPurchaseResponse, in *api.ValidateIAPPurchaseRequest) error {
+				receipt, _ := in.Payload.AsMap()["receipt"].(string)
+				return fn(ctx, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, &api.ValidatePurchaseResponse{ValidatedPurchases: out.Purchase}, &api.ValidatePurchaseAppleRequest{Receipt: receipt, Persist: in.Persist})
+			}
+		}
+		if fn := allBeforeReqFunctions.beforeValidateSubscriptionAppleFunction; fn != nil {
+			provider.beforeValidateSubscription = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidateIAPSubscriptionRequest) (*api.ValidateIAPSubscriptionRequest, error, codes.Code) {
+				receipt, _ := in.Payload.AsMap()["receipt"].(string)
+				result, err, code := fn(ctx, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, &api.ValidateSubscriptionAppleRequest{Receipt: receipt, Persist: in.Persist})
+				if err != nil || result == nil {
+					return nil, err, code
+				}
+				payload, err := structpb.NewStruct(map[string]any{"receipt": result.Receipt})
+				if err != nil {
+					return nil, err, codes.Internal
+				}
+				return &api.ValidateIAPSubscriptionRequest{Provider: in.Provider, Payload: payload, Persist: result.Persist}, nil, codes.OK
+			}
+		}
+		if fn := allAfterReqFunctions.afterValidateSubscriptionAppleFunction; fn != nil {
+			provider.afterValidateSubscription = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidateIAPSubscriptionResponse, in *api.ValidateIAPSubscriptionRequest) error {
+				receipt, _ := in.Payload.AsMap()["receipt"].(string)
+				return fn(ctx, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, &api.ValidateSubscriptionResponse{ValidatedSubscription: out.Subscription}, &api.ValidateSubscriptionAppleRequest{Receipt: receipt, Persist: in.Persist})
+			}
+		}
 	}
 
 	return &Runtime{
