@@ -47,6 +47,7 @@ import (
 var ErrSubscriptionsListInvalidCursor = errors.New("subscriptions list cursor invalid")
 var ErrSubscriptionNotFound = errors.New("subscription not found")
 var ErrSkipNotification = errors.New("skip notification")
+var errSubscriptionOwnedByAnotherStore = errors.New("subscription original transaction ID belongs to another store")
 
 type subscriptionsListCursor struct {
 	OriginalTransactionId string
@@ -354,6 +355,10 @@ func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.
 		}
 		return nil
 	}); err != nil {
+		if errors.Is(err, errSubscriptionOwnedByAnotherStore) {
+			logger.Warn("Apple original transaction ID belongs to another store, not storing.", zap.String("original_transaction_id", dbSubscription.originalTransactionId))
+			return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
+		}
 		logger.Error("Failed to validate apple jws subscription receipt", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Failed to validate apple jws subscription receipt")
 	}
@@ -464,6 +469,10 @@ func validateLegacySubscriptionReceiptApple(ctx context.Context, logger *zap.Log
 			}
 
 			if err = upsertSubscription(ctx, tx, storageSub); err != nil {
+				if errors.Is(err, errSubscriptionOwnedByAnotherStore) {
+					logger.Warn("Apple original transaction ID belongs to another store, not storing.", zap.String("original_transaction_id", storageSub.originalTransactionId))
+					continue
+				}
 				return err
 			}
 
@@ -544,6 +553,10 @@ func ValidateSubscriptionGoogle(ctx context.Context, logger *zap.Logger, db *sql
 	if err = ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
 		return upsertSubscription(ctx, tx, storageSub)
 	}); err != nil {
+		if errors.Is(err, errSubscriptionOwnedByAnotherStore) {
+			logger.Warn("Google original transaction ID belongs to another store, not storing.", zap.String("original_transaction_id", storageSub.originalTransactionId))
+			return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
+		}
 		logger.Error("Failed to upsert Google subscription receipt", zap.Error(err))
 		return nil, err
 	}
@@ -624,26 +637,13 @@ func ValidateSubscription(ctx context.Context, logger *zap.Logger, db *sql.DB, r
 		return &api.ValidateIAPSubscriptionResponse{Subscription: validatedSub}, nil
 	}
 
-	ownStoreSubs := make([]*storageSubscription, 0, len(storageSubs))
-	for _, sub := range storageSubs {
-		existing, err := getSubscriptionByOriginalTransactionId(ctx, logger, db, registry, sub.originalTransactionId)
-		if err != nil {
-			logger.Error("Error looking up subscription from provider", zap.String("provider", provider.name), zap.Error(err))
-			return nil, err
-		}
-		if existing != nil && existing.Store != sub.store {
-			logger.Warn("IAP provider original transaction ID belongs to another store, not storing.", zap.String("provider", provider.name), zap.String("original_transaction_id", sub.originalTransactionId))
-			continue
-		}
-		ownStoreSubs = append(ownStoreSubs, sub)
-	}
-	if len(ownStoreSubs) == 0 {
-		return &api.ValidateIAPSubscriptionResponse{Subscription: validatedSub}, nil
-	}
-
 	if err = ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
-		for _, sub := range ownStoreSubs {
+		for _, sub := range storageSubs {
 			if err := upsertSubscription(ctx, tx, sub); err != nil {
+				if errors.Is(err, errSubscriptionOwnedByAnotherStore) {
+					logger.Warn("IAP provider original transaction ID belongs to another store, not storing.", zap.String("provider", provider.name), zap.String("original_transaction_id", sub.originalTransactionId))
+					continue
+				}
 				return err
 			}
 		}
@@ -877,6 +877,8 @@ DO
 		raw_response = coalesce(to_jsonb(nullif($8, '')), subscription.raw_response::jsonb),
 		raw_notification = coalesce(to_jsonb(nullif($9, '')), subscription.raw_notification::jsonb),
 		refund_time = coalesce(nullif($10, '1970-01-01 00:00:00+00'), subscription.refund_time)
+	WHERE
+		subscription.store = EXCLUDED.store
 RETURNING
     user_id, create_time, update_time, expire_time, refund_time, raw_response, raw_notification
 `
@@ -903,6 +905,10 @@ RETURNING
 		sub.rawNotification,
 		sub.refundTime,
 	).Scan(&userID, &createTime, &updateTime, &expireTime, &refundTime, &rawResponse, &rawNotification); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// The conflict update's store predicate rejected the row: another store owns this original transaction ID.
+			return errSubscriptionOwnedByAnotherStore
+		}
 		return err
 	}
 
@@ -1051,6 +1057,10 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 
 			if err = ExecuteInTx(r.Context(), db, func(tx *sql.Tx) error {
 				if err = upsertSubscription(r.Context(), tx, sub); err != nil {
+					if errors.Is(err, errSubscriptionOwnedByAnotherStore) {
+						logger.Warn("App Store notification original transaction ID belongs to another store", zap.String("original_transaction_id", sub.originalTransactionId))
+						return ErrSkipNotification
+					}
 					var pgErr *pgconn.PgError
 					if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
 						// User id was not found, ignore this notification
@@ -1165,6 +1175,10 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 
 			if err = ExecuteInTx(r.Context(), db, func(tx *sql.Tx) error {
 				if err = upsertSubscription(r.Context(), tx, sub); err != nil {
+					if errors.Is(err, errSubscriptionOwnedByAnotherStore) {
+						logger.Warn("App Store notification original transaction ID belongs to another store", zap.String("original_transaction_id", sub.originalTransactionId))
+						return ErrSkipNotification
+					}
 					var pgErr *pgconn.PgError
 					if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
 						// User id was not found, ignore this notification
@@ -1562,6 +1576,10 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 
 			if err = ExecuteInTx(r.Context(), db, func(tx *sql.Tx) error {
 				if err = upsertSubscription(r.Context(), tx, storageSub); err != nil {
+					if errors.Is(err, errSubscriptionOwnedByAnotherStore) {
+						loggerWithNotification.Warn("Google Play Billing notification original transaction ID belongs to another store", zap.String("original_transaction_id", storageSub.originalTransactionId))
+						return ErrSkipNotification
+					}
 					var pgErr *pgconn.PgError
 					if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
 						// User id was not found, ignore this notification
@@ -1675,6 +1693,10 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 
 				if err = ExecuteInTx(r.Context(), db, func(tx *sql.Tx) error {
 					if err = upsertSubscription(r.Context(), tx, storageSub); err != nil {
+						if errors.Is(err, errSubscriptionOwnedByAnotherStore) {
+							loggerWithNotification.Warn("Google Play Billing notification original transaction ID belongs to another store", zap.String("original_transaction_id", storageSub.originalTransactionId))
+							return ErrSkipNotification
+						}
 						var pgErr *pgconn.PgError
 						if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
 							// User id was not found, ignore this notification
@@ -1924,6 +1946,10 @@ func iapProviderNotificationHandler(logger *zap.Logger, db *sql.DB, registry *Ru
 				if err = ExecuteInTx(r.Context(), db, func(tx *sql.Tx) error {
 					return upsertSubscription(r.Context(), tx, sub)
 				}); err != nil {
+					if errors.Is(err, errSubscriptionOwnedByAnotherStore) {
+						logger.Warn("IAP provider subscription notification original transaction ID belongs to another store", zap.String("original_transaction_id", subscription.OriginalTransactionId))
+						continue
+					}
 					var pgErr *pgconn.PgError
 					if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
 						logger.Warn("User not found for this IAP provider subscription notification", zap.String("original_transaction_id", subscription.OriginalTransactionId))
