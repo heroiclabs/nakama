@@ -36,6 +36,7 @@ import (
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
 	"github.com/heroiclabs/nakama/v3/server/plugins/iap/facebookinstant"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/samsung"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -3468,10 +3469,11 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateSamsung(ctx context.Context, use
 		return nil, errors.New("purchaseId cannot be empty string")
 	}
 
-	validation, err := ValidatePurchaseSamsung(ctx, n.logger, n.db, uid, n.config.GetIAP().Samsung, purchaseId, persist)
+	validated, err := ValidatePurchase(ctx, n.logger, n.db, n.iapProviderRegistry, uid, "", samsung.Name, map[string]any{"purchase_id": purchaseId}, nil, persist)
 	if err != nil {
 		return nil, err
 	}
+	validation := &api.ValidatePurchaseResponse{ValidatedPurchases: validated.Purchase}
 
 	return validation, nil
 }
