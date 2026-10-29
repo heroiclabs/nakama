@@ -63,11 +63,11 @@ func (r *RuntimeIAPProviderRegistry) Register(name, notificationId string, code 
 		notificationId = name
 	}
 	if !iapProviderNameRegex.MatchString(notificationId) {
-		return fmt.Errorf("expects IAP provider notification id to be valid, must be 1-128 bytes and contain only [a-zA-Z0-9_-]: %s", name)
+		return fmt.Errorf("expects IAP provider notification id of %s to be valid, must be 1-128 bytes and contain only [a-zA-Z0-9_-]: %q", name, notificationId)
 	}
 	switch notificationId {
 	case "apple", "google", "huawei", "facebookinstant", "samsung":
-		return fmt.Errorf("IAP provider notification id is reserved: %s", name)
+		return fmt.Errorf("IAP provider notification id of %s is reserved: %s", name, notificationId)
 	}
 	if code < math.MinInt16 || code > math.MaxInt16 {
 		return fmt.Errorf("IAP provider code must fit in 16 bits: %s has %d", name, code)
