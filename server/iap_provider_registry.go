@@ -64,7 +64,8 @@ func (r *RuntimeIAPProviderRegistry) Register(name, notificationEndpointId strin
 	if code < math.MinInt16 || code > math.MaxInt16 {
 		return fmt.Errorf("IAP provider code must fit in 16 bits: %s has %d", name, code)
 	}
-	if _, builtIn := api.StoreProvider_name[int32(code)]; builtIn {
+	switch api.StoreProvider(code) {
+	case api.StoreProvider_APPLE_APP_STORE, api.StoreProvider_GOOGLE_PLAY_STORE, api.StoreProvider_HUAWEI_APP_GALLERY, api.StoreProvider_FACEBOOK_INSTANT_STORE, api.StoreProvider_SAMSUNG_GALAXY_STORE:
 		return fmt.Errorf("IAP provider code %d is used by a built-in store: %s", code, name)
 	}
 	provider := &RuntimeIAPProviderFunctions{name: name, notificationEndpointId: notificationEndpointId, storeCode: code, validatePurchase: validatePurchase, validateSubscription: validateSubscription, notificationHandler: notificationHandler}
