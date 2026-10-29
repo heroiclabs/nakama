@@ -36,6 +36,7 @@ import (
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
 	"github.com/heroiclabs/nakama/v3/server/plugins/iap/facebookinstant"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/huawei"
 	"github.com/heroiclabs/nakama/v3/server/plugins/iap/samsung"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/zap"
@@ -3412,10 +3413,11 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateHuawei(ctx context.Context, user
 		return nil, errors.New("receipt cannot be empty string")
 	}
 
-	validation, err := ValidatePurchaseHuawei(ctx, n.logger, n.db, uid, n.config.GetIAP().Huawei, receipt, signature, persist)
+	validated, err := ValidatePurchase(ctx, n.logger, n.db, n.iapProviderRegistry, uid, "", huawei.Name, map[string]any{"purchase": receipt, "signature": signature}, nil, persist)
 	if err != nil {
 		return nil, err
 	}
+	validation := &api.ValidatePurchaseResponse{ValidatedPurchases: validated.Purchase}
 
 	return validation, nil
 }

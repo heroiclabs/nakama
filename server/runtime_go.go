@@ -31,6 +31,7 @@ import (
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/server/plugins/iap/facebookinstant"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/huawei"
 	"github.com/heroiclabs/nakama/v3/server/plugins/iap/samsung"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/atomic"
@@ -3873,6 +3874,7 @@ func NewRuntimeProviderGo(ctx context.Context, logger, startupLogger *zap.Logger
 
 	builtInIAPProviders := []runtime.IAPProvider{
 		&facebookinstant.Provider{Config: config.GetIAP().GetFacebookInstant()},
+		&huawei.Provider{Config: config.GetIAP().GetHuawei(), Client: httpc},
 		&samsung.Provider{Config: config.GetIAP().GetSamsung(), Client: httpc},
 	}
 	for _, provider := range builtInIAPProviders {

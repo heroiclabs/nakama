@@ -52,6 +52,7 @@ import (
 	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
 	lua "github.com/heroiclabs/nakama/v3/internal/gopher-lua"
 	"github.com/heroiclabs/nakama/v3/server/plugins/iap/facebookinstant"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/huawei"
 	"github.com/heroiclabs/nakama/v3/server/plugins/iap/samsung"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/zap"
@@ -8334,11 +8335,12 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateHuawei(l *lua.LState) int {
 
 	persist := l.OptBool(4, true)
 
-	validation, err := ValidatePurchaseHuawei(l.Context(), n.logger, n.db, uid, n.config.GetIAP().Huawei, signature, receipt, persist)
+	validated, err := ValidatePurchase(l.Context(), n.logger, n.db, n.iapProviderRegistry, uid, "", huawei.Name, map[string]any{"purchase": signature, "signature": receipt}, nil, persist)
 	if err != nil {
 		l.RaiseError("error validating Huawei receipt: %v", err.Error())
 		return 0
 	}
+	validation := &api.ValidatePurchaseResponse{ValidatedPurchases: validated.Purchase}
 
 	l.Push(purchaseValidationToLuaTable(l, validation))
 	return 1

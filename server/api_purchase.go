@@ -182,10 +182,11 @@ func (s *ApiServer) ValidatePurchaseHuawei(ctx context.Context, in *api.Validate
 		persist = in.Persist.GetValue()
 	}
 
-	validation, err := ValidatePurchaseHuawei(ctx, logger, s.db, userID, s.config.GetIAP().Huawei, in.Purchase, in.Signature, persist)
+	validated, err := ValidatePurchase(ctx, logger, s.db, s.runtime.IAPProviderRegistry(), userID, traceID, "huawei", map[string]any{"purchase": in.Purchase, "signature": in.Signature}, nil, persist)
 	if err != nil {
 		return nil, err
 	}
+	validation := &api.ValidatePurchaseResponse{ValidatedPurchases: validated.Purchase}
 
 	// After hook.
 	if fn := s.runtime.AfterValidatePurchaseHuawei(); fn != nil {

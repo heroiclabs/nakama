@@ -51,6 +51,7 @@ import (
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
 	"github.com/heroiclabs/nakama/v3/server/plugins/iap/facebookinstant"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/huawei"
 	"github.com/heroiclabs/nakama/v3/server/plugins/iap/samsung"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/zap"
@@ -6605,10 +6606,11 @@ func (n *RuntimeJavascriptNakamaModule) purchaseValidateHuawei(r *goja.Runtime) 
 			persist = getJsBool(r, f.Argument(3))
 		}
 
-		validation, err := ValidatePurchaseHuawei(n.ctx, n.logger, n.db, uid, n.config.GetIAP().Huawei, receipt, signature, persist)
+		validated, err := ValidatePurchase(n.ctx, n.logger, n.db, n.iapProviderRegistry, uid, "", huawei.Name, map[string]any{"purchase": receipt, "signature": signature}, nil, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Huawei receipt: %s", err.Error())))
 		}
+		validation := &api.ValidatePurchaseResponse{ValidatedPurchases: validated.Purchase}
 
 		validationResult := purchaseResponseToJsObject(validation)
 
