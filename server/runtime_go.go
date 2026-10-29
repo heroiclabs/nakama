@@ -3718,6 +3718,8 @@ func (ri *RuntimeGoInitializer) RegisterFleetManagerByName(name string, fleetMan
 	if fleetManager == nil {
 		return errors.New("fleet manager cannot be nil")
 	}
+
+	name = strings.ToLower(strings.TrimSpace(name))
 	if err := fleetManager.Init(ri, ri.nk, ri.fmCallbackHandler, name); err != nil {
 		return fmt.Errorf("failed to run fleet manager Init function: %s", err.Error())
 	}
