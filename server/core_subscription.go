@@ -1350,6 +1350,11 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 					w.WriteHeader(http.StatusInternalServerError)
 					return
 				}
+				if dbPurchases[0].createTime.IsZero() {
+					logger.Warn("App Store refund notification transaction ID belongs to another store", zap.String("transaction_id", purchase.transactionId))
+					w.WriteHeader(http.StatusOK)
+					return
+				}
 
 				if purchaseNotificationCallback != nil {
 					dbPurchase := dbPurchases[0]
@@ -1799,7 +1804,8 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 					environment:   env,
 				}
 
-				if _, err = upsertPurchases(r.Context(), db, sPurchase); err != nil {
+				dbPurchases, err := upsertPurchases(r.Context(), db, sPurchase)
+				if err != nil {
 					var pgErr *pgconn.PgError
 					if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
 						// User id was not found, ignore this notification
@@ -1808,6 +1814,11 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 					}
 					loggerWithNotification.Error("Failed to store Google Play Billing notification subscription data", zap.Error(err))
 					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				if dbPurchases[0].createTime.IsZero() {
+					loggerWithNotification.Warn("Google Play Billing refund notification transaction ID belongs to another store", zap.String("transaction_id", sPurchase.transactionId))
+					w.WriteHeader(http.StatusOK)
 					return
 				}
 
@@ -2048,6 +2059,10 @@ func iapProviderNotificationHandler(logger *zap.Logger, db *sql.DB, registry *Ru
 				logger.Error("Failed to store IAP provider notification purchase data", zap.Error(err))
 				w.WriteHeader(http.StatusInternalServerError)
 				return
+			}
+			if dbPurchases[0].createTime.IsZero() {
+				logger.Warn("IAP provider refund notification transaction ID belongs to another store", zap.String("transaction_id", purchase.TransactionId))
+				continue
 			}
 
 			if purchaseHook != nil {

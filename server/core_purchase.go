@@ -708,29 +708,7 @@ func ValidatePurchase(ctx context.Context, logger *zap.Logger, db *sql.DB, regis
 		return &api.ValidateIAPPurchaseResponse{Purchase: validatedPurchases}, nil
 	}
 
-	ownStorePurchases := make([]*storagePurchase, 0, len(storagePurchases))
-	for _, purchaseToStore := range storagePurchases {
-		existing, err := GetPurchaseByTransactionId(ctx, logger, db, registry, purchaseToStore.transactionId)
-		if err != nil {
-			logger.Error("Error looking up purchase from provider", zap.String("provider", provider.name), zap.Error(err))
-			return nil, err
-		}
-		if existing == nil || existing.Provider == provider.name {
-			ownStorePurchases = append(ownStorePurchases, purchaseToStore)
-			continue
-		}
-		logger.Warn("IAP provider transaction ID belongs to another store, not storing.", zap.String("provider", provider.name), zap.String("transaction_id", purchaseToStore.transactionId))
-		for _, validatedPurchase := range validatedPurchases {
-			if validatedPurchase.TransactionId == purchaseToStore.transactionId {
-				validatedPurchase.SeenBefore = true
-			}
-		}
-	}
-	if len(ownStorePurchases) == 0 {
-		return &api.ValidateIAPPurchaseResponse{Purchase: validatedPurchases}, nil
-	}
-
-	stored, err := upsertPurchases(ctx, db, ownStorePurchases...)
+	stored, err := upsertPurchases(ctx, db, storagePurchases...)
 	if err != nil {
 		if !errors.Is(err, context.Canceled) {
 			logger.Error("Error storing purchase from provider", zap.String("provider", provider.name), zap.Error(err))
@@ -742,6 +720,11 @@ func ValidatePurchase(ctx context.Context, logger *zap.Logger, db *sql.DB, regis
 		for _, storedPurchase := range stored {
 			if storedPurchase.transactionId != validatedPurchase.TransactionId {
 				continue
+			}
+			if storedPurchase.createTime.IsZero() {
+				logger.Warn("IAP provider transaction ID belongs to another store, not storing.", zap.String("provider", provider.name), zap.String("transaction_id", storedPurchase.transactionId))
+				validatedPurchase.SeenBefore = true
+				break
 			}
 			validatedPurchase.CreateTime = timestamppb.New(storedPurchase.createTime)
 			validatedPurchase.UpdateTime = timestamppb.New(storedPurchase.updateTime)
@@ -1071,6 +1054,8 @@ ON CONFLICT
 DO UPDATE SET
 	refund_time = EXCLUDED.refund_time,
 	update_time = now()
+WHERE
+	purchase.store = EXCLUDED.store
 RETURNING
 	user_id,
 	transaction_id,
@@ -1110,6 +1095,10 @@ RETURNING
 
 	storedPurchases := make([]*storagePurchase, 0, len(transactionIDsToPurchase))
 	for _, purchase := range transactionIDsToPurchase {
+		if purchase.createTime.IsZero() {
+			// The conflict update's store predicate rejected the row: another store already owns this transaction ID.
+			purchase.seenBefore = true
+		}
 		storedPurchases = append(storedPurchases, purchase)
 	}
 
