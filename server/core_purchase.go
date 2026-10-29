@@ -760,10 +760,15 @@ type purchasesListCursor struct {
 	IsNext        bool
 	After         time.Time
 	Before        time.Time
-	Store         *int
+	Store         string // String instead of *int since gob decodes a pointer to 0 as nil, losing an Apple store filter.
 }
 
 func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimeIAPProviderRegistry, userID string, limit int, cursor string, after, before time.Time, storeFilter *int) (*api.PurchaseList, error) {
+	var cursorStore string
+	if storeFilter != nil {
+		cursorStore = strconv.Itoa(*storeFilter)
+	}
+
 	var incomingCursor *purchasesListCursor
 	if cursor != "" {
 		cb, err := base64.URLEncoding.DecodeString(cursor)
@@ -784,7 +789,7 @@ func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, registry
 		if !before.Equal(incomingCursor.Before) {
 			return nil, ErrPurchasesListInvalidCursor
 		}
-		if (storeFilter == nil) != (incomingCursor.Store == nil) || (storeFilter != nil && *storeFilter != *incomingCursor.Store) {
+		if cursorStore != incomingCursor.Store {
 			return nil, ErrPurchasesListInvalidCursor
 		}
 	}
@@ -855,13 +860,13 @@ FROM
 			query += fmt.Sprintf(" AND purchase_time <= $%v", len(params))
 		}
 	}
-	if storeFilter != nil {
+	if cursorStore != "" {
 		if len(params) == 0 {
-			params = append(params, *storeFilter)
-			query += fmt.Sprintf(" WHERE store = $%v", len(params))
+			params = append(params, cursorStore)
+			query += fmt.Sprintf(" WHERE store = $%v::smallint", len(params))
 		} else {
-			params = append(params, *storeFilter)
-			query += fmt.Sprintf(" AND store = $%v", len(params))
+			params = append(params, cursorStore)
+			query += fmt.Sprintf(" AND store = $%v::smallint", len(params))
 		}
 	}
 
@@ -907,7 +912,7 @@ FROM
 				IsNext:        true,
 				After:         after,
 				Before:        before,
-				Store:         storeFilter,
+				Store:         cursorStore,
 			}
 			break
 		}
@@ -949,7 +954,7 @@ FROM
 				IsNext:        false,
 				After:         after,
 				Before:        before,
-				Store:         storeFilter,
+				Store:         cursorStore,
 			}
 		}
 	}
