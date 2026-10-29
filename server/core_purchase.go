@@ -1300,8 +1300,13 @@ func iapProviderNotificationHandler(logger *zap.Logger, db *sql.DB, registry *Ru
 
 			if purchaseHook != nil {
 				dbPurchase := dbPurchases[0]
+				suid := dbPurchase.userID.String()
+				// Avoid reporting deleted users as system users.
+				if dbPurchase.userID.IsNil() {
+					suid = ""
+				}
 				validatedPurchase := &api.ValidatedPurchase{
-					UserId:           dbPurchase.userID.String(),
+					UserId:           suid,
 					ProductId:        purchase.ProductId,
 					TransactionId:    purchase.TransactionId,
 					Store:            api.StoreProvider(provider.storeCode),
