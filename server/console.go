@@ -240,8 +240,12 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		if provider.notificationHandler == nil {
 			continue
 		}
-		endpoint := fmt.Sprintf("/v2/console/%s/notifications", provider.notificationId)
-		grpcGatewayRouter.HandleFunc(endpoint, iapProviderNotificationHandler(logger, db, iapProviderRegistry, provider, runtime.IAPPurchaseNotification(), runtime.IAPSubscriptionNotification()))
+		handler := iapProviderNotificationHandler(logger, db, iapProviderRegistry, provider, runtime.IAPPurchaseNotification(), runtime.IAPSubscriptionNotification())
+		endpoint := fmt.Sprintf("/v2/console/%s/subscriptions/%s", name, provider.notificationId) // For backwards compatibility.
+		grpcGatewayRouter.HandleFunc(endpoint, handler)
+		logger.Info("Registered endpoint for IAP provider notifications callback", zap.String("provider", name), zap.String("endpoint", endpoint))
+		endpoint = fmt.Sprintf("/v2/console/%s/notifications/%s", name, provider.notificationId)
+		grpcGatewayRouter.HandleFunc(endpoint, handler)
 		logger.Info("Registered endpoint for IAP provider notifications callback", zap.String("provider", name), zap.String("endpoint", endpoint))
 	}
 
