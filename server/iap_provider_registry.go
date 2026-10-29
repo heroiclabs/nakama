@@ -42,6 +42,8 @@ type RuntimeIAPProviderFunctions struct {
 	validatePurchase       RuntimeIAPProviderPurchaseFunction
 	validateSubscription   RuntimeIAPProviderSubscriptionFunction
 	notificationHandler    RuntimeIAPProviderNotificationFunction
+	beforeValidatePurchase RuntimeBeforeValidatePurchaseFunction
+	afterValidatePurchase  RuntimeAfterValidatePurchaseFunction
 }
 
 type RuntimeIAPProviderRegistry struct {
