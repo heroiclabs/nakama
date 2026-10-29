@@ -50,6 +50,7 @@ import (
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/facebookinstant"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -6646,10 +6647,11 @@ func (n *RuntimeJavascriptNakamaModule) purchaseValidateFacebookInstant(r *goja.
 			persist = getJsBool(r, f.Argument(2))
 		}
 
-		validation, err := ValidatePurchaseFacebookInstant(n.ctx, n.logger, n.db, uid, n.config.GetIAP().FacebookInstant, signedRequest, persist)
+		validated, err := ValidatePurchase(n.ctx, n.logger, n.db, n.iapProviderRegistry, uid, "", facebookinstant.Name, map[string]any{"signed_request": signedRequest}, nil, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Facebook Instant receipt: %s", err.Error())))
 		}
+		validation := &api.ValidatePurchaseResponse{ValidatedPurchases: validated.Purchase}
 
 		validationResult := purchaseResponseToJsObject(validation)
 

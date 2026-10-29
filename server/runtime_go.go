@@ -30,6 +30,7 @@ import (
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/facebookinstant"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
@@ -3868,6 +3869,15 @@ func NewRuntimeProviderGo(ctx context.Context, logger, startupLogger *zap.Logger
 
 	// The baseline context that will be passed to all InitModule calls.
 	ctx = NewRuntimeGoContext(ctx, node, version, env, RuntimeExecutionModeRunOnce, nil, nil, "", 0, "", "", nil, "", "", "", "")
+
+	builtInIAPProviders := []runtime.IAPProvider{
+		&facebookinstant.Provider{Config: config.GetIAP().GetFacebookInstant()},
+	}
+	for _, provider := range builtInIAPProviders {
+		if err := initializer.RegisterIAPProvider(provider); err != nil {
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		}
+	}
 
 	startupLogger.Info("Initialising Go runtime provider", zap.String("path", rootPath))
 

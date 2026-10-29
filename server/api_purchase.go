@@ -240,10 +240,11 @@ func (s *ApiServer) ValidatePurchaseFacebookInstant(ctx context.Context, in *api
 		persist = in.Persist.GetValue()
 	}
 
-	validation, err := ValidatePurchaseFacebookInstant(ctx, logger, s.db, userID, s.config.GetIAP().FacebookInstant, in.SignedRequest, persist)
+	validated, err := ValidatePurchase(ctx, logger, s.db, s.runtime.IAPProviderRegistry(), userID, traceID, "facebookinstant", map[string]any{"signed_request": in.SignedRequest}, nil, persist)
 	if err != nil {
 		return nil, err
 	}
+	validation := &api.ValidatePurchaseResponse{ValidatedPurchases: validated.Purchase}
 
 	// After hook.
 	if fn := s.runtime.AfterValidatePurchaseFacebookInstant(); fn != nil {

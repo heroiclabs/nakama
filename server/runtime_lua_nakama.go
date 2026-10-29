@@ -51,6 +51,7 @@ import (
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
 	lua "github.com/heroiclabs/nakama/v3/internal/gopher-lua"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/facebookinstant"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -8374,11 +8375,12 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateFacebookInstant(l *lua.LState) 
 
 	persist := l.OptBool(3, true)
 
-	validation, err := ValidatePurchaseFacebookInstant(l.Context(), n.logger, n.db, uid, n.config.GetIAP().FacebookInstant, signedRequest, persist)
+	validated, err := ValidatePurchase(l.Context(), n.logger, n.db, n.iapProviderRegistry, uid, "", facebookinstant.Name, map[string]any{"signed_request": signedRequest}, nil, persist)
 	if err != nil {
 		l.RaiseError("error validating Facebook Instant receipt: %v", err.Error())
 		return 0
 	}
+	validation := &api.ValidatePurchaseResponse{ValidatedPurchases: validated.Purchase}
 
 	l.Push(purchaseValidationToLuaTable(l, validation))
 	return 1
