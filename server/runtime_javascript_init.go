@@ -66,6 +66,10 @@ type RuntimeJavascriptCallbacks struct {
 	After                          map[string]string
 	StorageIndexFilter             map[string]string
 	AuthenticateProvider           map[string]string
+	IAPProvider                    map[string]string
+	IAPProviders                   map[string]*RuntimeIAPProviderFunctions
+	IAPSubscriptionProvider        map[string]string
+	IAPProviderNotification        map[string]string
 	Matchmaker                     string
 	TournamentEnd                  string
 	TournamentReset                string
@@ -75,6 +79,8 @@ type RuntimeJavascriptCallbacks struct {
 	SubscriptionNotificationApple  string
 	PurchaseNotificationGoogle     string
 	SubscriptionNotificationGoogle string
+	IAPPurchaseNotification        string
+	IAPSubscriptionNotification    string
 }
 
 type RuntimeJavascriptInitModule struct {
@@ -104,6 +110,9 @@ func (im *RuntimeJavascriptInitModule) mappings(r *goja.Runtime) map[string]func
 		"getConfig":                                       im.getConfig(r),
 		"registerRpc":                                     im.registerRpc(r),
 		"registerAuthenticateProvider":                    im.registerAuthenticateProvider(r),
+		"registerIapProvider":                             im.registerIAPProvider(r),
+		"registerIapPurchaseNotification":                 im.registerIAPPurchaseNotification(r),
+		"registerIapSubscriptionNotification":             im.registerIAPSubscriptionNotification(r),
 		"registerRtBefore":                                im.registerRtBefore(r),
 		"registerRtAfter":                                 im.registerRtAfter(r),
 		"registerMatchmakerMatched":                       im.registerMatchmakerMatched(r),
@@ -115,6 +124,10 @@ func (im *RuntimeJavascriptInitModule) mappings(r *goja.Runtime) map[string]func
 		"registerSubscriptionNotificationApple":           im.registerSubscriptionNotificationApple(r),
 		"registerPurchaseNotificationGoogle":              im.registerPurchaseNotificationGoogle(r),
 		"registerSubscriptionNotificationGoogle":          im.registerSubscriptionNotificationGoogle(r),
+		"registerBeforeValidatePurchase":                  im.registerBeforeValidatePurchase(r),
+		"registerAfterValidatePurchase":                   im.registerAfterValidatePurchase(r),
+		"registerBeforeValidateSubscription":              im.registerBeforeValidateSubscription(r),
+		"registerAfterValidateSubscription":               im.registerAfterValidateSubscription(r),
 		"registerMatch":                                   im.registerMatch(r),
 		"registerBeforeGetAccount":                        im.registerBeforeGetAccount(r),
 		"registerAfterGetAccount":                         im.registerAfterGetAccount(r),
@@ -473,6 +486,172 @@ func (im *RuntimeJavascriptInitModule) registerAuthenticateProvider(r *goja.Runt
 
 		return goja.Undefined()
 	}
+}
+
+func (im *RuntimeJavascriptInitModule) registerIAPProvider(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		fName := f.Argument(0)
+		if goja.IsNull(fName) || goja.IsUndefined(fName) {
+			panic(r.NewTypeError("expects a non empty string"))
+		}
+		key, ok := fName.Export().(string)
+		if !ok {
+			panic(r.NewTypeError("expects a non empty string"))
+		}
+		if !iapProviderNameRegex.MatchString(key) {
+			panic(r.NewTypeError("expects provider name to be valid, must be 1-128 bytes and contain only [a-zA-Z0-9_-]"))
+		}
+
+		funcObj := f.Argument(1)
+		if goja.IsNull(funcObj) || goja.IsUndefined(funcObj) {
+			panic(r.NewTypeError("expects an object"))
+		}
+		funcMap, ok := funcObj.Export().(map[string]any)
+		if !ok {
+			panic(r.NewTypeError("expects an object"))
+		}
+
+		bs, initFnVarName, err := im.getInitModuleFn()
+		if err != nil {
+			panic(r.NewGoError(err))
+		}
+
+		fnValue, ok := funcMap["validatePurchase"]
+		if !ok {
+			panic(r.NewTypeError("validatePurchase not found"))
+		}
+		if _, ok = goja.AssertFunction(r.ToValue(fnValue)); !ok {
+			panic(r.NewTypeError("validatePurchase value not a valid function"))
+		}
+		validatePurchaseKey, err := im.getIAPProviderFnIdentifier(r, bs, initFnVarName, key, "validatePurchase")
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("js %s validatePurchase function key could not be extracted: %s", key, err.Error())))
+		}
+
+		fnValue, ok = funcMap["validateSubscription"]
+		if !ok {
+			panic(r.NewTypeError("validateSubscription not found"))
+		}
+		if _, ok = goja.AssertFunction(r.ToValue(fnValue)); !ok {
+			panic(r.NewTypeError("validateSubscription value not a valid function"))
+		}
+		validateSubscriptionKey, err := im.getIAPProviderFnIdentifier(r, bs, initFnVarName, key, "validateSubscription")
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("js %s validateSubscription function key could not be extracted: %s", key, err.Error())))
+		}
+
+		var handleNotificationKey string
+		if fnValue, ok := funcMap["handleNotification"]; ok && fnValue != nil {
+			if _, ok = goja.AssertFunction(r.ToValue(fnValue)); !ok {
+				panic(r.NewTypeError("handleNotification value not a valid function"))
+			}
+			handleNotificationKey, err = im.getIAPProviderFnIdentifier(r, bs, initFnVarName, key, "handleNotification")
+			if err != nil {
+				panic(r.NewGoError(fmt.Errorf("js %s handleNotification function key could not be extracted: %s", key, err.Error())))
+			}
+		}
+
+		code, ok := f.Argument(2).Export().(int64)
+		if !ok {
+			panic(r.NewTypeError("expects code to be an integer"))
+		}
+
+		var notificationEndpointId string
+		if v := f.Argument(3); !goja.IsUndefined(v) && !goja.IsNull(v) {
+			if notificationEndpointId, ok = v.Export().(string); !ok || !iapProviderNameRegex.MatchString(notificationEndpointId) {
+				panic(r.NewTypeError("expects notification endpoint id to be valid, must be 1-128 bytes and contain only [a-zA-Z0-9_-]"))
+			}
+		}
+
+		lKey := strings.ToLower(key)
+		im.Callbacks.IAPProviders[lKey] = &RuntimeIAPProviderFunctions{name: lKey, notificationEndpointId: notificationEndpointId, storeCode: int(code)}
+		im.registerCallbackFn(RuntimeExecutionModeIAPProvider, lKey, validatePurchaseKey)
+		im.announceCallbackFn(RuntimeExecutionModeIAPProvider, lKey)
+		im.registerCallbackFn(RuntimeExecutionModeIAPSubscriptionProvider, lKey, validateSubscriptionKey)
+		im.announceCallbackFn(RuntimeExecutionModeIAPSubscriptionProvider, lKey)
+		if handleNotificationKey != "" {
+			im.registerCallbackFn(RuntimeExecutionModeIAPProviderNotification, lKey, handleNotificationKey)
+			im.announceCallbackFn(RuntimeExecutionModeIAPProviderNotification, lKey)
+		}
+
+		return goja.Undefined()
+	}
+}
+
+func (im *RuntimeJavascriptInitModule) getIAPProviderFnIdentifier(r *goja.Runtime, bs *ast.BlockStatement, initFnVarName, providerName, fnName string) (string, error) {
+	for _, exp := range bs.List {
+		if try, ok := exp.(*ast.TryStatement); ok {
+			if s, err := im.getIAPProviderFnIdentifier(r, try.Body, initFnVarName, providerName, fnName); err != nil {
+				continue
+			} else {
+				return s, nil
+			}
+		}
+		if expStat, ok := exp.(*ast.ExpressionStatement); ok {
+			if callExp, ok := expStat.Expression.(*ast.CallExpression); ok {
+				if callee, ok := callExp.Callee.(*ast.DotExpression); ok {
+					if left, ok := callee.Left.(*ast.Identifier); ok && left.Name.String() == initFnVarName && callee.Identifier.Name == "registerIapProvider" {
+						if len(callExp.ArgumentList) < 2 {
+							continue
+						}
+						if providerNameArg, ok := callExp.ArgumentList[0].(*ast.Identifier); ok {
+							id := providerNameArg.Name.String()
+							if r.Get(id).String() != providerName {
+								continue
+							}
+						} else if providerNameArg, ok := callExp.ArgumentList[0].(*ast.StringLiteral); ok {
+							if providerNameArg.Value.String() != providerName {
+								continue
+							}
+						}
+
+						var obj *ast.ObjectLiteral
+						if handlersId, ok := callExp.ArgumentList[1].(*ast.Identifier); ok {
+							handlersIdStr := handlersId.Name.String()
+							for _, decl := range im.ast.DeclarationList {
+								if declId, ok := decl.List[0].Target.(*ast.Identifier); ok && declId.Name.String() == handlersIdStr {
+									objLiteral, ok := decl.List[0].Initializer.(*ast.ObjectLiteral)
+									if ok {
+										obj = objLiteral
+									}
+								}
+							}
+						} else {
+							obj, _ = callExp.ArgumentList[1].(*ast.ObjectLiteral)
+						}
+						if obj == nil {
+							return "", errors.New("handlers must be an object literal or a variable declared with one")
+						}
+
+						for _, prop := range obj.Value {
+							if propKeyed, ok := prop.(*ast.PropertyKeyed); ok {
+								if key, ok := propKeyed.Key.(*ast.StringLiteral); ok {
+									if key.Literal == fnName {
+										if sl, ok := propKeyed.Value.(*ast.StringLiteral); ok {
+											return sl.Literal, nil
+										} else if id, ok := propKeyed.Value.(*ast.Identifier); ok {
+											return id.Name.String(), nil
+										} else {
+											return "", errInlinedFunction
+										}
+									}
+								}
+							}
+
+							if propShort, ok := prop.(*ast.PropertyShort); ok {
+								if string(propShort.Name.Name) == fnName {
+									return string(propShort.Name.Name), nil
+								}
+							}
+						}
+						break
+					}
+				}
+			}
+		}
+	}
+
+	return "", errors.New("not found")
 }
 
 func (im *RuntimeJavascriptInitModule) extractRpcFn(r *goja.Runtime, rpcFnName string) (string, error) {
@@ -1156,6 +1335,22 @@ func (im *RuntimeJavascriptInitModule) registerAfterGetUsers(r *goja.Runtime) fu
 	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterGetUsers", "getusers")
 }
 
+func (im *RuntimeJavascriptInitModule) registerBeforeValidatePurchase(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeValidatePurchase", "validatepurchase")
+}
+
+func (im *RuntimeJavascriptInitModule) registerAfterValidatePurchase(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterValidatePurchase", "validatepurchase")
+}
+
+func (im *RuntimeJavascriptInitModule) registerBeforeValidateSubscription(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeValidateSubscription", "validatesubscription")
+}
+
+func (im *RuntimeJavascriptInitModule) registerAfterValidateSubscription(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterValidateSubscription", "validatesubscription")
+}
+
 func (im *RuntimeJavascriptInitModule) registerBeforeValidatePurchaseApple(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return im.registerHook(r, RuntimeExecutionModeBefore, "registerBeforeValidatePurchaseApple", "validatepurchaseapple")
 }
@@ -1656,6 +1851,52 @@ func (im *RuntimeJavascriptInitModule) registerShutdown(r *goja.Runtime) func(go
 	}
 }
 
+func (im *RuntimeJavascriptInitModule) registerIAPPurchaseNotification(r *goja.Runtime) func(call goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		fn := f.Argument(0)
+		_, ok := goja.AssertFunction(fn)
+		if !ok {
+			panic(r.NewTypeError("expects a function"))
+		}
+
+		fnKey, err := im.extractHookFn("registerIapPurchaseNotification")
+		if err != nil {
+			panic(r.NewGoError(err))
+		}
+		im.registerCallbackFn(RuntimeExecutionModeIAPPurchaseNotification, "", fnKey)
+		im.announceCallbackFn(RuntimeExecutionModeIAPPurchaseNotification, "")
+
+		if err = im.checkFnScope(r, fnKey); err != nil {
+			panic(r.NewGoError(err))
+		}
+
+		return goja.Undefined()
+	}
+}
+
+func (im *RuntimeJavascriptInitModule) registerIAPSubscriptionNotification(r *goja.Runtime) func(call goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		fn := f.Argument(0)
+		_, ok := goja.AssertFunction(fn)
+		if !ok {
+			panic(r.NewTypeError("expects a function"))
+		}
+
+		fnKey, err := im.extractHookFn("registerIapSubscriptionNotification")
+		if err != nil {
+			panic(r.NewGoError(err))
+		}
+		im.registerCallbackFn(RuntimeExecutionModeIAPSubscriptionNotification, "", fnKey)
+		im.announceCallbackFn(RuntimeExecutionModeIAPSubscriptionNotification, "")
+
+		if err = im.checkFnScope(r, fnKey); err != nil {
+			panic(r.NewGoError(err))
+		}
+
+		return goja.Undefined()
+	}
+}
+
 func (im *RuntimeJavascriptInitModule) registerPurchaseNotificationApple(r *goja.Runtime) func(call goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
 		fn := f.Argument(0)
@@ -2030,5 +2271,15 @@ func (im *RuntimeJavascriptInitModule) registerCallbackFn(mode RuntimeExecutionM
 		im.Callbacks.StorageIndexFilter[key] = fn
 	case RuntimeExecutionModeAuthenticateProvider:
 		im.Callbacks.AuthenticateProvider[key] = fn
+	case RuntimeExecutionModeIAPProvider:
+		im.Callbacks.IAPProvider[key] = fn
+	case RuntimeExecutionModeIAPSubscriptionProvider:
+		im.Callbacks.IAPSubscriptionProvider[key] = fn
+	case RuntimeExecutionModeIAPProviderNotification:
+		im.Callbacks.IAPProviderNotification[key] = fn
+	case RuntimeExecutionModeIAPPurchaseNotification:
+		im.Callbacks.IAPPurchaseNotification = fn
+	case RuntimeExecutionModeIAPSubscriptionNotification:
+		im.Callbacks.IAPSubscriptionNotification = fn
 	}
 }

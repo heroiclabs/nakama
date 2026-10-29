@@ -5099,6 +5099,20 @@
             "type": "string"
           },
           "title": "Go registered IAP providers"
+        },
+        "lua_iap_providers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "Lua registered IAP providers"
+        },
+        "js_iap_providers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "JavaScript registered IAP providers"
         }
       },
       "title": "Runtime information"

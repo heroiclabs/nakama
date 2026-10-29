@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -294,6 +295,8 @@ const (
 	RuntimeExecutionModeIAPProvider
 	RuntimeExecutionModeIAPPurchaseNotification
 	RuntimeExecutionModeIAPSubscriptionNotification
+	RuntimeExecutionModeIAPSubscriptionProvider
+	RuntimeExecutionModeIAPProviderNotification
 )
 
 func (e RuntimeExecutionMode) String() string {
@@ -344,6 +347,10 @@ func (e RuntimeExecutionMode) String() string {
 		return "iap_purchase_notification"
 	case RuntimeExecutionModeIAPSubscriptionNotification:
 		return "iap_subscription_notification"
+	case RuntimeExecutionModeIAPSubscriptionProvider:
+		return "iap_subscription_provider"
+	case RuntimeExecutionModeIAPProviderNotification:
+		return "iap_provider_notification"
 	}
 
 	return ""
@@ -387,6 +394,8 @@ type RuntimeInfo struct {
 	GoAuthenticateProviders         []string
 	LuaAuthenticateProviders        []string
 	JavaScriptAuthenticateProviders []string
+	LuaIAPProviders                 []string
+	JavaScriptIAPProviders          []string
 }
 
 type RuntimeBeforeReqFunctions struct {
@@ -803,14 +812,20 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		startupLogger.Error("Error initialising Go runtime provider", zap.Error(err))
 		return nil, nil, err
 	}
+	if iapPurchaseNotificationFunction != nil {
+		startupLogger.Info("Registered Go runtime IAP Purchase Notification function invocation")
+	}
+	if iapSubscriptionNotificationFunction != nil {
+		startupLogger.Info("Registered Go runtime IAP Subscription Notification function invocation")
+	}
 
-	luaModules, luaRPCFns, luaBeforeRtFns, luaAfterRtFns, luaBeforeReqFns, luaAfterReqFns, luaMatchmakerMatchedFn, luaTournamentEndFn, luaTournamentResetFn, luaLeaderboardResetFn, luaShutdownFn, luaPurchaseNotificationAppleFn, luaSubscriptionNotificationAppleFn, luaPurchaseNotificationGoogleFn, luaSubscriptionNotificationGoogleFn, luaIndexFilterFns, luaAuthProviderIDs, err := NewRuntimeProviderLua(ctx, logger, startupLogger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, satoriClient, allEventFns.eventFunction, runtimeConfig.Path, paths, matchProvider, storageIndex, authProviderRegistry, iapProviderRegistry)
+	luaModules, luaRPCFns, luaBeforeRtFns, luaAfterRtFns, luaBeforeReqFns, luaAfterReqFns, luaMatchmakerMatchedFn, luaTournamentEndFn, luaTournamentResetFn, luaLeaderboardResetFn, luaShutdownFn, luaPurchaseNotificationAppleFn, luaSubscriptionNotificationAppleFn, luaPurchaseNotificationGoogleFn, luaSubscriptionNotificationGoogleFn, luaIndexFilterFns, luaAuthProviderIDs, luaIAPProviderIDs, err := NewRuntimeProviderLua(ctx, logger, startupLogger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, satoriClient, allEventFns.eventFunction, runtimeConfig.Path, paths, matchProvider, storageIndex, authProviderRegistry, iapProviderRegistry, &iapPurchaseNotificationFunction, &iapSubscriptionNotificationFunction)
 	if err != nil {
 		startupLogger.Error("Error initialising Lua runtime provider", zap.Error(err))
 		return nil, nil, err
 	}
 
-	jsModules, jsRPCFns, jsBeforeRtFns, jsAfterRtFns, jsBeforeReqFns, jsAfterReqFns, jsMatchmakerMatchedFn, jsTournamentEndFn, jsTournamentResetFn, jsLeaderboardResetFn, jsShutdownFn, jsPurchaseNotificationAppleFn, jsSubscriptionNotificationAppleFn, jsPurchaseNotificationGoogleFn, jsSubscriptionNotificationGoogleFn, jsIndexFilterFns, jsAuthProviderIDs, err := NewRuntimeProviderJS(ctx, logger, startupLogger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, satoriClient, allEventFns.eventFunction, runtimeConfig.Path, runtimeConfig.JsEntrypoint, matchProvider, storageIndex, authProviderRegistry, iapProviderRegistry)
+	jsModules, jsRPCFns, jsBeforeRtFns, jsAfterRtFns, jsBeforeReqFns, jsAfterReqFns, jsMatchmakerMatchedFn, jsTournamentEndFn, jsTournamentResetFn, jsLeaderboardResetFn, jsShutdownFn, jsPurchaseNotificationAppleFn, jsSubscriptionNotificationAppleFn, jsPurchaseNotificationGoogleFn, jsSubscriptionNotificationGoogleFn, jsIndexFilterFns, jsAuthProviderIDs, jsIAPProviderIDs, err := NewRuntimeProviderJS(ctx, logger, startupLogger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, satoriClient, allEventFns.eventFunction, runtimeConfig.Path, runtimeConfig.JsEntrypoint, matchProvider, storageIndex, authProviderRegistry, iapProviderRegistry, &iapPurchaseNotificationFunction, &iapSubscriptionNotificationFunction)
 	if err != nil {
 		startupLogger.Error("Error initialising JavaScript runtime provider", zap.Error(err))
 		return nil, nil, err
@@ -1134,6 +1149,12 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	}
 	if allBeforeReqFunctions.beforeValidateSubscriptionGoogleFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "validatesubscriptiongoogle"))
+	}
+	if allBeforeReqFunctions.beforeValidatePurchaseFunction != nil {
+		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "validatepurchase"))
+	}
+	if allBeforeReqFunctions.beforeValidateSubscriptionFunction != nil {
+		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "validatesubscription"))
 	}
 	if allBeforeReqFunctions.beforeGetSubscriptionFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "getsubscription"))
@@ -1472,6 +1493,14 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if luaBeforeReqFns.beforeValidateSubscriptionGoogleFunction != nil {
 		allBeforeReqFunctions.beforeValidateSubscriptionGoogleFunction = luaBeforeReqFns.beforeValidateSubscriptionGoogleFunction
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "validatesubscriptiongoogle"))
+	}
+	if luaBeforeReqFns.beforeValidatePurchaseFunction != nil {
+		allBeforeReqFunctions.beforeValidatePurchaseFunction = luaBeforeReqFns.beforeValidatePurchaseFunction
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "validatepurchase"))
+	}
+	if luaBeforeReqFns.beforeValidateSubscriptionFunction != nil {
+		allBeforeReqFunctions.beforeValidateSubscriptionFunction = luaBeforeReqFns.beforeValidateSubscriptionFunction
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "validatesubscription"))
 	}
 	if luaBeforeReqFns.beforeGetSubscriptionFunction != nil {
 		allBeforeReqFunctions.beforeGetSubscriptionFunction = luaBeforeReqFns.beforeGetSubscriptionFunction
@@ -2085,6 +2114,12 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if allAfterReqFunctions.afterValidateSubscriptionGoogleFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "validatesubscriptiongoogle"))
 	}
+	if allAfterReqFunctions.afterValidatePurchaseFunction != nil {
+		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "validatepurchase"))
+	}
+	if allAfterReqFunctions.afterValidateSubscriptionFunction != nil {
+		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "validatesubscription"))
+	}
 	if allAfterReqFunctions.afterGetSubscriptionFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "getsubscription"))
 	}
@@ -2418,6 +2453,14 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if luaAfterReqFns.afterValidateSubscriptionGoogleFunction != nil {
 		allAfterReqFunctions.afterValidateSubscriptionGoogleFunction = luaAfterReqFns.afterValidateSubscriptionGoogleFunction
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "validatesubscriptiongoogle"))
+	}
+	if luaAfterReqFns.afterValidatePurchaseFunction != nil {
+		allAfterReqFunctions.afterValidatePurchaseFunction = luaAfterReqFns.afterValidatePurchaseFunction
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "validatepurchase"))
+	}
+	if luaAfterReqFns.afterValidateSubscriptionFunction != nil {
+		allAfterReqFunctions.afterValidateSubscriptionFunction = luaAfterReqFns.afterValidateSubscriptionFunction
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "validatesubscription"))
 	}
 	if luaAfterReqFns.afterGetSubscriptionFunction != nil {
 		allAfterReqFunctions.afterGetSubscriptionFunction = luaAfterReqFns.afterGetSubscriptionFunction
@@ -2987,8 +3030,20 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	}
 
 	for name, provider := range iapProviderRegistry.providersByName.Range {
-		startupLogger.Info("Registered Go runtime IAP Provider", zap.String("provider", name), zap.Int("store_code", provider.storeCode))
+		switch {
+		case slices.Contains(jsIAPProviderIDs, name):
+			rInfo.JavaScriptIAPProviders = append(rInfo.JavaScriptIAPProviders, name)
+			startupLogger.Info("Registered JavaScript runtime IAP Provider", zap.String("provider", name), zap.Int("store_code", provider.storeCode))
+		case slices.Contains(luaIAPProviderIDs, name):
+			rInfo.LuaIAPProviders = append(rInfo.LuaIAPProviders, name)
+			startupLogger.Info("Registered Lua runtime IAP Provider", zap.String("provider", name), zap.Int("store_code", provider.storeCode))
+		default:
+			startupLogger.Info("Registered Go runtime IAP Provider", zap.String("provider", name), zap.Int("store_code", provider.storeCode))
+		}
 	}
+
+	sort.Strings(rInfo.LuaIAPProviders)
+	sort.Strings(rInfo.JavaScriptIAPProviders)
 
 	return &Runtime{
 		matchCreateFunction:                    matchProvider.CreateMatch,

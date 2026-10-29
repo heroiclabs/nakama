@@ -5825,6 +5825,10 @@ type RuntimeInfo struct {
 	JsAuthenticateProviders []string `protobuf:"bytes,9,rep,name=js_authenticate_providers,json=jsAuthenticateProviders,proto3" json:"js_authenticate_providers,omitempty"`
 	// Go registered IAP providers
 	GoIapProviders []string `protobuf:"bytes,10,rep,name=go_iap_providers,json=goIapProviders,proto3" json:"go_iap_providers,omitempty"`
+	// Lua registered IAP providers
+	LuaIapProviders []string `protobuf:"bytes,11,rep,name=lua_iap_providers,json=luaIapProviders,proto3" json:"lua_iap_providers,omitempty"`
+	// JavaScript registered IAP providers
+	JsIapProviders []string `protobuf:"bytes,12,rep,name=js_iap_providers,json=jsIapProviders,proto3" json:"js_iap_providers,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -5925,6 +5929,20 @@ func (x *RuntimeInfo) GetJsAuthenticateProviders() []string {
 func (x *RuntimeInfo) GetGoIapProviders() []string {
 	if x != nil {
 		return x.GoIapProviders
+	}
+	return nil
+}
+
+func (x *RuntimeInfo) GetLuaIapProviders() []string {
+	if x != nil {
+		return x.LuaIapProviders
+	}
+	return nil
+}
+
+func (x *RuntimeInfo) GetJsIapProviders() []string {
+	if x != nil {
+		return x.JsIapProviders
 	}
 	return nil
 }
@@ -10301,7 +10319,7 @@ const file_console_proto_rawDesc = "" +
 	"\vparty_count\x18\v \x01(\x05R\n" +
 	"partyCount\x12;\n" +
 	"\vcreate_time\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"createTime\"\x9d\x05\n" +
+	"createTime\"\xf3\x05\n" +
 	"\vRuntimeInfo\x12*\n" +
 	"\x11lua_rpc_functions\x18\x01 \x03(\tR\x0fluaRpcFunctions\x12(\n" +
 	"\x10go_rpc_functions\x18\x02 \x03(\tR\x0egoRpcFunctions\x12(\n" +
@@ -10316,7 +10334,9 @@ const file_console_proto_rawDesc = "" +
 	"\x19go_authenticate_providers\x18\b \x03(\tR\x17goAuthenticateProviders\x12:\n" +
 	"\x19js_authenticate_providers\x18\t \x03(\tR\x17jsAuthenticateProviders\x12(\n" +
 	"\x10go_iap_providers\x18\n" +
-	" \x03(\tR\x0egoIapProviders\x1aW\n" +
+	" \x03(\tR\x0egoIapProviders\x12*\n" +
+	"\x11lua_iap_providers\x18\v \x03(\tR\x0fluaIapProviders\x12(\n" +
+	"\x10js_iap_providers\x18\f \x03(\tR\x0ejsIapProviders\x1aW\n" +
 	"\n" +
 	"ModuleInfo\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x125\n" +

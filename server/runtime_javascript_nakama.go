@@ -266,6 +266,7 @@ func (n *RuntimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"leaderboardRecordDelete":              n.leaderboardRecordDelete(r),
 		"leaderboardsGetId":                    n.leaderboardsGetId(r),
 		"leaderboardRecordsHaystack":           n.leaderboardRecordsHaystack(r),
+		"purchaseValidate":                     n.purchaseValidate(r),
 		"purchaseValidateApple":                n.purchaseValidateApple(r),
 		"purchaseValidateGoogle":               n.purchaseValidateGoogle(r),
 		"purchaseValidateHuawei":               n.purchaseValidateHuawei(r),
@@ -273,6 +274,7 @@ func (n *RuntimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"purchaseValidateSamsung":              n.purchaseValidateSamsung(r),
 		"purchaseGetByTransactionId":           n.purchaseGetByTransactionId(r),
 		"purchasesList":                        n.purchasesList(r),
+		"subscriptionValidate":                 n.subscriptionValidate(r),
 		"subscriptionValidateApple":            n.subscriptionValidateApple(r),
 		"subscriptionValidateGoogle":           n.subscriptionValidateGoogle(r),
 		"subscriptionGetByProductId":           n.subscriptionGetByProductId(r),
@@ -6464,6 +6466,57 @@ func (n *RuntimeJavascriptNakamaModule) leaderboardRecordsHaystack(r *goja.Runti
 }
 
 // @group purchases
+// @summary Validates and stores the purchases a registered IAP provider proves from a payload.
+// @param userID(type=string) The user ID of the owner of the purchases.
+// @param provider(type=string) The name the IAP provider was registered under.
+// @param payload(type=object) The opaque payload passed through to the provider.
+// @param persist(type=bool, optional=true, default=true) Persist the purchases so that seenBefore can be computed to protect against replay attacks.
+// @param overrides(type=object, optional=true) Optional credential overrides passed through to the provider.
+// @return validation(nkruntime.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeJavascriptNakamaModule) purchaseValidate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		userID := getJsString(r, f.Argument(0))
+		if userID == "" {
+			panic(r.NewTypeError("expects a user ID string"))
+		}
+		uid, err := uuid.FromString(userID)
+		if err != nil {
+			panic(r.NewTypeError("expects user ID to be a valid identifier"))
+		}
+
+		provider := getJsString(r, f.Argument(1))
+		if provider == "" {
+			panic(r.NewTypeError("expects provider"))
+		}
+
+		payload := getJsMap(r, f.Argument(2))
+
+		persist := true
+		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
+			persist = getJsBool(r, f.Argument(3))
+		}
+
+		var overrides map[string]any
+		if f.Argument(4) != goja.Undefined() && f.Argument(4) != goja.Null() {
+			overrides = getJsMap(r, f.Argument(4))
+		}
+
+		validation, err := ValidatePurchase(n.ctx, n.logger, n.db, n.iapProviderRegistry, uid, "", strings.ToLower(provider), payload, overrides, persist)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("error validating purchase: %s", err.Error())))
+		}
+
+		purchases := make([]any, 0, len(validation.Purchase))
+		for _, p := range validation.Purchase {
+			purchases = append(purchases, validatedPurchaseToJsObject(p))
+		}
+
+		return r.ToValue(map[string]any{"purchase": purchases})
+	}
+}
+
+// @group purchases
 // @summary Validates and stores the purchases present in an Apple App Store Receipt.
 // @param userID(type=string) The user ID of the owner of the receipt.
 // @param receipt(type=string) Base-64 encoded receipt data returned by the purchase operation itself.
@@ -6772,6 +6825,52 @@ func (n *RuntimeJavascriptNakamaModule) purchasesList(r *goja.Runtime) func(goja
 		}
 
 		return r.ToValue(result)
+	}
+}
+
+// @group subscriptions
+// @summary Validates and stores the subscriptions a registered IAP provider proves from a payload.
+// @param userID(type=string) The user ID of the owner of the subscriptions.
+// @param provider(type=string) The name the IAP provider was registered under.
+// @param payload(type=object) The opaque payload passed through to the provider.
+// @param persist(type=bool, optional=true, default=true) Persist the subscriptions.
+// @param overrides(type=object, optional=true) Optional credential overrides passed through to the provider.
+// @return validation(nkruntime.ValidateSubscriptionResponse) The resulting successfully validated subscriptions.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeJavascriptNakamaModule) subscriptionValidate(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		userID := getJsString(r, f.Argument(0))
+		if userID == "" {
+			panic(r.NewTypeError("expects a user ID string"))
+		}
+		uid, err := uuid.FromString(userID)
+		if err != nil {
+			panic(r.NewTypeError("expects user ID to be a valid identifier"))
+		}
+
+		provider := getJsString(r, f.Argument(1))
+		if provider == "" {
+			panic(r.NewTypeError("expects provider"))
+		}
+
+		payload := getJsMap(r, f.Argument(2))
+
+		persist := true
+		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
+			persist = getJsBool(r, f.Argument(3))
+		}
+
+		var overrides map[string]any
+		if f.Argument(4) != goja.Undefined() && f.Argument(4) != goja.Null() {
+			overrides = getJsMap(r, f.Argument(4))
+		}
+
+		validation, err := ValidateSubscription(n.ctx, n.logger, n.db, n.iapProviderRegistry, uid, "", strings.ToLower(provider), payload, overrides, persist)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("error validating subscription: %s", err.Error())))
+		}
+
+		return r.ToValue(map[string]any{"subscription": subscriptionToJsObject(validation.Subscription)})
 	}
 }
 

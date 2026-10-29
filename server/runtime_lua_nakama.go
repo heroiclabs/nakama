@@ -94,11 +94,12 @@ type RuntimeLuaNakamaModule struct {
 	eventFn              RuntimeEventCustomFunction
 	authProviderRegistry *RuntimeAuthenticateProviderRegistry
 	iapProviderRegistry  *RuntimeIAPProviderRegistry
+	iapProviders         map[string]*RuntimeIAPProviderFunctions
 
 	satori runtime.Satori
 }
 
-func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, storageIndex StorageIndex, satoriClient runtime.Satori, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, authProviderRegistry *RuntimeAuthenticateProviderRegistry, iapProviderRegistry *RuntimeIAPProviderRegistry, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
+func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, storageIndex StorageIndex, satoriClient runtime.Satori, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, authProviderRegistry *RuntimeAuthenticateProviderRegistry, iapProviderRegistry *RuntimeIAPProviderRegistry, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string), iapProviders map[string]*RuntimeIAPProviderFunctions) *RuntimeLuaNakamaModule {
 	return &RuntimeLuaNakamaModule{
 		logger:               logger,
 		db:                   db,
@@ -132,6 +133,7 @@ func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshale
 		eventFn:              eventFn,
 		authProviderRegistry: authProviderRegistry,
 		iapProviderRegistry:  iapProviderRegistry,
+		iapProviders:         iapProviders,
 
 		satori: satoriClient,
 	}
@@ -139,150 +141,154 @@ func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshale
 
 func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 	functions := map[string]lua.LGFunction{
-		"register_rpc":                       n.registerRPC,
-		"register_authenticate_provider":     n.registerAuthenticateProvider,
-		"register_req_before":                n.registerReqBefore,
-		"register_req_after":                 n.registerReqAfter,
-		"register_rt_before":                 n.registerRTBefore,
-		"register_rt_after":                  n.registerRTAfter,
-		"register_matchmaker_matched":        n.registerMatchmakerMatched,
-		"register_tournament_end":            n.registerTournamentEnd,
-		"register_tournament_reset":          n.registerTournamentReset,
-		"register_leaderboard_reset":         n.registerLeaderboardReset,
-		"register_shutdown":                  n.registerShutdown,
-		"register_storage_index":             n.registerStorageIndex,
-		"register_storage_index_filter":      n.registerStorageIndexFilter,
-		"run_once":                           n.runOnce,
-		"get_context":                        n.getContext,
-		"event":                              n.event,
-		"metrics_counter_add":                n.metricsCounterAdd,
-		"metrics_gauge_set":                  n.metricsGaugeSet,
-		"metrics_timer_record":               n.metricsTimerRecord,
-		"localcache_get":                     n.localcacheGet,
-		"localcache_put":                     n.localcachePut,
-		"localcache_delete":                  n.localcacheDelete,
-		"localcache_clear":                   n.localcacheClear,
-		"time":                               n.time,
-		"cron_prev":                          n.cronPrev,
-		"cron_next":                          n.cronNext,
-		"sql_exec":                           n.sqlExec,
-		"sql_query":                          n.sqlQuery,
-		"uuid_v4":                            n.uuidV4,
-		"uuid_bytes_to_string":               n.uuidBytesToString,
-		"uuid_string_to_bytes":               n.uuidStringToBytes,
-		"http_request":                       n.httpRequest,
-		"jwt_generate":                       n.jwtGenerate,
-		"json_encode":                        n.jsonEncode,
-		"json_decode":                        n.jsonDecode,
-		"base64_encode":                      n.base64Encode,
-		"base64_decode":                      n.base64Decode,
-		"base64url_encode":                   n.base64URLEncode,
-		"base64url_decode":                   n.base64URLDecode,
-		"base16_encode":                      n.base16Encode,
-		"base16_decode":                      n.base16Decode,
-		"aes128_encrypt":                     n.aes128Encrypt,
-		"aes128_decrypt":                     n.aes128Decrypt,
-		"aes256_encrypt":                     n.aes256Encrypt,
-		"aes256_decrypt":                     n.aes256Decrypt,
-		"md5_hash":                           n.md5Hash,
-		"sha256_hash":                        n.sha256Hash,
-		"hmac_sha256_hash":                   n.hmacSHA256Hash,
-		"rsa_sha256_hash":                    n.rsaSHA256Hash,
-		"bcrypt_hash":                        n.bcryptHash,
-		"bcrypt_compare":                     n.bcryptCompare,
-		"authenticate":                       n.authenticate,
-		"authenticate_apple":                 n.authenticateApple,
-		"authenticate_custom":                n.authenticateCustom,
-		"authenticate_device":                n.authenticateDevice,
-		"authenticate_email":                 n.authenticateEmail,
-		"authenticate_facebook":              n.authenticateFacebook,
-		"authenticate_facebook_instant_game": n.authenticateFacebookInstantGame,
-		"authenticate_game_center":           n.authenticateGameCenter,
-		"authenticate_google":                n.authenticateGoogle,
-		"authenticate_steam":                 n.authenticateSteam,
-		"authenticate_token_generate":        n.authenticateTokenGenerate,
-		"logger_debug":                       n.loggerDebug,
-		"logger_info":                        n.loggerInfo,
-		"logger_warn":                        n.loggerWarn,
-		"logger_error":                       n.loggerError,
-		"account_get_id":                     n.accountGetId,
-		"accounts_get_id":                    n.accountsGetId,
-		"account_update_id":                  n.accountUpdateId,
-		"account_delete_id":                  n.accountDeleteId,
-		"account_export_id":                  n.accountExportId,
-		"account_import_id":                  n.accountImportId,
-		"users_get_id":                       n.usersGetId,
-		"users_get_username":                 n.usersGetUsername,
-		"users_get_friend_status":            n.usersGetFriendStatus,
-		"users_get_random":                   n.usersGetRandom,
-		"users_ban_id":                       n.usersBanId,
-		"users_unban_id":                     n.usersUnbanId,
-		"link":                               n.link,
-		"link_apple":                         n.linkApple,
-		"link_custom":                        n.linkCustom,
-		"link_device":                        n.linkDevice,
-		"link_email":                         n.linkEmail,
-		"link_facebook":                      n.linkFacebook,
-		"link_facebook_instant_game":         n.linkFacebookInstantGame,
-		"link_gamecenter":                    n.linkGameCenter,
-		"link_google":                        n.linkGoogle,
-		"link_steam":                         n.linkSteam,
-		"unlink":                             n.unlink,
-		"unlink_apple":                       n.unlinkApple,
-		"unlink_custom":                      n.unlinkCustom,
-		"unlink_device":                      n.unlinkDevice,
-		"unlink_email":                       n.unlinkEmail,
-		"unlink_facebook":                    n.unlinkFacebook,
-		"unlink_facebook_instant_game":       n.unlinkFacebookInstantGame,
-		"unlink_gamecenter":                  n.unlinkGameCenter,
-		"unlink_google":                      n.unlinkGoogle,
-		"unlink_steam":                       n.unlinkSteam,
-		"stream_user_list":                   n.streamUserList,
-		"stream_user_get":                    n.streamUserGet,
-		"stream_user_join":                   n.streamUserJoin,
-		"stream_user_update":                 n.streamUserUpdate,
-		"stream_user_leave":                  n.streamUserLeave,
-		"stream_user_kick":                   n.streamUserKick,
-		"stream_count":                       n.streamCount,
-		"stream_close":                       n.streamClose,
-		"stream_send":                        n.streamSend,
-		"stream_send_raw":                    n.streamSendRaw,
-		"session_disconnect":                 n.sessionDisconnect,
-		"session_logout":                     n.sessionLogout,
-		"match_create":                       n.matchCreate,
-		"match_get":                          n.matchGet,
-		"match_list":                         n.matchList,
-		"match_signal":                       n.matchSignal,
-		"notification_send":                  n.notificationSend,
-		"notifications_send":                 n.notificationsSend,
-		"notification_send_all":              n.notificationSendAll,
-		"notifications_list":                 n.notificationsList,
-		"notifications_delete":               n.notificationsDelete,
-		"notifications_get_id":               n.notificationsGetId,
-		"notifications_delete_id":            n.notificationsDeleteId,
-		"notifications_update":               n.notificationsUpdate,
-		"wallet_update":                      n.walletUpdate,
-		"wallets_update":                     n.walletsUpdate,
-		"wallet_ledger_update":               n.walletLedgerUpdate,
-		"wallet_ledger_list":                 n.walletLedgerList,
-		"status_follow":                      n.statusFollow,
-		"status_unfollow":                    n.statusUnfollow,
-		"storage_list":                       n.storageList,
-		"storage_read":                       n.storageRead,
-		"storage_write":                      n.storageWrite,
-		"storage_write_retry":                n.storageWriteRetry,
-		"storage_delete":                     n.storageDelete,
-		"multi_update":                       n.multiUpdate,
-		"leaderboard_create":                 n.leaderboardCreate,
-		"leaderboard_delete":                 n.leaderboardDelete,
-		"leaderboard_list":                   n.leaderboardList,
-		"leaderboard_ranks_disable":          n.leaderboardRanksDisable,
-		"leaderboard_records_list":           n.leaderboardRecordsList,
+		"register_rpc":                           n.registerRPC,
+		"register_authenticate_provider":         n.registerAuthenticateProvider,
+		"register_iap_provider":                  n.registerIAPProvider,
+		"register_iap_purchase_notification":     n.registerIAPPurchaseNotification,
+		"register_iap_subscription_notification": n.registerIAPSubscriptionNotification,
+		"register_req_before":                    n.registerReqBefore,
+		"register_req_after":                     n.registerReqAfter,
+		"register_rt_before":                     n.registerRTBefore,
+		"register_rt_after":                      n.registerRTAfter,
+		"register_matchmaker_matched":            n.registerMatchmakerMatched,
+		"register_tournament_end":                n.registerTournamentEnd,
+		"register_tournament_reset":              n.registerTournamentReset,
+		"register_leaderboard_reset":             n.registerLeaderboardReset,
+		"register_shutdown":                      n.registerShutdown,
+		"register_storage_index":                 n.registerStorageIndex,
+		"register_storage_index_filter":          n.registerStorageIndexFilter,
+		"run_once":                               n.runOnce,
+		"get_context":                            n.getContext,
+		"event":                                  n.event,
+		"metrics_counter_add":                    n.metricsCounterAdd,
+		"metrics_gauge_set":                      n.metricsGaugeSet,
+		"metrics_timer_record":                   n.metricsTimerRecord,
+		"localcache_get":                         n.localcacheGet,
+		"localcache_put":                         n.localcachePut,
+		"localcache_delete":                      n.localcacheDelete,
+		"localcache_clear":                       n.localcacheClear,
+		"time":                                   n.time,
+		"cron_prev":                              n.cronPrev,
+		"cron_next":                              n.cronNext,
+		"sql_exec":                               n.sqlExec,
+		"sql_query":                              n.sqlQuery,
+		"uuid_v4":                                n.uuidV4,
+		"uuid_bytes_to_string":                   n.uuidBytesToString,
+		"uuid_string_to_bytes":                   n.uuidStringToBytes,
+		"http_request":                           n.httpRequest,
+		"jwt_generate":                           n.jwtGenerate,
+		"json_encode":                            n.jsonEncode,
+		"json_decode":                            n.jsonDecode,
+		"base64_encode":                          n.base64Encode,
+		"base64_decode":                          n.base64Decode,
+		"base64url_encode":                       n.base64URLEncode,
+		"base64url_decode":                       n.base64URLDecode,
+		"base16_encode":                          n.base16Encode,
+		"base16_decode":                          n.base16Decode,
+		"aes128_encrypt":                         n.aes128Encrypt,
+		"aes128_decrypt":                         n.aes128Decrypt,
+		"aes256_encrypt":                         n.aes256Encrypt,
+		"aes256_decrypt":                         n.aes256Decrypt,
+		"md5_hash":                               n.md5Hash,
+		"sha256_hash":                            n.sha256Hash,
+		"hmac_sha256_hash":                       n.hmacSHA256Hash,
+		"rsa_sha256_hash":                        n.rsaSHA256Hash,
+		"bcrypt_hash":                            n.bcryptHash,
+		"bcrypt_compare":                         n.bcryptCompare,
+		"authenticate":                           n.authenticate,
+		"authenticate_apple":                     n.authenticateApple,
+		"authenticate_custom":                    n.authenticateCustom,
+		"authenticate_device":                    n.authenticateDevice,
+		"authenticate_email":                     n.authenticateEmail,
+		"authenticate_facebook":                  n.authenticateFacebook,
+		"authenticate_facebook_instant_game":     n.authenticateFacebookInstantGame,
+		"authenticate_game_center":               n.authenticateGameCenter,
+		"authenticate_google":                    n.authenticateGoogle,
+		"authenticate_steam":                     n.authenticateSteam,
+		"authenticate_token_generate":            n.authenticateTokenGenerate,
+		"logger_debug":                           n.loggerDebug,
+		"logger_info":                            n.loggerInfo,
+		"logger_warn":                            n.loggerWarn,
+		"logger_error":                           n.loggerError,
+		"account_get_id":                         n.accountGetId,
+		"accounts_get_id":                        n.accountsGetId,
+		"account_update_id":                      n.accountUpdateId,
+		"account_delete_id":                      n.accountDeleteId,
+		"account_export_id":                      n.accountExportId,
+		"account_import_id":                      n.accountImportId,
+		"users_get_id":                           n.usersGetId,
+		"users_get_username":                     n.usersGetUsername,
+		"users_get_friend_status":                n.usersGetFriendStatus,
+		"users_get_random":                       n.usersGetRandom,
+		"users_ban_id":                           n.usersBanId,
+		"users_unban_id":                         n.usersUnbanId,
+		"link":                                   n.link,
+		"link_apple":                             n.linkApple,
+		"link_custom":                            n.linkCustom,
+		"link_device":                            n.linkDevice,
+		"link_email":                             n.linkEmail,
+		"link_facebook":                          n.linkFacebook,
+		"link_facebook_instant_game":             n.linkFacebookInstantGame,
+		"link_gamecenter":                        n.linkGameCenter,
+		"link_google":                            n.linkGoogle,
+		"link_steam":                             n.linkSteam,
+		"unlink":                                 n.unlink,
+		"unlink_apple":                           n.unlinkApple,
+		"unlink_custom":                          n.unlinkCustom,
+		"unlink_device":                          n.unlinkDevice,
+		"unlink_email":                           n.unlinkEmail,
+		"unlink_facebook":                        n.unlinkFacebook,
+		"unlink_facebook_instant_game":           n.unlinkFacebookInstantGame,
+		"unlink_gamecenter":                      n.unlinkGameCenter,
+		"unlink_google":                          n.unlinkGoogle,
+		"unlink_steam":                           n.unlinkSteam,
+		"stream_user_list":                       n.streamUserList,
+		"stream_user_get":                        n.streamUserGet,
+		"stream_user_join":                       n.streamUserJoin,
+		"stream_user_update":                     n.streamUserUpdate,
+		"stream_user_leave":                      n.streamUserLeave,
+		"stream_user_kick":                       n.streamUserKick,
+		"stream_count":                           n.streamCount,
+		"stream_close":                           n.streamClose,
+		"stream_send":                            n.streamSend,
+		"stream_send_raw":                        n.streamSendRaw,
+		"session_disconnect":                     n.sessionDisconnect,
+		"session_logout":                         n.sessionLogout,
+		"match_create":                           n.matchCreate,
+		"match_get":                              n.matchGet,
+		"match_list":                             n.matchList,
+		"match_signal":                           n.matchSignal,
+		"notification_send":                      n.notificationSend,
+		"notifications_send":                     n.notificationsSend,
+		"notification_send_all":                  n.notificationSendAll,
+		"notifications_list":                     n.notificationsList,
+		"notifications_delete":                   n.notificationsDelete,
+		"notifications_get_id":                   n.notificationsGetId,
+		"notifications_delete_id":                n.notificationsDeleteId,
+		"notifications_update":                   n.notificationsUpdate,
+		"wallet_update":                          n.walletUpdate,
+		"wallets_update":                         n.walletsUpdate,
+		"wallet_ledger_update":                   n.walletLedgerUpdate,
+		"wallet_ledger_list":                     n.walletLedgerList,
+		"status_follow":                          n.statusFollow,
+		"status_unfollow":                        n.statusUnfollow,
+		"storage_list":                           n.storageList,
+		"storage_read":                           n.storageRead,
+		"storage_write":                          n.storageWrite,
+		"storage_write_retry":                    n.storageWriteRetry,
+		"storage_delete":                         n.storageDelete,
+		"multi_update":                           n.multiUpdate,
+		"leaderboard_create":                     n.leaderboardCreate,
+		"leaderboard_delete":                     n.leaderboardDelete,
+		"leaderboard_list":                       n.leaderboardList,
+		"leaderboard_ranks_disable":              n.leaderboardRanksDisable,
+		"leaderboard_records_list":               n.leaderboardRecordsList,
 		"leaderboard_records_list_cursor_from_rank": n.leaderboardRecordsListCursorFromRank,
 		"leaderboard_record_write":                  n.leaderboardRecordWrite,
 		"leaderboard_records_haystack":              n.leaderboardRecordsHaystack,
 		"leaderboard_record_delete":                 n.leaderboardRecordDelete,
 		"leaderboards_get_id":                       n.leaderboardsGetId,
+		"purchase_validate":                         n.purchaseValidate,
 		"purchase_validate_apple":                   n.purchaseValidateApple,
 		"purchase_validate_google":                  n.purchaseValidateGoogle,
 		"purchase_validate_huawei":                  n.purchaseValidateHuawei,
@@ -290,6 +296,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"purchase_validate_samsung":                 n.purchaseValidateSamsung,
 		"purchase_get_by_transaction_id":            n.purchaseGetByTransactionId,
 		"purchases_list":                            n.purchasesList,
+		"subscription_validate":                     n.subscriptionValidate,
 		"subscription_validate_apple":               n.subscriptionValidateApple,
 		"subscription_validate_google":              n.subscriptionValidateGoogle,
 		"subscription_get_by_product_id":            n.subscriptionGetByProductId,
@@ -371,6 +378,99 @@ func (n *RuntimeLuaNakamaModule) registerAuthenticateProvider(l *lua.LState) int
 	}
 	if n.announceCallbackFn != nil {
 		n.announceCallbackFn(RuntimeExecutionModeAuthenticateProvider, name)
+	}
+	return 0
+}
+
+// @group purchases
+// @summary Register an IAP provider by name and store code. Clients validate purchases and subscriptions through it with the provider name, server code with the purchase_validate and subscription_validate functions, and the store posts notifications to /v2/console/<name>/notifications, or /v2/console/<name>/notifications/<notificationEndpointId> when one is given.
+// @param handlers(type=table) A table with validate_purchase and validate_subscription, which validate the payload they are given and return the list of purchases or subscriptions it proves, and optionally handle_notification, which receives a notification's body, headers and query parameters and returns the list of updates it carries.
+// @param name(type=string) The unique name of the IAP provider. Converted to lowercase.
+// @param code(type=number) The unique store code stored with the provider's purchases and subscriptions. Must fit in 16 bits and not be used by a built-in store.
+// @param notificationEndpointId(type=string, optional=true) The last path segment of the provider's notification endpoint.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) registerIAPProvider(l *lua.LState) int {
+	handlers := l.CheckTable(1)
+	validatePurchase, ok := handlers.RawGetString("validate_purchase").(*lua.LFunction)
+	if !ok {
+		l.ArgError(1, "expects validate_purchase to be a function")
+		return 0
+	}
+	validateSubscription, ok := handlers.RawGetString("validate_subscription").(*lua.LFunction)
+	if !ok {
+		l.ArgError(1, "expects validate_subscription to be a function")
+		return 0
+	}
+	var handleNotification *lua.LFunction
+	if v := handlers.RawGetString("handle_notification"); v != lua.LNil {
+		if handleNotification, ok = v.(*lua.LFunction); !ok {
+			l.ArgError(1, "expects handle_notification to be a function or nil")
+			return 0
+		}
+	}
+
+	name := strings.ToLower(l.CheckString(2))
+	if !iapProviderNameRegex.MatchString(name) {
+		l.ArgError(2, "expects provider name to be valid, must be 1-128 bytes and contain only [a-zA-Z0-9_-]")
+		return 0
+	}
+
+	code := l.CheckInt(3)
+
+	notificationEndpointId := l.OptString(4, "")
+	if notificationEndpointId != "" && !iapProviderNameRegex.MatchString(notificationEndpointId) {
+		l.ArgError(4, "expects notification endpoint id to be valid, must be 1-128 bytes and contain only [a-zA-Z0-9_-]")
+		return 0
+	}
+
+	if n.iapProviders != nil {
+		n.iapProviders[name] = &RuntimeIAPProviderFunctions{name: name, notificationEndpointId: notificationEndpointId, storeCode: code}
+	}
+	if n.registerCallbackFn != nil {
+		n.registerCallbackFn(RuntimeExecutionModeIAPProvider, name, validatePurchase)
+		n.registerCallbackFn(RuntimeExecutionModeIAPSubscriptionProvider, name, validateSubscription)
+		if handleNotification != nil {
+			n.registerCallbackFn(RuntimeExecutionModeIAPProviderNotification, name, handleNotification)
+		}
+	}
+	if n.announceCallbackFn != nil {
+		n.announceCallbackFn(RuntimeExecutionModeIAPProvider, name)
+		n.announceCallbackFn(RuntimeExecutionModeIAPSubscriptionProvider, name)
+		if handleNotification != nil {
+			n.announceCallbackFn(RuntimeExecutionModeIAPProviderNotification, name)
+		}
+	}
+	return 0
+}
+
+// @group hooks
+// @summary Registers a function to be run when an IAP provider notification changes a stored purchase.
+// @param fn(type=function) A function reference which receives the purchase, the provider's raw response, the notification type and the provider name.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) registerIAPPurchaseNotification(l *lua.LState) int {
+	fn := l.CheckFunction(1)
+
+	if n.registerCallbackFn != nil {
+		n.registerCallbackFn(RuntimeExecutionModeIAPPurchaseNotification, "", fn)
+	}
+	if n.announceCallbackFn != nil {
+		n.announceCallbackFn(RuntimeExecutionModeIAPPurchaseNotification, "")
+	}
+	return 0
+}
+
+// @group hooks
+// @summary Registers a function to be run when an IAP provider notification changes a stored subscription.
+// @param fn(type=function) A function reference which receives the subscription, the provider's raw response, the notification type and the provider name.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) registerIAPSubscriptionNotification(l *lua.LState) int {
+	fn := l.CheckFunction(1)
+
+	if n.registerCallbackFn != nil {
+		n.registerCallbackFn(RuntimeExecutionModeIAPSubscriptionNotification, "", fn)
+	}
+	if n.announceCallbackFn != nil {
+		n.announceCallbackFn(RuntimeExecutionModeIAPSubscriptionNotification, "")
 	}
 	return 0
 }
@@ -8199,6 +8299,59 @@ func leaderboardToLuaTable(l *lua.LState, leaderboard *api.Leaderboard) (*lua.LT
 }
 
 // @group purchases
+// @summary Validates and stores the purchases a registered IAP provider proves from a payload.
+// @param userID(type=string) The user ID of the owner of the purchases.
+// @param provider(type=string) The name the IAP provider was registered under.
+// @param payload(type=table) The opaque payload passed through to the provider.
+// @param persist(type=bool, optional=true, default=true) Persist the purchases so that seenBefore can be computed to protect against replay attacks.
+// @param overrides(type=table, optional=true) Optional credential overrides passed through to the provider.
+// @return validation(table) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) purchaseValidate(l *lua.LState) int {
+	userID := l.CheckString(1)
+	if userID == "" {
+		l.ArgError(1, "expects user id")
+		return 0
+	}
+	uid, err := uuid.FromString(userID)
+	if err != nil {
+		l.ArgError(1, "invalid user id")
+		return 0
+	}
+
+	provider := l.CheckString(2)
+	if provider == "" {
+		l.ArgError(2, "expects provider")
+		return 0
+	}
+
+	payload := RuntimeLuaConvertLuaTable(l.CheckTable(3))
+
+	persist := l.OptBool(4, true)
+
+	var overrides map[string]any
+	if overridesTable := l.OptTable(5, nil); overridesTable != nil {
+		overrides = RuntimeLuaConvertLuaTable(overridesTable)
+	}
+
+	validation, err := ValidatePurchase(l.Context(), n.logger, n.db, n.iapProviderRegistry, uid, "", strings.ToLower(provider), payload, overrides, persist)
+	if err != nil {
+		l.RaiseError("error validating purchase: %v", err.Error())
+		return 0
+	}
+
+	purchasesTable := l.CreateTable(len(validation.Purchase), 0)
+	for i, p := range validation.Purchase {
+		purchasesTable.RawSetInt(i+1, purchaseToLuaTable(l, p))
+	}
+	validationTable := l.CreateTable(0, 1)
+	validationTable.RawSetString("purchase", purchasesTable)
+
+	l.Push(validationTable)
+	return 1
+}
+
+// @group purchases
 // @summary Validates and stores the purchases present in an Apple App Store Receipt.
 // @param userID(type=string) The user ID of the owner of the receipt.
 // @param receipt(type=string) Base-64 encoded receipt data returned by the purchase operation itself.
@@ -8493,6 +8646,55 @@ func (n *RuntimeLuaNakamaModule) purchasesList(l *lua.LState) int {
 	}
 
 	return 3
+}
+
+// @group subscriptions
+// @summary Validates and stores the subscriptions a registered IAP provider proves from a payload.
+// @param userID(type=string) The user ID of the owner of the subscriptions.
+// @param provider(type=string) The name the IAP provider was registered under.
+// @param payload(type=table) The opaque payload passed through to the provider.
+// @param persist(type=bool, optional=true, default=true) Persist the subscriptions.
+// @param overrides(type=table, optional=true) Optional credential overrides passed through to the provider.
+// @return validation(table) The resulting successfully validated subscriptions.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) subscriptionValidate(l *lua.LState) int {
+	userID := l.CheckString(1)
+	if userID == "" {
+		l.ArgError(1, "expects user id")
+		return 0
+	}
+	uid, err := uuid.FromString(userID)
+	if err != nil {
+		l.ArgError(1, "invalid user id")
+		return 0
+	}
+
+	provider := l.CheckString(2)
+	if provider == "" {
+		l.ArgError(2, "expects provider")
+		return 0
+	}
+
+	payload := RuntimeLuaConvertLuaTable(l.CheckTable(3))
+
+	persist := l.OptBool(4, true)
+
+	var overrides map[string]any
+	if overridesTable := l.OptTable(5, nil); overridesTable != nil {
+		overrides = RuntimeLuaConvertLuaTable(overridesTable)
+	}
+
+	validation, err := ValidateSubscription(l.Context(), n.logger, n.db, n.iapProviderRegistry, uid, "", strings.ToLower(provider), payload, overrides, persist)
+	if err != nil {
+		l.RaiseError("error validating subscription: %v", err.Error())
+		return 0
+	}
+
+	validationTable := l.CreateTable(0, 1)
+	validationTable.RawSetString("subscription", subscriptionToLuaTable(l, validation.Subscription))
+
+	l.Push(validationTable)
+	return 1
 }
 
 // @group subscriptions

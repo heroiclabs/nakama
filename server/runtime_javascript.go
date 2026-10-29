@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -113,6 +114,28 @@ func (r *RuntimeJS) GetCallback(e RuntimeExecutionMode, key string) string {
 			return ""
 		}
 		return fnId
+	case RuntimeExecutionModeIAPProvider:
+		fnId, ok := r.callbacks.IAPProvider[key]
+		if !ok {
+			return ""
+		}
+		return fnId
+	case RuntimeExecutionModeIAPSubscriptionProvider:
+		fnId, ok := r.callbacks.IAPSubscriptionProvider[key]
+		if !ok {
+			return ""
+		}
+		return fnId
+	case RuntimeExecutionModeIAPProviderNotification:
+		fnId, ok := r.callbacks.IAPProviderNotification[key]
+		if !ok {
+			return ""
+		}
+		return fnId
+	case RuntimeExecutionModeIAPPurchaseNotification:
+		return r.callbacks.IAPPurchaseNotification
+	case RuntimeExecutionModeIAPSubscriptionNotification:
+		return r.callbacks.IAPSubscriptionNotification
 	}
 
 	return ""
@@ -338,6 +361,379 @@ func (rp *RuntimeProviderJS) Authenticate(ctx context.Context, name, traceID str
 	}
 
 	return result, nil, codes.OK
+}
+
+func (rp *RuntimeProviderJS) ValidatePurchase(ctx context.Context, name, traceID string, payload, overrides map[string]any) ([]*runtime.IAPProviderPurchase, error, codes.Code) {
+	r, err := rp.Get(ctx)
+	if err != nil {
+		return nil, err, codes.Internal
+	}
+
+	logger, _ := LoggerWithTraceId(ctx, rp.logger)
+
+	jsFn := r.GetCallback(RuntimeExecutionModeIAPProvider, name)
+	if jsFn == "" {
+		rp.Put(r)
+		logger.Error("JavaScript runtime IAP provider purchase function not found.", zap.String("provider", name))
+		return nil, errors.New("Could not run IAP provider purchase function."), codes.Internal
+	}
+
+	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
+	if !ok {
+		rp.Put(r)
+		logger.Error("JavaScript runtime function invalid.", zap.String("key", jsFn), zap.String("provider", name))
+		return nil, errors.New("Could not run IAP provider purchase function."), codes.Internal
+	}
+
+	jsLogger, err := NewJsLogger(ctx, r.vm, r.logger, zap.String("provider", name))
+	if err != nil {
+		rp.Put(r)
+		logger.Error("Could not instantiate js logger.", zap.Error(err))
+		return nil, errors.New("Could not run IAP provider purchase function."), codes.Internal
+	}
+
+	ctx = NewRuntimeGoContext(ctx, r.node, r.version, r.envMap, RuntimeExecutionModeIAPProvider, nil, nil, traceID, 0, "", "", nil, "", "", "", "")
+	r.SetContext(ctx)
+	result, err, code := r.InvokeFunction(RuntimeExecutionModeIAPProvider, name, fn, jsLogger, nil, nil, traceID, "", "", nil, 0, "", "", "", "", payload, overrides)
+	r.SetContext(context.Background())
+	rp.Put(r)
+	if err != nil {
+		if code <= 0 || code >= 17 {
+			code = codes.Internal
+		}
+		return nil, err, code
+	}
+
+	var purchasesIn []any
+	switch v := result.(type) {
+	case nil:
+	case []any:
+		purchasesIn = v
+	default:
+		msg := "Runtime IAP provider purchase function returned invalid data - only allowed one return value of type array of purchases."
+		logger.Error(msg, zap.String("provider", name))
+		return nil, errors.New(msg), codes.Internal
+	}
+
+	purchases := make([]*runtime.IAPProviderPurchase, 0, len(purchasesIn))
+	for _, purchaseIn := range purchasesIn {
+		purchaseMap, ok := purchaseIn.(map[string]any)
+		if !ok {
+			msg := "Runtime IAP provider purchase function returned an invalid purchase - must be an object."
+			logger.Error(msg, zap.String("provider", name))
+			return nil, errors.New(msg), codes.Internal
+		}
+
+		purchase := &runtime.IAPProviderPurchase{}
+		var transactionIDOk, productIDOk, rawResponseOk bool
+		purchase.TransactionId, transactionIDOk = purchaseMap["transactionId"].(string)
+		purchase.ProductId, productIDOk = purchaseMap["productId"].(string)
+		purchase.RawResponse, rawResponseOk = purchaseMap["rawResponse"].(string)
+		if !transactionIDOk || !productIDOk || (!rawResponseOk && purchaseMap["rawResponse"] != nil) {
+			msg := "Runtime IAP provider purchase function returned an invalid purchase - transactionId and productId must be strings, rawResponse an optional string."
+			logger.Error(msg, zap.String("provider", name))
+			return nil, errors.New(msg), codes.Internal
+		}
+
+		for key, t := range map[string]*time.Time{"purchaseTime": &purchase.PurchaseTime, "refundTime": &purchase.RefundTime} {
+			switch v := purchaseMap[key].(type) {
+			case nil:
+			case int64:
+				if v > 0 {
+					*t = time.Unix(v, 0)
+				}
+			case float64:
+				if v > 0 {
+					*t = time.Unix(0, int64(v*float64(time.Second)))
+				}
+			default:
+				msg := fmt.Sprintf("Runtime IAP provider purchase function returned an invalid purchase - %s must be a number of seconds since the epoch.", key)
+				logger.Error(msg, zap.String("provider", name))
+				return nil, errors.New(msg), codes.Internal
+			}
+		}
+
+		if environmentIn := purchaseMap["environment"]; environmentIn != nil {
+			environmentStr, _ := environmentIn.(string)
+			environment, ok := api.StoreEnvironment_value[strings.ToUpper(environmentStr)]
+			if !ok {
+				msg := "Runtime IAP provider purchase function returned an invalid purchase - environment must be one of UNKNOWN, SANDBOX or PRODUCTION."
+				logger.Error(msg, zap.String("provider", name))
+				return nil, errors.New(msg), codes.Internal
+			}
+			purchase.Environment = api.StoreEnvironment(environment)
+		}
+
+		purchases = append(purchases, purchase)
+	}
+
+	return purchases, nil, codes.OK
+}
+
+func (rp *RuntimeProviderJS) ValidateSubscription(ctx context.Context, name, traceID string, payload, overrides map[string]any) ([]*runtime.IAPProviderSubscription, error, codes.Code) {
+	r, err := rp.Get(ctx)
+	if err != nil {
+		return nil, err, codes.Internal
+	}
+
+	logger, _ := LoggerWithTraceId(ctx, rp.logger)
+
+	jsFn := r.GetCallback(RuntimeExecutionModeIAPSubscriptionProvider, name)
+	if jsFn == "" {
+		rp.Put(r)
+		logger.Error("JavaScript runtime IAP provider subscription function not found.", zap.String("provider", name))
+		return nil, errors.New("Could not run IAP provider subscription function."), codes.Internal
+	}
+
+	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
+	if !ok {
+		rp.Put(r)
+		logger.Error("JavaScript runtime function invalid.", zap.String("key", jsFn), zap.String("provider", name))
+		return nil, errors.New("Could not run IAP provider subscription function."), codes.Internal
+	}
+
+	jsLogger, err := NewJsLogger(ctx, r.vm, r.logger, zap.String("provider", name))
+	if err != nil {
+		rp.Put(r)
+		logger.Error("Could not instantiate js logger.", zap.Error(err))
+		return nil, errors.New("Could not run IAP provider subscription function."), codes.Internal
+	}
+
+	ctx = NewRuntimeGoContext(ctx, r.node, r.version, r.envMap, RuntimeExecutionModeIAPProvider, nil, nil, traceID, 0, "", "", nil, "", "", "", "")
+	r.SetContext(ctx)
+	result, err, code := r.InvokeFunction(RuntimeExecutionModeIAPProvider, name, fn, jsLogger, nil, nil, traceID, "", "", nil, 0, "", "", "", "", payload, overrides)
+	r.SetContext(context.Background())
+	rp.Put(r)
+	if err != nil {
+		if code <= 0 || code >= 17 {
+			code = codes.Internal
+		}
+		return nil, err, code
+	}
+
+	var subscriptionsIn []any
+	switch v := result.(type) {
+	case nil:
+	case []any:
+		subscriptionsIn = v
+	default:
+		msg := "Runtime IAP provider subscription function returned invalid data - only allowed one return value of type array of subscriptions."
+		logger.Error(msg, zap.String("provider", name))
+		return nil, errors.New(msg), codes.Internal
+	}
+
+	subscriptions := make([]*runtime.IAPProviderSubscription, 0, len(subscriptionsIn))
+	for _, subscriptionIn := range subscriptionsIn {
+		subscriptionMap, ok := subscriptionIn.(map[string]any)
+		if !ok {
+			msg := "Runtime IAP provider subscription function returned an invalid subscription - must be an object."
+			logger.Error(msg, zap.String("provider", name))
+			return nil, errors.New(msg), codes.Internal
+		}
+
+		subscription := &runtime.IAPProviderSubscription{}
+		var originalTransactionIDOk, productIDOk, rawResponseOk bool
+		subscription.OriginalTransactionId, originalTransactionIDOk = subscriptionMap["originalTransactionId"].(string)
+		subscription.ProductId, productIDOk = subscriptionMap["productId"].(string)
+		subscription.RawResponse, rawResponseOk = subscriptionMap["rawResponse"].(string)
+		if !originalTransactionIDOk || !productIDOk || (!rawResponseOk && subscriptionMap["rawResponse"] != nil) {
+			msg := "Runtime IAP provider subscription function returned an invalid subscription - originalTransactionId and productId must be strings, rawResponse an optional string."
+			logger.Error(msg, zap.String("provider", name))
+			return nil, errors.New(msg), codes.Internal
+		}
+
+		for key, t := range map[string]*time.Time{"purchaseTime": &subscription.PurchaseTime, "expiryTime": &subscription.ExpiryTime, "refundTime": &subscription.RefundTime} {
+			switch v := subscriptionMap[key].(type) {
+			case nil:
+			case int64:
+				if v > 0 {
+					*t = time.Unix(v, 0)
+				}
+			case float64:
+				if v > 0 {
+					*t = time.Unix(0, int64(v*float64(time.Second)))
+				}
+			default:
+				msg := fmt.Sprintf("Runtime IAP provider subscription function returned an invalid subscription - %s must be a number of seconds since the epoch.", key)
+				logger.Error(msg, zap.String("provider", name))
+				return nil, errors.New(msg), codes.Internal
+			}
+		}
+
+		if environmentIn := subscriptionMap["environment"]; environmentIn != nil {
+			environmentStr, _ := environmentIn.(string)
+			environment, ok := api.StoreEnvironment_value[strings.ToUpper(environmentStr)]
+			if !ok {
+				msg := "Runtime IAP provider subscription function returned an invalid subscription - environment must be one of UNKNOWN, SANDBOX or PRODUCTION."
+				logger.Error(msg, zap.String("provider", name))
+				return nil, errors.New(msg), codes.Internal
+			}
+			subscription.Environment = api.StoreEnvironment(environment)
+		}
+
+		subscriptions = append(subscriptions, subscription)
+	}
+
+	return subscriptions, nil, codes.OK
+}
+
+func (rp *RuntimeProviderJS) HandleNotification(ctx context.Context, name string, body []byte, headers, query map[string][]string) ([]*runtime.IAPProviderNotification, error) {
+	r, err := rp.Get(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	jsFn := r.GetCallback(RuntimeExecutionModeIAPProviderNotification, name)
+	if jsFn == "" {
+		rp.Put(r)
+		rp.logger.Error("JavaScript runtime IAP provider notification function not found.", zap.String("provider", name))
+		return nil, errors.New("Could not run IAP provider notification function.")
+	}
+
+	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
+	if !ok {
+		rp.Put(r)
+		rp.logger.Error("JavaScript runtime function invalid.", zap.String("key", jsFn), zap.String("provider", name))
+		return nil, errors.New("Could not run IAP provider notification function.")
+	}
+
+	jsLogger, err := NewJsLogger(ctx, r.vm, r.logger, zap.String("provider", name))
+	if err != nil {
+		rp.Put(r)
+		rp.logger.Error("Could not instantiate js logger.", zap.Error(err))
+		return nil, errors.New("Could not run IAP provider notification function.")
+	}
+
+	ctx = NewRuntimeGoContext(ctx, r.node, r.version, r.envMap, RuntimeExecutionModeIAPPurchaseNotification, nil, nil, "", 0, "", "", nil, "", "", "", "")
+	r.SetContext(ctx)
+	result, err, _ := r.InvokeFunction(RuntimeExecutionModeIAPPurchaseNotification, name, fn, jsLogger, nil, nil, "", "", "", nil, 0, "", "", "", "", string(body), headers, query)
+	r.SetContext(context.Background())
+	rp.Put(r)
+	if err != nil {
+		return nil, err
+	}
+
+	if result == nil {
+		return nil, nil
+	}
+
+	entries, ok := result.([]any)
+	if !ok {
+		return nil, errors.New("Runtime IAP provider notification function returned invalid data - only allowed one return value of type array (a list of notifications) or null.")
+	}
+
+	notifications := make([]*runtime.IAPProviderNotification, 0, len(entries))
+	for _, entry := range entries {
+		notificationMap, ok := entry.(map[string]any)
+		if !ok {
+			return nil, errors.New("Runtime IAP provider notification function returned an invalid notification - each must be an object.")
+		}
+
+		notification := &runtime.IAPProviderNotification{}
+		typeStr, typeOk := notificationMap["type"].(string)
+		for t := runtime.IAPNotificationSubscribed; t <= runtime.IAPNotificationRefunded; t++ {
+			if t.String() == strings.ToUpper(typeStr) {
+				notification.Type = t
+			}
+		}
+		if (!typeOk && notificationMap["type"] != nil) || (typeStr != "" && notification.Type == 0) {
+			return nil, errors.New("Runtime IAP provider notification function returned an invalid type - must be omitted or one of SUBSCRIBED, RENEWED, EXPIRED, CANCELLED or REFUNDED.")
+		}
+
+		var userIDOk bool
+		notification.UserId, userIDOk = notificationMap["userId"].(string)
+		if !userIDOk && notificationMap["userId"] != nil {
+			return nil, errors.New("Runtime IAP provider notification function returned invalid data - userId must be an optional string.")
+		}
+
+		if purchaseIn := notificationMap["purchase"]; purchaseIn != nil {
+			purchaseMap, ok := purchaseIn.(map[string]any)
+			if !ok {
+				return nil, errors.New("Runtime IAP provider notification function returned an invalid purchase - must be an object.")
+			}
+
+			purchase := &runtime.IAPProviderPurchase{}
+			var transactionIDOk, productIDOk, rawResponseOk bool
+			purchase.TransactionId, transactionIDOk = purchaseMap["transactionId"].(string)
+			purchase.ProductId, productIDOk = purchaseMap["productId"].(string)
+			purchase.RawResponse, rawResponseOk = purchaseMap["rawResponse"].(string)
+			if !transactionIDOk || !productIDOk || (!rawResponseOk && purchaseMap["rawResponse"] != nil) {
+				return nil, errors.New("Runtime IAP provider notification function returned an invalid purchase - transactionId and productId must be strings, rawResponse an optional string.")
+			}
+
+			for key, t := range map[string]*time.Time{"purchaseTime": &purchase.PurchaseTime, "refundTime": &purchase.RefundTime} {
+				switch v := purchaseMap[key].(type) {
+				case nil:
+				case int64:
+					if v > 0 {
+						*t = time.Unix(v, 0)
+					}
+				case float64:
+					if v > 0 {
+						*t = time.Unix(0, int64(v*float64(time.Second)))
+					}
+				default:
+					return nil, fmt.Errorf("Runtime IAP provider notification function returned an invalid purchase - %s must be a number of seconds since the epoch.", key)
+				}
+			}
+
+			if environmentIn := purchaseMap["environment"]; environmentIn != nil {
+				environmentStr, _ := environmentIn.(string)
+				environment, ok := api.StoreEnvironment_value[strings.ToUpper(environmentStr)]
+				if !ok {
+					return nil, errors.New("Runtime IAP provider notification function returned an invalid purchase - environment must be one of UNKNOWN, SANDBOX or PRODUCTION.")
+				}
+				purchase.Environment = api.StoreEnvironment(environment)
+			}
+
+			notification.Purchase = purchase
+		}
+
+		if subscriptionIn := notificationMap["subscription"]; subscriptionIn != nil {
+			subscriptionMap, ok := subscriptionIn.(map[string]any)
+			if !ok {
+				return nil, errors.New("Runtime IAP provider notification function returned an invalid subscription - must be an object.")
+			}
+
+			subscription := &runtime.IAPProviderSubscription{}
+			var originalTransactionIDOk, productIDOk, rawResponseOk bool
+			subscription.OriginalTransactionId, originalTransactionIDOk = subscriptionMap["originalTransactionId"].(string)
+			subscription.ProductId, productIDOk = subscriptionMap["productId"].(string)
+			subscription.RawResponse, rawResponseOk = subscriptionMap["rawResponse"].(string)
+			if !originalTransactionIDOk || !productIDOk || (!rawResponseOk && subscriptionMap["rawResponse"] != nil) {
+				return nil, errors.New("Runtime IAP provider notification function returned an invalid subscription - originalTransactionId and productId must be strings, rawResponse an optional string.")
+			}
+
+			for key, t := range map[string]*time.Time{"purchaseTime": &subscription.PurchaseTime, "expiryTime": &subscription.ExpiryTime, "refundTime": &subscription.RefundTime} {
+				switch v := subscriptionMap[key].(type) {
+				case nil:
+				case int64:
+					if v > 0 {
+						*t = time.Unix(v, 0)
+					}
+				case float64:
+					if v > 0 {
+						*t = time.Unix(0, int64(v*float64(time.Second)))
+					}
+				default:
+					return nil, fmt.Errorf("Runtime IAP provider notification function returned an invalid subscription - %s must be a number of seconds since the epoch.", key)
+				}
+			}
+
+			if environmentIn := subscriptionMap["environment"]; environmentIn != nil {
+				environmentStr, _ := environmentIn.(string)
+				environment, ok := api.StoreEnvironment_value[strings.ToUpper(environmentStr)]
+				if !ok {
+					return nil, errors.New("Runtime IAP provider notification function returned an invalid subscription - environment must be one of UNKNOWN, SANDBOX or PRODUCTION.")
+				}
+				subscription.Environment = api.StoreEnvironment(environment)
+			}
+
+			notification.Subscription = subscription
+		}
+		notifications = append(notifications, notification)
+	}
+	return notifications, nil
 }
 
 func (rp *RuntimeProviderJS) BeforeRt(ctx context.Context, id string, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, lang string, envelope *rtapi.Envelope) (*rtapi.Envelope, error) {
@@ -762,7 +1158,7 @@ func (rp *RuntimeProviderJS) Put(r *RuntimeJS) {
 	}
 }
 
-func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, satoriClient runtime.Satori, eventFn RuntimeEventCustomFunction, path, entrypoint string, matchProvider *MatchProvider, storageIndex StorageIndex, authProviderRegistry *RuntimeAuthenticateProviderRegistry, iapProviderRegistry *RuntimeIAPProviderRegistry) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, RuntimeShutdownFunction, RuntimePurchaseNotificationAppleFunction, RuntimeSubscriptionNotificationAppleFunction, RuntimePurchaseNotificationGoogleFunction, RuntimeSubscriptionNotificationGoogleFunction, map[string]RuntimeStorageIndexFilterFunction, []string, error) {
+func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, satoriClient runtime.Satori, eventFn RuntimeEventCustomFunction, path, entrypoint string, matchProvider *MatchProvider, storageIndex StorageIndex, authProviderRegistry *RuntimeAuthenticateProviderRegistry, iapProviderRegistry *RuntimeIAPProviderRegistry, iapPurchaseNotification *RuntimeIAPPurchaseNotificationFunction, iapSubscriptionNotification *RuntimeIAPSubscriptionNotificationFunction) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, RuntimeShutdownFunction, RuntimePurchaseNotificationAppleFunction, RuntimeSubscriptionNotificationAppleFunction, RuntimePurchaseNotificationGoogleFunction, RuntimeSubscriptionNotificationGoogleFunction, map[string]RuntimeStorageIndexFilterFunction, []string, []string, error) {
 	startupLogger.Info("Initialising JavaScript runtime provider", zap.String("path", path), zap.String("entrypoint", entrypoint))
 
 	modCache, err := cacheJavascriptModules(startupLogger, path, entrypoint)
@@ -826,6 +1222,8 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 	storageIndexFilterFunctions := make(map[string]RuntimeStorageIndexFilterFunction, 0)
 	authProviderIDs := make([]string, 0)
 	var authProviderErr error
+	iapProviderIDs := make([]string, 0)
+	iapProviderNotificationIDs := make([]string, 0)
 
 	matchHandlers := &RuntimeJavascriptMatchHandlers{
 		mapping: make(map[string]*jsMatchHandlers, 0),
@@ -1479,6 +1877,22 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 						}
 						return result.(*api.ValidateSubscriptionGoogleRequest), nil, 0
 					}
+				case "validatepurchase":
+					beforeReqFunctions.beforeValidatePurchaseFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidateIAPPurchaseRequest) (*api.ValidateIAPPurchaseRequest, error, codes.Code) {
+						result, err, code := runtimeProviderJS.BeforeReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, in)
+						if result == nil || err != nil {
+							return nil, err, code
+						}
+						return result.(*api.ValidateIAPPurchaseRequest), nil, 0
+					}
+				case "validatesubscription":
+					beforeReqFunctions.beforeValidateSubscriptionFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidateIAPSubscriptionRequest) (*api.ValidateIAPSubscriptionRequest, error, codes.Code) {
+						result, err, code := runtimeProviderJS.BeforeReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, in)
+						if result == nil || err != nil {
+							return nil, err, code
+						}
+						return result.(*api.ValidateIAPSubscriptionRequest), nil, 0
+					}
 				case "getsubscription":
 					beforeReqFunctions.beforeGetSubscriptionFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.GetSubscriptionRequest) (*api.GetSubscriptionRequest, error, codes.Code) {
 						result, err, code := runtimeProviderJS.BeforeReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, in)
@@ -1825,6 +2239,14 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 					afterReqFunctions.afterValidateSubscriptionAppleFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidateSubscriptionResponse, in *api.ValidateSubscriptionAppleRequest) error {
 						return runtimeProviderJS.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, out, in)
 					}
+				case "validatepurchase":
+					afterReqFunctions.afterValidatePurchaseFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidateIAPPurchaseResponse, in *api.ValidateIAPPurchaseRequest) error {
+						return runtimeProviderJS.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, out, in)
+					}
+				case "validatesubscription":
+					afterReqFunctions.afterValidateSubscriptionFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidateIAPSubscriptionResponse, in *api.ValidateIAPSubscriptionRequest) error {
+						return runtimeProviderJS.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, out, in)
+					}
 				case "getsubscription":
 					afterReqFunctions.afterGetSubscriptionFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidatedSubscription, in *api.GetSubscriptionRequest) error {
 						return runtimeProviderJS.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, out, in)
@@ -1903,15 +2325,50 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 				return
 			}
 			authProviderIDs = append(authProviderIDs, id)
+		case RuntimeExecutionModeIAPProvider:
+			iapProviderIDs = append(iapProviderIDs, id)
+		case RuntimeExecutionModeIAPProviderNotification:
+			iapProviderNotificationIDs = append(iapProviderNotificationIDs, id)
+		case RuntimeExecutionModeIAPPurchaseNotification:
+			// Go and Lua modules load first and take precedence.
+			if *iapPurchaseNotification == nil {
+				startupLogger.Info("Registered JavaScript runtime IAP Purchase Notification function invocation")
+				*iapPurchaseNotification = func(ctx context.Context, provider string, notificationType runtime.NotificationType, purchase *api.ValidatedPurchase, providerPayload string) error {
+					return runtimeProviderJS.IAPPurchaseNotification(ctx, provider, purchase, providerPayload, notificationType.String())
+				}
+			}
+		case RuntimeExecutionModeIAPSubscriptionNotification:
+			if *iapSubscriptionNotification == nil {
+				startupLogger.Info("Registered JavaScript runtime IAP Subscription Notification function invocation")
+				*iapSubscriptionNotification = func(ctx context.Context, provider string, notificationType runtime.NotificationType, subscription *api.ValidatedSubscription, providerPayload string) error {
+					return runtimeProviderJS.IAPSubscriptionNotification(ctx, provider, subscription, providerPayload, notificationType.String())
+				}
+			}
 		}
 	}, false)
 	if err != nil {
 		logger.Error("Failed to eval JavaScript modules.", zap.Error(err))
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 	if authProviderErr != nil {
 		logger.Error("Failed to register JavaScript authentication provider.", zap.Error(authProviderErr))
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, authProviderErr
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, authProviderErr
+	}
+	for _, id := range iapProviderIDs {
+		var notificationHandler RuntimeIAPProviderNotificationFunction
+		if slices.Contains(iapProviderNotificationIDs, id) {
+			notificationHandler = func(ctx context.Context, body []byte, headers, query map[string][]string) ([]*runtime.IAPProviderNotification, error) {
+				return runtimeProviderJS.HandleNotification(ctx, id, body, headers, query)
+			}
+		}
+		if err = iapProviderRegistry.Register(id, callbacks.IAPProviders[id].notificationEndpointId, callbacks.IAPProviders[id].storeCode, func(ctx context.Context, traceID string, payload, overrides map[string]any) ([]*runtime.IAPProviderPurchase, error, codes.Code) {
+			return runtimeProviderJS.ValidatePurchase(ctx, id, traceID, payload, overrides)
+		}, func(ctx context.Context, traceID string, payload, overrides map[string]any) ([]*runtime.IAPProviderSubscription, error, codes.Code) {
+			return runtimeProviderJS.ValidateSubscription(ctx, id, traceID, payload, overrides)
+		}, notificationHandler); err != nil {
+			logger.Error("Failed to register JavaScript IAP provider.", zap.Error(err))
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		}
 	}
 
 	runtimeProviderJS.newFn = func() *RuntimeJS {
@@ -1961,7 +2418,7 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 	}
 	startupLogger.Info("Allocated minimum JavaScript runtime pool")
 
-	return modCache.Names, rpcFunctions, beforeRtFunctions, afterRtFunctions, beforeReqFunctions, afterReqFunctions, matchmakerMatchedFunction, tournamentEndFunction, tournamentResetFunction, leaderboardResetFunction, shutdownFunction, purchaseNotificationAppleFunction, subscriptionNotificationAppleFunction, purchaseNotificationGoogleFunction, subscriptionNotificationGoogleFunction, storageIndexFilterFunctions, authProviderIDs, nil
+	return modCache.Names, rpcFunctions, beforeRtFunctions, afterRtFunctions, beforeReqFunctions, afterReqFunctions, matchmakerMatchedFunction, tournamentEndFunction, tournamentResetFunction, leaderboardResetFunction, shutdownFunction, purchaseNotificationAppleFunction, subscriptionNotificationAppleFunction, purchaseNotificationGoogleFunction, subscriptionNotificationGoogleFunction, storageIndexFilterFunctions, authProviderIDs, iapProviderIDs, nil
 }
 
 func CheckRuntimeProviderJavascript(logger *zap.Logger, config Config, version string) error {
@@ -2498,6 +2955,92 @@ func (rp *RuntimeProviderJS) PurchaseNotificationGoogle(ctx context.Context, pur
 	return errors.New("Unexpected return type from runtime Purchase Notification Google hook, must be nil.")
 }
 
+func (rp *RuntimeProviderJS) IAPPurchaseNotification(ctx context.Context, provider string, purchase *api.ValidatedPurchase, providerPayload, notificationType string) error {
+	r, err := rp.Get(ctx)
+	if err != nil {
+		return err
+	}
+	jsFn := r.GetCallback(RuntimeExecutionModeIAPPurchaseNotification, "")
+	if jsFn == "" {
+		rp.Put(r)
+		return errors.New("Runtime IAP Purchase Notification function not found.")
+	}
+
+	purchaseMap := validatedPurchaseToJsObject(purchase)
+
+	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
+	if !ok {
+		rp.Put(r)
+		rp.logger.Error("JavaScript runtime function invalid.", zap.String("key", jsFn), zap.Error(err))
+		return errors.New("Could not run IAP Purchase Notification hook.")
+	}
+
+	jsLogger, err := NewJsLogger(ctx, r.vm, r.logger, zap.String("mode", RuntimeExecutionModeIAPPurchaseNotification.String()), zap.String("provider", provider))
+	if err != nil {
+		rp.Put(r)
+		rp.logger.Error("Could not instantiate js logger.", zap.Error(err))
+		return errors.New("Could not run IAP Purchase Notification hook.")
+	}
+
+	ctx = NewRuntimeGoContext(ctx, r.node, r.version, r.envMap, RuntimeExecutionModeIAPPurchaseNotification, nil, nil, "", 0, "", "", nil, "", "", "", "")
+	r.SetContext(ctx)
+	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModeIAPPurchaseNotification, "iapPurchaseNotification", fn, jsLogger, nil, nil, "", "", "", nil, 0, "", "", "", "", r.vm.ToValue(purchaseMap), r.vm.ToValue(providerPayload), r.vm.ToValue(notificationType), r.vm.ToValue(provider))
+	r.SetContext(context.Background())
+	rp.Put(r)
+	if err != nil {
+		return fmt.Errorf("Error running runtime IAP Purchase Notification hook: %v", err.Error())
+	}
+
+	if retValue == nil {
+		return nil
+	}
+
+	return errors.New("Unexpected return type from runtime IAP Purchase Notification hook, must be nil.")
+}
+
+func (rp *RuntimeProviderJS) IAPSubscriptionNotification(ctx context.Context, provider string, subscription *api.ValidatedSubscription, providerPayload, notificationType string) error {
+	r, err := rp.Get(ctx)
+	if err != nil {
+		return err
+	}
+	jsFn := r.GetCallback(RuntimeExecutionModeIAPSubscriptionNotification, "")
+	if jsFn == "" {
+		rp.Put(r)
+		return errors.New("Runtime IAP Subscription Notification function not found.")
+	}
+
+	subscriptionMap := subscriptionToJsObject(subscription)
+
+	fn, ok := goja.AssertFunction(r.vm.Get(jsFn))
+	if !ok {
+		rp.Put(r)
+		rp.logger.Error("JavaScript runtime function invalid.", zap.String("key", jsFn), zap.Error(err))
+		return errors.New("Could not run IAP Subscription Notification hook.")
+	}
+
+	jsLogger, err := NewJsLogger(ctx, r.vm, r.logger, zap.String("mode", RuntimeExecutionModeIAPSubscriptionNotification.String()), zap.String("provider", provider))
+	if err != nil {
+		rp.Put(r)
+		rp.logger.Error("Could not instantiate js logger.", zap.Error(err))
+		return errors.New("Could not run IAP Subscription Notification hook.")
+	}
+
+	ctx = NewRuntimeGoContext(ctx, r.node, r.version, r.envMap, RuntimeExecutionModeIAPSubscriptionNotification, nil, nil, "", 0, "", "", nil, "", "", "", "")
+	r.SetContext(ctx)
+	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModeIAPSubscriptionNotification, "iapSubscriptionNotification", fn, jsLogger, nil, nil, "", "", "", nil, 0, "", "", "", "", r.vm.ToValue(subscriptionMap), r.vm.ToValue(providerPayload), r.vm.ToValue(notificationType), r.vm.ToValue(provider))
+	r.SetContext(context.Background())
+	rp.Put(r)
+	if err != nil {
+		return fmt.Errorf("Error running runtime IAP Subscription Notification hook: %v", err.Error())
+	}
+
+	if retValue == nil {
+		return nil
+	}
+
+	return errors.New("Unexpected return type from runtime IAP Subscription Notification hook, must be nil.")
+}
+
 func (rp *RuntimeProviderJS) SubscriptionNotificationGoogle(ctx context.Context, subscription *api.ValidatedSubscription, providerPayload, notificationType string) error {
 	r, err := rp.Get(ctx)
 	if err != nil {
@@ -2614,11 +3157,15 @@ func evalRuntimeModules(rp *RuntimeProviderJS, modCache *RuntimeJSModuleCache, m
 	r := goja.New()
 
 	callbacks := &RuntimeJavascriptCallbacks{
-		Rpc:                  make(map[string]string),
-		Before:               make(map[string]string),
-		After:                make(map[string]string),
-		StorageIndexFilter:   make(map[string]string),
-		AuthenticateProvider: make(map[string]string),
+		Rpc:                     make(map[string]string),
+		Before:                  make(map[string]string),
+		After:                   make(map[string]string),
+		StorageIndexFilter:      make(map[string]string),
+		AuthenticateProvider:    make(map[string]string),
+		IAPProvider:             make(map[string]string),
+		IAPProviders:            make(map[string]*RuntimeIAPProviderFunctions),
+		IAPSubscriptionProvider: make(map[string]string),
+		IAPProviderNotification: make(map[string]string),
 	}
 
 	if len(modCache.Names) == 0 {
