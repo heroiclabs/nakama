@@ -21,9 +21,11 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/google"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 func (s *ApiServer) ValidateSubscriptionApple(ctx context.Context, in *api.ValidateSubscriptionAppleRequest) (*api.ValidateSubscriptionResponse, error) {
@@ -86,71 +88,28 @@ func (s *ApiServer) ValidateSubscriptionApple(ctx context.Context, in *api.Valid
 }
 
 func (s *ApiServer) ValidateSubscriptionGoogle(ctx context.Context, in *api.ValidateSubscriptionGoogleRequest) (*api.ValidateSubscriptionResponse, error) {
-	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
-	logger, traceID := LoggerWithTraceId(ctx, s.logger)
-
-	// Before hook.
-	if fn := s.runtime.BeforeValidateSubscriptionGoogle(); fn != nil {
-		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
-			if err != nil {
-				return status.Error(code, err.Error())
-			}
-			if result == nil {
-				// If result is nil, requested resource is disabled.
-				logger.Warn("Intercepted a disabled resource.", zap.Any("resource", ctx.Value(ctxFullMethodKey{}).(string)), zap.String("uid", userID.String()))
-				return status.Error(codes.NotFound, "Requested resource was not found.")
-			}
-			in = result
-			return nil
-		}
-
-		// Execute the before function lambda wrapped in a trace for stats measurement.
-		err := traceApiBefore(ctx, logger, s.config, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
-		if err != nil {
-			return nil, err
-		}
+	payload, err := structpb.NewStruct(map[string]any{"receipt": in.Receipt})
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
 	}
-
-	if s.config.GetIAP().Google.ClientEmail == "" || s.config.GetIAP().Google.PrivateKey == "" {
-		return nil, status.Error(codes.FailedPrecondition, "Google IAP is not configured.")
-	}
-
-	if len(in.Receipt) < 1 {
-		return nil, status.Error(codes.InvalidArgument, "Receipt cannot be empty.")
-	}
-
-	persist := true
-	if in.Persist != nil {
-		persist = in.Persist.GetValue()
-	}
-
-	validated, err := ValidateSubscription(ctx, logger, s.db, s.runtime.IAPProviderRegistry(), userID, traceID, "google", map[string]any{"receipt": in.Receipt}, nil, persist)
+	validated, err := s.ValidateSubscription(ctx, &api.ValidateIAPSubscriptionRequest{Provider: google.Name, Payload: payload, Persist: in.Persist})
 	if err != nil {
 		return nil, err
 	}
-	validation := &api.ValidateSubscriptionResponse{ValidatedSubscription: validated.Subscription}
-
-	// After hook.
-	if fn := s.runtime.AfterValidateSubscriptionGoogle(); fn != nil {
-		afterFn := func(clientIP, clientPort string) error {
-			return fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, validation, in)
-		}
-
-		// Execute the after function lambda wrapped in a trace for stats measurement.
-		traceApiAfter(ctx, logger, s.config, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
-	}
-
-	return validation, nil
+	return &api.ValidateSubscriptionResponse{ValidatedSubscription: validated.Subscription}, nil
 }
 
 func (s *ApiServer) ValidateSubscription(ctx context.Context, in *api.ValidateIAPSubscriptionRequest) (*api.ValidateIAPSubscriptionResponse, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 	logger, traceID := LoggerWithTraceId(ctx, s.logger)
 
-	if fn := s.runtime.BeforeValidateSubscription(); fn != nil {
+	beforeHook := s.runtime.BeforeValidateSubscription()
+	if provider := s.runtime.IAPProviderRegistry().Get(in.Provider); provider != nil && provider.beforeValidateSubscription != nil {
+		beforeHook = provider.beforeValidateSubscription
+	}
+	if beforeHook != nil {
 		beforeFn := func(clientIP, clientPort string) error {
-			result, err, code := fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			result, err, code := beforeHook(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
 			if err != nil {
 				return status.Error(code, err.Error())
 			}
@@ -183,9 +142,13 @@ func (s *ApiServer) ValidateSubscription(ctx context.Context, in *api.ValidateIA
 		return nil, err
 	}
 
-	if fn := s.runtime.AfterValidateSubscription(); fn != nil {
+	afterHook := s.runtime.AfterValidateSubscription()
+	if provider := s.runtime.IAPProviderRegistry().Get(in.Provider); provider != nil && provider.afterValidateSubscription != nil {
+		afterHook = provider.afterValidateSubscription
+	}
+	if afterHook != nil {
 		afterFn := func(clientIP, clientPort string) error {
-			return fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, validation, in)
+			return afterHook(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, validation, in)
 		}
 
 		traceApiAfter(ctx, logger, s.config, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)

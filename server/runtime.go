@@ -33,6 +33,7 @@ import (
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/server/plugins/iap/facebookinstant"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/google"
 	"github.com/heroiclabs/nakama/v3/server/plugins/iap/huawei"
 	"github.com/heroiclabs/nakama/v3/server/plugins/iap/samsung"
 	"github.com/heroiclabs/nakama/v3/social"
@@ -3061,6 +3062,49 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 				purchase, _ := in.Payload.AsMap()["purchase"].(string)
 				signature, _ := in.Payload.AsMap()["signature"].(string)
 				return fn(ctx, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, &api.ValidatePurchaseResponse{ValidatedPurchases: out.Purchase}, &api.ValidatePurchaseHuaweiRequest{Purchase: purchase, Signature: signature, Persist: in.Persist})
+			}
+		}
+	}
+
+	if provider := iapProviderRegistry.Get(google.Name); provider != nil {
+		if fn := allBeforeReqFunctions.beforeValidatePurchaseGoogleFunction; fn != nil {
+			provider.beforeValidatePurchase = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidateIAPPurchaseRequest) (*api.ValidateIAPPurchaseRequest, error, codes.Code) {
+				purchase, _ := in.Payload.AsMap()["purchase"].(string)
+				result, err, code := fn(ctx, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, &api.ValidatePurchaseGoogleRequest{Purchase: purchase, Persist: in.Persist})
+				if err != nil || result == nil {
+					return nil, err, code
+				}
+				payload, err := structpb.NewStruct(map[string]any{"purchase": result.Purchase})
+				if err != nil {
+					return nil, err, codes.Internal
+				}
+				return &api.ValidateIAPPurchaseRequest{Provider: in.Provider, Payload: payload, Persist: result.Persist}, nil, codes.OK
+			}
+		}
+		if fn := allAfterReqFunctions.afterValidatePurchaseGoogleFunction; fn != nil {
+			provider.afterValidatePurchase = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidateIAPPurchaseResponse, in *api.ValidateIAPPurchaseRequest) error {
+				purchase, _ := in.Payload.AsMap()["purchase"].(string)
+				return fn(ctx, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, &api.ValidatePurchaseResponse{ValidatedPurchases: out.Purchase}, &api.ValidatePurchaseGoogleRequest{Purchase: purchase, Persist: in.Persist})
+			}
+		}
+		if fn := allBeforeReqFunctions.beforeValidateSubscriptionGoogleFunction; fn != nil {
+			provider.beforeValidateSubscription = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidateIAPSubscriptionRequest) (*api.ValidateIAPSubscriptionRequest, error, codes.Code) {
+				receipt, _ := in.Payload.AsMap()["receipt"].(string)
+				result, err, code := fn(ctx, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, &api.ValidateSubscriptionGoogleRequest{Receipt: receipt, Persist: in.Persist})
+				if err != nil || result == nil {
+					return nil, err, code
+				}
+				payload, err := structpb.NewStruct(map[string]any{"receipt": result.Receipt})
+				if err != nil {
+					return nil, err, codes.Internal
+				}
+				return &api.ValidateIAPSubscriptionRequest{Provider: in.Provider, Payload: payload, Persist: result.Persist}, nil, codes.OK
+			}
+		}
+		if fn := allAfterReqFunctions.afterValidateSubscriptionGoogleFunction; fn != nil {
+			provider.afterValidateSubscription = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidateIAPSubscriptionResponse, in *api.ValidateIAPSubscriptionRequest) error {
+				receipt, _ := in.Payload.AsMap()["receipt"].(string)
+				return fn(ctx, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, &api.ValidateSubscriptionResponse{ValidatedSubscription: out.Subscription}, &api.ValidateSubscriptionGoogleRequest{Receipt: receipt, Persist: in.Persist})
 			}
 		}
 	}
