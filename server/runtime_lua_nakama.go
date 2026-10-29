@@ -52,6 +52,7 @@ import (
 	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
 	lua "github.com/heroiclabs/nakama/v3/internal/gopher-lua"
 	"github.com/heroiclabs/nakama/v3/server/plugins/iap/facebookinstant"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/google"
 	"github.com/heroiclabs/nakama/v3/server/plugins/iap/huawei"
 	"github.com/heroiclabs/nakama/v3/server/plugins/iap/samsung"
 	"github.com/heroiclabs/nakama/v3/social"
@@ -8374,12 +8375,13 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateGoogle(l *lua.LState) int {
 		PrivateKey:  privateKeyOverride,
 	}
 
-	validation, err := ValidatePurchaseGoogle(l.Context(), n.logger, n.db, uid, configOverride, receipt, persist)
+	validated, err := ValidatePurchase(l.Context(), n.logger, n.db, n.iapProviderRegistry, uid, "", google.Name, map[string]any{"purchase": receipt}, map[string]any{"client_email": configOverride.ClientEmail, "private_key": configOverride.PrivateKey}, persist)
 
 	if err != nil {
 		l.RaiseError("error validating Google receipt: %v", err.Error())
 		return 0
 	}
+	validation := &api.ValidatePurchaseResponse{ValidatedPurchases: validated.Purchase}
 
 	l.Push(purchaseValidationToLuaTable(l, validation))
 	return 1
@@ -8674,12 +8676,13 @@ func (n *RuntimeLuaNakamaModule) subscriptionValidateGoogle(l *lua.LState) int {
 		PrivateKey:  privateKeyOverride,
 	}
 
-	validation, err := ValidateSubscriptionGoogle(l.Context(), n.logger, n.db, uid, configOverride, receipt, persist)
+	validated, err := ValidateSubscription(l.Context(), n.logger, n.db, n.iapProviderRegistry, uid, "", google.Name, map[string]any{"receipt": receipt}, map[string]any{"client_email": configOverride.ClientEmail, "private_key": configOverride.PrivateKey}, persist)
 
 	if err != nil {
 		l.RaiseError("error validating Google receipt: %v", err.Error())
 		return 0
 	}
+	validation := &api.ValidateSubscriptionResponse{ValidatedSubscription: validated.Subscription}
 
 	l.Push(subscriptionValidationToLuaTable(l, validation))
 	return 1
