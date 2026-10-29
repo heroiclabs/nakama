@@ -655,6 +655,9 @@ func ValidatePurchase(ctx context.Context, logger *zap.Logger, db *sql.DB, regis
 
 	purchases, err, code := provider.validatePurchase(ctx, traceID, payload, overrides)
 	if err != nil {
+		if _, ok := status.FromError(err); ok {
+			return nil, err
+		}
 		return nil, status.Error(code, err.Error())
 	}
 
