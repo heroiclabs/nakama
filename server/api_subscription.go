@@ -66,10 +66,11 @@ func (s *ApiServer) ValidateSubscriptionApple(ctx context.Context, in *api.Valid
 		persist = in.Persist.GetValue()
 	}
 
-	validation, err := ValidateSubscriptionApple(ctx, logger, s.db, userID, s.config.GetIAP().Apple.SharedPassword, in.Receipt, persist)
+	validated, err := ValidateSubscription(ctx, logger, s.db, s.runtime.IAPProviderRegistry(), userID, traceID, "apple", map[string]any{"receipt": in.Receipt}, nil, persist)
 	if err != nil {
 		return nil, err
 	}
+	validation := &api.ValidateSubscriptionResponse{ValidatedSubscription: validated.Subscription}
 
 	// After hook.
 	if fn := s.runtime.AfterValidateSubscriptionApple(); fn != nil {

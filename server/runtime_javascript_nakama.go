@@ -50,6 +50,7 @@ import (
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/apple"
 	"github.com/heroiclabs/nakama/v3/server/plugins/iap/facebookinstant"
 	"github.com/heroiclabs/nakama/v3/server/plugins/iap/google"
 	"github.com/heroiclabs/nakama/v3/server/plugins/iap/huawei"
@@ -6501,10 +6502,11 @@ func (n *RuntimeJavascriptNakamaModule) purchaseValidateApple(r *goja.Runtime) f
 			persist = getJsBool(r, f.Argument(2))
 		}
 
-		validation, err := ValidatePurchasesApple(n.ctx, n.logger, n.db, uid, password, receipt, persist)
+		validated, err := ValidatePurchase(n.ctx, n.logger, n.db, n.iapProviderRegistry, uid, "", apple.Name, map[string]any{"receipt": receipt}, map[string]any{"shared_password": password}, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Apple receipt: %s", err.Error())))
 		}
+		validation := &api.ValidatePurchaseResponse{ValidatedPurchases: validated.Purchase}
 
 		validationResult := purchaseResponseToJsObject(validation)
 
@@ -6817,10 +6819,11 @@ func (n *RuntimeJavascriptNakamaModule) subscriptionValidateApple(r *goja.Runtim
 			password = getJsString(r, f.Argument(3))
 		}
 
-		validation, err := ValidateSubscriptionApple(n.ctx, n.logger, n.db, uid, password, receipt, persist)
+		validated, err := ValidateSubscription(n.ctx, n.logger, n.db, n.iapProviderRegistry, uid, "", apple.Name, map[string]any{"receipt": receipt}, map[string]any{"shared_password": password}, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Apple receipt: %s", err.Error())))
 		}
+		validation := &api.ValidateSubscriptionResponse{ValidatedSubscription: validated.Subscription}
 
 		validationResult := subscriptionResponseToJsObject(validation)
 

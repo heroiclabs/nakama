@@ -35,6 +35,7 @@ import (
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/apple"
 	"github.com/heroiclabs/nakama/v3/server/plugins/iap/facebookinstant"
 	"github.com/heroiclabs/nakama/v3/server/plugins/iap/google"
 	"github.com/heroiclabs/nakama/v3/server/plugins/iap/huawei"
@@ -3324,10 +3325,11 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateApple(ctx context.Context, userI
 		return nil, errors.New("receipt cannot be empty string")
 	}
 
-	validation, err := ValidatePurchasesApple(ctx, n.logger, n.db, uid, password, receipt, persist)
+	validated, err := ValidatePurchase(ctx, n.logger, n.db, n.iapProviderRegistry, uid, "", apple.Name, map[string]any{"receipt": receipt}, map[string]any{"shared_password": password}, persist)
 	if err != nil {
 		return nil, err
 	}
+	validation := &api.ValidatePurchaseResponse{ValidatedPurchases: validated.Purchase}
 
 	return validation, nil
 }
@@ -3552,10 +3554,11 @@ func (n *RuntimeGoNakamaModule) SubscriptionValidateApple(ctx context.Context, u
 		return nil, errors.New("receipt cannot be empty string")
 	}
 
-	validation, err := ValidateSubscriptionApple(ctx, n.logger, n.db, uid, password, receipt, persist)
+	validated, err := ValidateSubscription(ctx, n.logger, n.db, n.iapProviderRegistry, uid, "", apple.Name, map[string]any{"receipt": receipt}, map[string]any{"shared_password": password}, persist)
 	if err != nil {
 		return nil, err
 	}
+	validation := &api.ValidateSubscriptionResponse{ValidatedSubscription: validated.Subscription}
 
 	return validation, nil
 }

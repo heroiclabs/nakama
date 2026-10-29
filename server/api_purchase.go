@@ -60,10 +60,11 @@ func (s *ApiServer) ValidatePurchaseApple(ctx context.Context, in *api.ValidateP
 		persist = in.Persist.GetValue()
 	}
 
-	validation, err := ValidatePurchasesApple(ctx, logger, s.db, userID, s.config.GetIAP().Apple.SharedPassword, in.Receipt, persist)
+	validated, err := ValidatePurchase(ctx, logger, s.db, s.runtime.IAPProviderRegistry(), userID, traceID, "apple", map[string]any{"receipt": in.Receipt}, nil, persist)
 	if err != nil {
 		return nil, err
 	}
+	validation := &api.ValidatePurchaseResponse{ValidatedPurchases: validated.Purchase}
 
 	// After hook.
 	if fn := s.runtime.AfterValidatePurchaseApple(); fn != nil {

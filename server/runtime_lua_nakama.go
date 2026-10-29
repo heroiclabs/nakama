@@ -51,6 +51,7 @@ import (
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
 	lua "github.com/heroiclabs/nakama/v3/internal/gopher-lua"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/apple"
 	"github.com/heroiclabs/nakama/v3/server/plugins/iap/facebookinstant"
 	"github.com/heroiclabs/nakama/v3/server/plugins/iap/google"
 	"github.com/heroiclabs/nakama/v3/server/plugins/iap/huawei"
@@ -8232,11 +8233,12 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateApple(l *lua.LState) int {
 
 	passwordOverride := l.OptString(4, n.config.GetIAP().Apple.SharedPassword)
 
-	validation, err := ValidatePurchasesApple(l.Context(), n.logger, n.db, uid, passwordOverride, receipt, persist)
+	validated, err := ValidatePurchase(l.Context(), n.logger, n.db, n.iapProviderRegistry, uid, "", apple.Name, map[string]any{"receipt": receipt}, map[string]any{"shared_password": passwordOverride}, persist)
 	if err != nil {
 		l.RaiseError("error validating Apple receipt: %v", err.Error())
 		return 0
 	}
+	validation := &api.ValidatePurchaseResponse{ValidatedPurchases: validated.Purchase}
 
 	l.Push(purchaseValidationToLuaTable(l, validation))
 	return 1
@@ -8533,11 +8535,12 @@ func (n *RuntimeLuaNakamaModule) subscriptionValidateApple(l *lua.LState) int {
 
 	passwordOverride := l.OptString(4, n.config.GetIAP().Apple.SharedPassword)
 
-	validation, err := ValidateSubscriptionApple(l.Context(), n.logger, n.db, uid, passwordOverride, receipt, persist)
+	validated, err := ValidateSubscription(l.Context(), n.logger, n.db, n.iapProviderRegistry, uid, "", apple.Name, map[string]any{"receipt": receipt}, map[string]any{"shared_password": passwordOverride}, persist)
 	if err != nil {
 		l.RaiseError("error validating Apple receipt: %v", err.Error())
 		return 0
 	}
+	validation := &api.ValidateSubscriptionResponse{ValidatedSubscription: validated.Subscription}
 
 	l.Push(subscriptionValidationToLuaTable(l, validation))
 	return 1

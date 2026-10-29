@@ -214,17 +214,6 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 	grpcGatewayRouter := mux.NewRouter()
 	grpcGatewayRouter.HandleFunc("/v2/console/storage/import", s.importStorage)
 
-	// Register public subscription callback endpoints
-	if config.GetIAP().Apple.NotificationsEndpointId != "" {
-		handler := appleNotificationHandler(logger, db, runtime.PurchaseNotificationApple(), runtime.SubscriptionNotificationApple())
-		endpoint := fmt.Sprintf("/v2/console/apple/subscriptions/%s", config.GetIAP().Apple.NotificationsEndpointId) // For backwards compatibility.
-		grpcGatewayRouter.HandleFunc(endpoint, handler)
-		logger.Info("Registered endpoint for Apple subscription notifications callback", zap.String("endpoint", endpoint))
-		endpoint = fmt.Sprintf("/v2/console/apple/notifications/%s", config.GetIAP().Apple.NotificationsEndpointId)
-		grpcGatewayRouter.HandleFunc(endpoint, handler)
-		logger.Info("Registered endpoint for Apple subscription notifications callback", zap.String("endpoint", endpoint))
-	}
-
 	iapProviderRegistry := runtime.IAPProviderRegistry()
 	for name, provider := range iapProviderRegistry.providersByName.Range {
 		if provider.notificationHandler == nil {
