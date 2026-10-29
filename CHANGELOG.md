@@ -4,6 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 [Unreleased]
+### Added
+- Add IAP providers to the Lua and JavaScript runtimes, with their notification hooks and purchase and subscription validation functions.
 
 ## [3.42.0] - 2026-11-03
 ### Added

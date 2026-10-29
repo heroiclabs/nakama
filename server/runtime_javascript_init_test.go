@@ -278,3 +278,73 @@ function InitModule(ctx, logger, nk, initializer) {
 		})
 	}
 }
+
+func TestJavascriptModuleRegistersIapProviderHandlersDeclaredAfterAnotherBinding(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.js"), []byte(`
+var other = 1, handlers = { validatePurchase: vp, validateSubscription: vs, handleNotification: hn };
+
+function InitModule(ctx, logger, nk, initializer) {
+  initializer.registerIapProvider('custom', handlers, 100);
+}
+
+function vp(ctx, logger, nk, payload, overrides) { return {}; }
+function vs(ctx, logger, nk, payload, overrides) { return {}; }
+function hn(ctx, logger, nk, body, headers, query) {}
+`), 0o644))
+
+	config := NewConfig(zap.NewNop())
+	modCache, err := cacheJavascriptModules(zap.NewNop(), dir, "")
+	require.NoError(t, err)
+	matchHandlers := &RuntimeJavascriptMatchHandlers{mapping: make(map[string]*jsMatchHandlers)}
+
+	callbacks, err := evalRuntimeModules(&RuntimeProviderJS{logger: zap.NewNop(), config: config}, modCache, matchHandlers, nil, nil, nil, nil, func(RuntimeExecutionMode, string) {}, false)
+
+	require.NoError(t, err)
+	require.Equal(t, "vp", callbacks.IAPProvider["custom"])
+	require.Equal(t, "vs", callbacks.IAPSubscriptionProvider["custom"])
+	require.Equal(t, "hn", callbacks.IAPProviderNotification["custom"])
+}
+
+func TestJavascriptModuleResolvesQuotedAndUnquotedIapProviderHandlerKeysAlike(t *testing.T) {
+	cases := []struct {
+		name     string
+		handlers string
+	}{
+		{name: "unquoted keys", handlers: `{ validatePurchase: vp, validateSubscription: vs, handleNotification: hn }`},
+		{name: "double-quoted keys", handlers: `{ "validatePurchase": vp, "validateSubscription": vs, "handleNotification": hn }`},
+		{name: "single-quoted keys", handlers: `{ 'validatePurchase': vp, 'validateSubscription': vs, 'handleNotification': hn }`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "index.js"), []byte(`
+var handlers = `+tc.handlers+`;
+
+function InitModule(ctx, logger, nk, initializer) {
+  initializer.registerIapProvider('custom', handlers, 100);
+  initializer.registerIapProvider('inline', `+tc.handlers+`, 101);
+}
+
+function vp(ctx, logger, nk, payload, overrides) { return {}; }
+function vs(ctx, logger, nk, payload, overrides) { return {}; }
+function hn(ctx, logger, nk, body, headers, query) {}
+`), 0o644))
+
+			config := NewConfig(zap.NewNop())
+			modCache, err := cacheJavascriptModules(zap.NewNop(), dir, "")
+			require.NoError(t, err)
+			matchHandlers := &RuntimeJavascriptMatchHandlers{mapping: make(map[string]*jsMatchHandlers)}
+
+			callbacks, err := evalRuntimeModules(&RuntimeProviderJS{logger: zap.NewNop(), config: config}, modCache, matchHandlers, nil, nil, nil, nil, func(RuntimeExecutionMode, string) {}, false)
+
+			require.NoError(t, err)
+			for _, provider := range []string{"custom", "inline"} {
+				require.Equal(t, "vp", callbacks.IAPProvider[provider])
+				require.Equal(t, "vs", callbacks.IAPSubscriptionProvider[provider])
+				require.Equal(t, "hn", callbacks.IAPProviderNotification[provider])
+			}
+		})
+	}
+}

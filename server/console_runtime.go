@@ -16,6 +16,7 @@ package server
 
 import (
 	"context"
+	"slices"
 
 	"github.com/heroiclabs/nakama/v3/console"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -23,6 +24,13 @@ import (
 )
 
 func (s *ConsoleServer) GetRuntime(ctx context.Context, in *emptypb.Empty) (*console.RuntimeInfo, error) {
+	goIAPProviders := make([]string, 0)
+	for _, name := range s.runtime.IAPProviderRegistry().Names() {
+		if !slices.Contains(s.runtimeInfo.LuaIAPProviders, name) && !slices.Contains(s.runtimeInfo.JavaScriptIAPProviders, name) {
+			goIAPProviders = append(goIAPProviders, name)
+		}
+	}
+
 	toConsole := func(modules []*moduleInfo) []*console.RuntimeInfo_ModuleInfo {
 		result := make([]*console.RuntimeInfo_ModuleInfo, 0, len(modules))
 		for _, m := range modules {
@@ -44,6 +52,8 @@ func (s *ConsoleServer) GetRuntime(ctx context.Context, in *emptypb.Empty) (*con
 		GoAuthenticateProviders:  s.runtimeInfo.GoAuthenticateProviders,
 		LuaAuthenticateProviders: s.runtimeInfo.LuaAuthenticateProviders,
 		JsAuthenticateProviders:  s.runtimeInfo.JavaScriptAuthenticateProviders,
-		GoIapProviders:           s.runtime.IAPProviderRegistry().Names(),
+		GoIapProviders:           goIAPProviders,
+		LuaIapProviders:          s.runtimeInfo.LuaIAPProviders,
+		JsIapProviders:           s.runtimeInfo.JavaScriptIAPProviders,
 	}, nil
 }

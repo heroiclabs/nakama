@@ -94,11 +94,12 @@ type RuntimeLuaNakamaModule struct {
 	eventFn              RuntimeEventCustomFunction
 	authProviderRegistry *RuntimeAuthenticateProviderRegistry
 	iapProviderRegistry  *RuntimeIAPProviderRegistry
+	iapProviders         map[string]*RuntimeIAPProviderFunctions
 
 	satori runtime.Satori
 }
 
-func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, storageIndex StorageIndex, satoriClient runtime.Satori, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, authProviderRegistry *RuntimeAuthenticateProviderRegistry, iapProviderRegistry *RuntimeIAPProviderRegistry, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
+func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, storageIndex StorageIndex, satoriClient runtime.Satori, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, authProviderRegistry *RuntimeAuthenticateProviderRegistry, iapProviderRegistry *RuntimeIAPProviderRegistry, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string), iapProviders map[string]*RuntimeIAPProviderFunctions) *RuntimeLuaNakamaModule {
 	return &RuntimeLuaNakamaModule{
 		logger:               logger,
 		db:                   db,
@@ -132,6 +133,7 @@ func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshale
 		eventFn:              eventFn,
 		authProviderRegistry: authProviderRegistry,
 		iapProviderRegistry:  iapProviderRegistry,
+		iapProviders:         iapProviders,
 
 		satori: satoriClient,
 	}
@@ -141,6 +143,9 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 	functions := map[string]lua.LGFunction{
 		"register_rpc":                              n.registerRPC,
 		"register_authenticate_provider":            n.registerAuthenticateProvider,
+		"register_iap_provider":                     n.registerIAPProvider,
+		"register_iap_purchase_notification":        n.registerIAPPurchaseNotification,
+		"register_iap_subscription_notification":    n.registerIAPSubscriptionNotification,
 		"register_req_before":                       n.registerReqBefore,
 		"register_req_after":                        n.registerReqAfter,
 		"register_rt_before":                        n.registerRTBefore,
@@ -287,6 +292,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"leaderboard_records_haystack":              n.leaderboardRecordsHaystack,
 		"leaderboard_record_delete":                 n.leaderboardRecordDelete,
 		"leaderboards_get_id":                       n.leaderboardsGetId,
+		"purchase_validate":                         n.purchaseValidate,
 		"purchase_validate_apple":                   n.purchaseValidateApple,
 		"purchase_validate_google":                  n.purchaseValidateGoogle,
 		"purchase_validate_huawei":                  n.purchaseValidateHuawei,
@@ -294,6 +300,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"purchase_validate_samsung":                 n.purchaseValidateSamsung,
 		"purchase_get_by_transaction_id":            n.purchaseGetByTransactionId,
 		"purchases_list":                            n.purchasesList,
+		"subscription_validate":                     n.subscriptionValidate,
 		"subscription_validate_apple":               n.subscriptionValidateApple,
 		"subscription_validate_google":              n.subscriptionValidateGoogle,
 		"subscription_get_by_product_id":            n.subscriptionGetByProductId,
@@ -375,6 +382,99 @@ func (n *RuntimeLuaNakamaModule) registerAuthenticateProvider(l *lua.LState) int
 	}
 	if n.announceCallbackFn != nil {
 		n.announceCallbackFn(RuntimeExecutionModeAuthenticateProvider, name)
+	}
+	return 0
+}
+
+// @group purchases
+// @summary Register an IAP provider by name and store code. Clients validate purchases and subscriptions through it with the provider name, server code with the purchase_validate and subscription_validate functions, and the store posts notifications to /v2/console/<name>/notifications, or /v2/console/<name>/notifications/<notificationEndpointId> when one is given.
+// @param handlers(type=table) A table with validate_purchase and validate_subscription, which validate the payload they are given and return the list of purchases or subscriptions it proves, and optionally handle_notification, which receives a notification's body, headers and query parameters and returns the list of updates it carries.
+// @param name(type=string) The unique name of the IAP provider. Converted to lowercase.
+// @param code(type=number) The unique store code stored with the provider's purchases and subscriptions. Must fit in 16 bits and not be used by a built-in store.
+// @param notificationEndpointId(type=string, optional=true) The last path segment of the provider's notification endpoint.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) registerIAPProvider(l *lua.LState) int {
+	handlers := l.CheckTable(1)
+	validatePurchase, ok := handlers.RawGetString("validate_purchase").(*lua.LFunction)
+	if !ok {
+		l.ArgError(1, "expects validate_purchase to be a function")
+		return 0
+	}
+	validateSubscription, ok := handlers.RawGetString("validate_subscription").(*lua.LFunction)
+	if !ok {
+		l.ArgError(1, "expects validate_subscription to be a function")
+		return 0
+	}
+	var handleNotification *lua.LFunction
+	if v := handlers.RawGetString("handle_notification"); v != lua.LNil {
+		if handleNotification, ok = v.(*lua.LFunction); !ok {
+			l.ArgError(1, "expects handle_notification to be a function or nil")
+			return 0
+		}
+	}
+
+	name := strings.ToLower(l.CheckString(2))
+	if !iapProviderNameRegex.MatchString(name) {
+		l.ArgError(2, "expects provider name to be valid, must be 1-128 bytes and contain only [a-zA-Z0-9_-]")
+		return 0
+	}
+
+	code := l.CheckInt(3)
+
+	notificationEndpointId := l.OptString(4, "")
+	if notificationEndpointId != "" && !iapProviderNameRegex.MatchString(notificationEndpointId) {
+		l.ArgError(4, "expects notification endpoint id to be valid, must be 1-128 bytes and contain only [a-zA-Z0-9_-]")
+		return 0
+	}
+
+	if n.iapProviders != nil {
+		n.iapProviders[name] = &RuntimeIAPProviderFunctions{name: name, notificationEndpointId: notificationEndpointId, storeCode: code}
+	}
+	if n.registerCallbackFn != nil {
+		n.registerCallbackFn(RuntimeExecutionModeIAPProvider, name, validatePurchase)
+		n.registerCallbackFn(RuntimeExecutionModeIAPSubscriptionProvider, name, validateSubscription)
+		if handleNotification != nil {
+			n.registerCallbackFn(RuntimeExecutionModeIAPProviderNotification, name, handleNotification)
+		}
+	}
+	if n.announceCallbackFn != nil {
+		n.announceCallbackFn(RuntimeExecutionModeIAPProvider, name)
+		n.announceCallbackFn(RuntimeExecutionModeIAPSubscriptionProvider, name)
+		if handleNotification != nil {
+			n.announceCallbackFn(RuntimeExecutionModeIAPProviderNotification, name)
+		}
+	}
+	return 0
+}
+
+// @group hooks
+// @summary Registers a function to be run when an IAP provider notification changes a stored purchase.
+// @param fn(type=function) A function reference which receives the purchase, the provider's raw response, the notification type and the provider name.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) registerIAPPurchaseNotification(l *lua.LState) int {
+	fn := l.CheckFunction(1)
+
+	if n.registerCallbackFn != nil {
+		n.registerCallbackFn(RuntimeExecutionModeIAPPurchaseNotification, "", fn)
+	}
+	if n.announceCallbackFn != nil {
+		n.announceCallbackFn(RuntimeExecutionModeIAPPurchaseNotification, "")
+	}
+	return 0
+}
+
+// @group hooks
+// @summary Registers a function to be run when an IAP provider notification changes a stored subscription.
+// @param fn(type=function) A function reference which receives the subscription, the provider's raw response, the notification type and the provider name.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) registerIAPSubscriptionNotification(l *lua.LState) int {
+	fn := l.CheckFunction(1)
+
+	if n.registerCallbackFn != nil {
+		n.registerCallbackFn(RuntimeExecutionModeIAPSubscriptionNotification, "", fn)
+	}
+	if n.announceCallbackFn != nil {
+		n.announceCallbackFn(RuntimeExecutionModeIAPSubscriptionNotification, "")
 	}
 	return 0
 }
@@ -8290,6 +8390,59 @@ func leaderboardToLuaTable(l *lua.LState, leaderboard *api.Leaderboard) (*lua.LT
 }
 
 // @group purchases
+// @summary Validates and stores the purchases a registered IAP provider proves from a payload.
+// @param userID(type=string) The user ID of the owner of the purchases.
+// @param provider(type=string) The name the IAP provider was registered under.
+// @param payload(type=table) The opaque payload passed through to the provider.
+// @param persist(type=bool, optional=true, default=true) Persist the purchases so that seenBefore can be computed to protect against replay attacks.
+// @param overrides(type=table, optional=true) Optional credential overrides passed through to the provider.
+// @return validation(table) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) purchaseValidate(l *lua.LState) int {
+	userID := l.CheckString(1)
+	if userID == "" {
+		l.ArgError(1, "expects user id")
+		return 0
+	}
+	uid, err := uuid.FromString(userID)
+	if err != nil {
+		l.ArgError(1, "invalid user id")
+		return 0
+	}
+
+	provider := l.CheckString(2)
+	if provider == "" {
+		l.ArgError(2, "expects provider")
+		return 0
+	}
+
+	payload := RuntimeLuaConvertLuaTable(l.CheckTable(3))
+
+	persist := l.OptBool(4, true)
+
+	var overrides map[string]any
+	if overridesTable := l.OptTable(5, nil); overridesTable != nil {
+		overrides = RuntimeLuaConvertLuaTable(overridesTable)
+	}
+
+	validation, err := ValidatePurchase(l.Context(), n.logger, n.db, n.iapProviderRegistry, uid, "", strings.ToLower(provider), payload, overrides, persist)
+	if err != nil {
+		l.RaiseError("error validating purchase: %v", err.Error())
+		return 0
+	}
+
+	purchasesTable := l.CreateTable(len(validation.Purchase), 0)
+	for i, p := range validation.Purchase {
+		purchasesTable.RawSetInt(i+1, purchaseToLuaTable(l, p))
+	}
+	validationTable := l.CreateTable(0, 1)
+	validationTable.RawSetString("purchase", purchasesTable)
+
+	l.Push(validationTable)
+	return 1
+}
+
+// @group purchases
 // @summary Validates and stores the purchases present in an Apple App Store Receipt.
 // @param userID(type=string) The user ID of the owner of the receipt.
 // @param receipt(type=string) Base-64 encoded receipt data returned by the purchase operation itself.
@@ -8584,6 +8737,55 @@ func (n *RuntimeLuaNakamaModule) purchasesList(l *lua.LState) int {
 	}
 
 	return 3
+}
+
+// @group subscriptions
+// @summary Validates and stores the subscriptions a registered IAP provider proves from a payload.
+// @param userID(type=string) The user ID of the owner of the subscriptions.
+// @param provider(type=string) The name the IAP provider was registered under.
+// @param payload(type=table) The opaque payload passed through to the provider.
+// @param persist(type=bool, optional=true, default=true) Persist the subscriptions.
+// @param overrides(type=table, optional=true) Optional credential overrides passed through to the provider.
+// @return validation(table) The resulting successfully validated subscriptions.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) subscriptionValidate(l *lua.LState) int {
+	userID := l.CheckString(1)
+	if userID == "" {
+		l.ArgError(1, "expects user id")
+		return 0
+	}
+	uid, err := uuid.FromString(userID)
+	if err != nil {
+		l.ArgError(1, "invalid user id")
+		return 0
+	}
+
+	provider := l.CheckString(2)
+	if provider == "" {
+		l.ArgError(2, "expects provider")
+		return 0
+	}
+
+	payload := RuntimeLuaConvertLuaTable(l.CheckTable(3))
+
+	persist := l.OptBool(4, true)
+
+	var overrides map[string]any
+	if overridesTable := l.OptTable(5, nil); overridesTable != nil {
+		overrides = RuntimeLuaConvertLuaTable(overridesTable)
+	}
+
+	validation, err := ValidateSubscription(l.Context(), n.logger, n.db, n.iapProviderRegistry, uid, "", strings.ToLower(provider), payload, overrides, persist)
+	if err != nil {
+		l.RaiseError("error validating subscription: %v", err.Error())
+		return 0
+	}
+
+	validationTable := l.CreateTable(0, 1)
+	validationTable.RawSetString("subscription", subscriptionToLuaTable(l, validation.Subscription))
+
+	l.Push(validationTable)
+	return 1
 }
 
 // @group subscriptions
