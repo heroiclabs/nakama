@@ -106,11 +106,12 @@ func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler
 // @param token(type=string) Apple sign in token.
 // @param username(type=string) The user's username. If left empty, one is generated.
 // @param create(type=bool) Create user if one didn't exist previously.
+// @param importEmail(type=bool) Whether to import the email from the Apple account, if available and if the account has no email set.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return create(bool) Value indicating if this account was just created or already existed.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) AuthenticateApple(ctx context.Context, token, username string, create bool) (string, string, bool, error) {
+func (n *RuntimeGoNakamaModule) AuthenticateApple(ctx context.Context, token, username string, create bool, importEmail bool) (string, string, bool, error) {
 	if n.config.GetSocial().Apple.BundleId == "" {
 		return "", "", false, errors.New("Apple authentication is not configured")
 	}
@@ -127,7 +128,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateApple(ctx context.Context, token, us
 		return "", "", false, errors.New("expects id to be valid, must be 1-128 bytes")
 	}
 
-	return AuthenticateApple(ctx, n.logger, n.db, n.socialClient, n.config.GetSocial().Apple.BundleId, token, username, create)
+	return AuthenticateApple(ctx, n.logger, n.db, n.socialClient, n.config.GetSocial().Apple.BundleId, token, username, create, importEmail)
 }
 
 // @group authenticate
@@ -248,11 +249,12 @@ func (n *RuntimeGoNakamaModule) AuthenticateEmail(ctx context.Context, email, pa
 // @param importFriends(type=bool) Whether to automatically import Facebook friends after authentication.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
 // @param create(type=bool) Create user if one didn't exist previously.
+// @param importEmail(type=bool) Whether to import the email from the Facebook account, if available and if the account has no email set.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return create(bool) Value indicating if this account was just created or already existed.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) AuthenticateFacebook(ctx context.Context, token string, importFriends bool, username string, create bool) (string, string, bool, error) {
+func (n *RuntimeGoNakamaModule) AuthenticateFacebook(ctx context.Context, token string, importFriends bool, username string, create, importEmail bool) (string, string, bool, error) {
 	if token == "" {
 		return "", "", false, errors.New("expects access token string")
 	}
@@ -265,7 +267,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateFacebook(ctx context.Context, token 
 		return "", "", false, errors.New("expects id to be valid, must be 1-128 bytes")
 	}
 
-	dbUserID, dbUsername, created, err := AuthenticateFacebook(ctx, n.logger, n.db, n.socialClient, n.config.GetSocial().FacebookLimitedLogin.AppId, token, username, create)
+	dbUserID, dbUsername, created, err := AuthenticateFacebook(ctx, n.logger, n.db, n.socialClient, n.config.GetSocial().FacebookLimitedLogin.AppId, token, username, create, importEmail)
 	if err == nil && importFriends {
 		// Errors are logged before this point and failure here does not invalidate the whole operation.
 		_ = importFacebookFriends(ctx, n.logger, n.db, n.tracker, n.router, n.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, token, false)
@@ -352,11 +354,12 @@ func (n *RuntimeGoNakamaModule) AuthenticateGameCenter(ctx context.Context, play
 // @param token(type=string) Google OAuth access token.
 // @param username(type=string) The user's username. If left empty, one is generated.
 // @param create(type=bool) Create user if one didn't exist previously.
+// @param importEmail(type=bool) Whether to import the email from the Google account, if available and if the account has no email set.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return create(bool) Value indicating if this account was just created or already existed.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) AuthenticateGoogle(ctx context.Context, token, username string, create bool) (string, string, bool, error) {
+func (n *RuntimeGoNakamaModule) AuthenticateGoogle(ctx context.Context, token, username string, create, importEmail bool) (string, string, bool, error) {
 	if token == "" {
 		return "", "", false, errors.New("expects ID token string")
 	}
@@ -369,7 +372,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateGoogle(ctx context.Context, token, u
 		return "", "", false, errors.New("expects id to be valid, must be 1-128 bytes")
 	}
 
-	return AuthenticateGoogle(ctx, n.logger, n.db, n.socialClient, token, username, create)
+	return AuthenticateGoogle(ctx, n.logger, n.db, n.socialClient, token, username, create, importEmail)
 }
 
 // @group authenticate
@@ -794,14 +797,15 @@ func (n *RuntimeGoNakamaModule) UsersUnbanId(ctx context.Context, userIDs []stri
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param userID(type=string) The user ID to be linked.
 // @param token(type=string) Apple sign in token.
+// @param importEmail(type=bool) Whether to import the email from the Apple account, if available and if the account has no email set.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) LinkApple(ctx context.Context, userID, token string) error {
+func (n *RuntimeGoNakamaModule) LinkApple(ctx context.Context, userID, token string, importEmail bool) error {
 	id, err := uuid.FromString(userID)
 	if err != nil {
 		return errors.New("user ID must be a valid identifier")
 	}
 
-	return LinkApple(ctx, n.logger, n.db, n.config, n.socialClient, id, token)
+	return LinkApple(ctx, n.logger, n.db, n.config, n.socialClient, id, token, importEmail)
 }
 
 // @group authenticate
@@ -874,14 +878,15 @@ func (n *RuntimeGoNakamaModule) LinkEmail(ctx context.Context, userID, email, pa
 // @param username(type=string, optional=true) If left empty, one is generated.
 // @param token(type=string) Facebook OAuth or Limited Login (JWT) access token.
 // @param importFriends(type=bool) Whether to automatically import Facebook friends after authentication.
+// @param importEmail(type=bool) Whether to import the email from the Facebook account, if available and if the account has no email set.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) LinkFacebook(ctx context.Context, userID, username, token string, importFriends bool) error {
+func (n *RuntimeGoNakamaModule) LinkFacebook(ctx context.Context, userID, username, token string, importFriends, importEmail bool) error {
 	id, err := uuid.FromString(userID)
 	if err != nil {
 		return errors.New("user ID must be a valid identifier")
 	}
 
-	return LinkFacebook(ctx, n.logger, n.db, n.socialClient, n.tracker, n.router, id, username, n.config.GetSocial().FacebookLimitedLogin.AppId, token, importFriends)
+	return LinkFacebook(ctx, n.logger, n.db, n.socialClient, n.tracker, n.router, id, username, n.config.GetSocial().FacebookLimitedLogin.AppId, token, importFriends, importEmail)
 }
 
 // @group authenticate
@@ -924,14 +929,15 @@ func (n *RuntimeGoNakamaModule) LinkGameCenter(ctx context.Context, userID, play
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param userID(type=string) The user ID to be linked.
 // @param token(type=string) Google OAuth access token.
+// @param importEmail(type=bool) Whether to import the email from the Google account, if available and if the account has no email set.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) LinkGoogle(ctx context.Context, userID, token string) error {
+func (n *RuntimeGoNakamaModule) LinkGoogle(ctx context.Context, userID, token string, importEmail bool) error {
 	id, err := uuid.FromString(userID)
 	if err != nil {
 		return errors.New("user ID must be a valid identifier")
 	}
 
-	return LinkGoogle(ctx, n.logger, n.db, n.socialClient, id, token)
+	return LinkGoogle(ctx, n.logger, n.db, n.socialClient, id, token, importEmail)
 }
 
 // @group authenticate
