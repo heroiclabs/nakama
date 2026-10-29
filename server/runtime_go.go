@@ -34,6 +34,7 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -4001,6 +4002,9 @@ func (ri *RuntimeGoInitializer) RegisterIAPProvider(provider runtime.IAPProvider
 		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeIAPProvider, nil, nil, traceID, 0, "", "", nil, "", "", "", "")
 		result, fnErr := provider.ValidatePurchase(ctx, RuntimeLoggerWithTraceId(ctx, ri.logger.WithField("provider", name)), ri.db, ri.nk, payload, overrides)
 		if fnErr != nil {
+			if _, ok := status.FromError(fnErr); ok {
+				return result, fnErr, status.Code(fnErr)
+			}
 			var runtimeErr *runtime.Error
 			if errors.As(fnErr, &runtimeErr) {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
@@ -4019,6 +4023,9 @@ func (ri *RuntimeGoInitializer) RegisterIAPProvider(provider runtime.IAPProvider
 		ctx = NewRuntimeGoContext(ctx, ri.node, ri.version, ri.env, RuntimeExecutionModeIAPProvider, nil, nil, traceID, 0, "", "", nil, "", "", "", "")
 		result, fnErr := provider.ValidateSubscription(ctx, RuntimeLoggerWithTraceId(ctx, ri.logger.WithField("provider", name)), ri.db, ri.nk, payload, overrides)
 		if fnErr != nil {
+			if _, ok := status.FromError(fnErr); ok {
+				return result, fnErr, status.Code(fnErr)
+			}
 			if runtimeErr, ok := errors.AsType[*runtime.Error](fnErr); ok {
 				if runtimeErr.Code <= 0 || runtimeErr.Code >= 17 {
 					return result, runtimeErr, codes.Internal

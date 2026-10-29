@@ -571,6 +571,9 @@ func ValidateSubscription(ctx context.Context, logger *zap.Logger, db *sql.DB, r
 
 	subscriptions, err, code := provider.validateSubscription(ctx, traceID, payload, overrides)
 	if err != nil {
+		if _, ok := status.FromError(err); ok {
+			return nil, err
+		}
 		return nil, status.Error(code, err.Error())
 	}
 
