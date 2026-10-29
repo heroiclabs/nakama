@@ -32,11 +32,13 @@ import (
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/facebookinstant"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 var (
@@ -2988,6 +2990,29 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 
 	for name, provider := range iapProviderRegistry.providersByName.Range {
 		startupLogger.Info("Registered Go runtime IAP Provider", zap.String("provider", name), zap.Int("store_code", provider.storeCode))
+	}
+
+	if provider := iapProviderRegistry.Get(facebookinstant.Name); provider != nil {
+		if fn := allBeforeReqFunctions.beforeValidatePurchaseFacebookInstantFunction; fn != nil {
+			provider.beforeValidatePurchase = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidateIAPPurchaseRequest) (*api.ValidateIAPPurchaseRequest, error, codes.Code) {
+				signedRequest, _ := in.Payload.AsMap()["signed_request"].(string)
+				result, err, code := fn(ctx, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, &api.ValidatePurchaseFacebookInstantRequest{SignedRequest: signedRequest, Persist: in.Persist})
+				if err != nil || result == nil {
+					return nil, err, code
+				}
+				payload, err := structpb.NewStruct(map[string]any{"signed_request": result.SignedRequest})
+				if err != nil {
+					return nil, err, codes.Internal
+				}
+				return &api.ValidateIAPPurchaseRequest{Provider: in.Provider, Payload: payload, Persist: result.Persist}, nil, codes.OK
+			}
+		}
+		if fn := allAfterReqFunctions.afterValidatePurchaseFacebookInstantFunction; fn != nil {
+			provider.afterValidatePurchase = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidateIAPPurchaseResponse, in *api.ValidateIAPPurchaseRequest) error {
+				signedRequest, _ := in.Payload.AsMap()["signed_request"].(string)
+				return fn(ctx, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, &api.ValidatePurchaseResponse{ValidatedPurchases: out.Purchase}, &api.ValidatePurchaseFacebookInstantRequest{SignedRequest: signedRequest, Persist: in.Persist})
+			}
+		}
 	}
 
 	return &Runtime{
