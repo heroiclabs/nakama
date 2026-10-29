@@ -166,6 +166,10 @@ func (s *ApiServer) ValidateSubscription(ctx context.Context, in *api.ValidateIA
 		}
 	}
 
+	if len(in.Provider) < 1 {
+		return nil, status.Error(codes.InvalidArgument, "Provider cannot be empty.")
+	}
+
 	persist := true
 	if in.Persist != nil {
 		persist = in.Persist.GetValue()
