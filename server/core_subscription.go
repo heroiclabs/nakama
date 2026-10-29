@@ -1330,7 +1330,7 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 					environment:   env,
 				}
 
-				dbPurchases, err := upsertPurchases(r.Context(), db, []*storagePurchase{purchase})
+				dbPurchases, err := upsertPurchases(r.Context(), db, purchase)
 				if err != nil {
 					logger.Error("Failed to store App Store notification purchase data", zap.Error(err))
 					w.WriteHeader(http.StatusInternalServerError)
@@ -1776,7 +1776,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 					environment:   env,
 				}
 
-				if _, err = upsertPurchases(r.Context(), db, []*storagePurchase{sPurchase}); err != nil {
+				if _, err = upsertPurchases(r.Context(), db, sPurchase); err != nil {
 					var pgErr *pgconn.PgError
 					if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
 						// User id was not found, ignore this notification

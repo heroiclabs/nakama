@@ -109,7 +109,7 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	}
 	dbPurchase.rawResponse = string(receiptJson)
 
-	dbPurchases, err := upsertPurchases(ctx, db, []*storagePurchase{dbPurchase})
+	dbPurchases, err := upsertPurchases(ctx, db, dbPurchase)
 	if err != nil || len(dbPurchases) == 0 {
 		logger.Error("Failed to store App Store notification purchase data", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Failed to store app store purchase data")
@@ -236,7 +236,7 @@ func validateLegacyPurchaseReceiptApple(ctx context.Context, logger *zap.Logger,
 		return &api.ValidatePurchaseResponse{ValidatedPurchases: validatedPurchases}, nil
 	}
 
-	purchases, err := upsertPurchases(ctx, db, storagePurchases)
+	purchases, err := upsertPurchases(ctx, db, storagePurchases...)
 	if err != nil {
 		return nil, err
 	}
@@ -316,7 +316,7 @@ func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		return &api.ValidatePurchaseResponse{ValidatedPurchases: validatedPurchases}, nil
 	}
 
-	purchases, err := upsertPurchases(ctx, db, []*storagePurchase{sPurchase})
+	purchases, err := upsertPurchases(ctx, db, sPurchase)
 	if err != nil {
 		if !errors.Is(err, context.Canceled) {
 			logger.Error("Error storing Google receipt", zap.Error(err))
@@ -398,7 +398,7 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		return &api.ValidatePurchaseResponse{ValidatedPurchases: validatedPurchases}, nil
 	}
 
-	purchases, err := upsertPurchases(ctx, db, []*storagePurchase{sPurchase})
+	purchases, err := upsertPurchases(ctx, db, sPurchase)
 	if err != nil {
 		if err != context.Canceled {
 			logger.Error("Error storing Huawei receipt", zap.Error(err))
@@ -466,7 +466,7 @@ func ValidatePurchaseFacebookInstant(ctx context.Context, logger *zap.Logger, db
 		return &api.ValidatePurchaseResponse{ValidatedPurchases: validatedPurchases}, nil
 	}
 
-	purchases, err := upsertPurchases(ctx, db, []*storagePurchase{sPurchase})
+	purchases, err := upsertPurchases(ctx, db, sPurchase)
 	if err != nil {
 		if err != context.Canceled {
 			logger.Error("Error storing Facebook Instant receipt", zap.Error(err))
@@ -549,7 +549,7 @@ func ValidatePurchaseSamsung(ctx context.Context, logger *zap.Logger, db *sql.DB
 		}, nil
 	}
 
-	purchases, err := upsertPurchases(ctx, db, []*storagePurchase{sPurchase})
+	purchases, err := upsertPurchases(ctx, db, sPurchase)
 	if err != nil {
 		if err != context.Canceled {
 			logger.Error("Error storing Samsung receipt", zap.Error(err))
@@ -727,7 +727,7 @@ func ValidatePurchase(ctx context.Context, logger *zap.Logger, db *sql.DB, regis
 		return &api.ValidateIAPPurchaseResponse{Purchase: validatedPurchases}, nil
 	}
 
-	stored, err := upsertPurchases(ctx, db, ownStorePurchases)
+	stored, err := upsertPurchases(ctx, db, ownStorePurchases...)
 	if err != nil {
 		if !errors.Is(err, context.Canceled) {
 			logger.Error("Error storing purchase from provider", zap.String("provider", provider.name), zap.Error(err))
@@ -1015,7 +1015,7 @@ type storagePurchase struct {
 	seenBefore    bool // Set by upsertPurchases
 }
 
-func upsertPurchases(ctx context.Context, db *sql.DB, purchases []*storagePurchase) ([]*storagePurchase, error) {
+func upsertPurchases(ctx context.Context, db *sql.DB, purchases ...*storagePurchase) ([]*storagePurchase, error) {
 	if len(purchases) < 1 {
 		return nil, errors.New("expects at least one receipt")
 	}
@@ -1280,7 +1280,7 @@ func iapProviderNotificationHandler(logger *zap.Logger, db *sql.DB, registry *Ru
 				environment:   purchase.Environment,
 			}
 
-			dbPurchases, err := upsertPurchases(r.Context(), db, []*storagePurchase{purchaseToStore})
+			dbPurchases, err := upsertPurchases(r.Context(), db, purchaseToStore)
 			if err != nil {
 				var pgErr *pgconn.PgError
 				if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
