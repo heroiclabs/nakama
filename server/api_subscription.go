@@ -124,10 +124,11 @@ func (s *ApiServer) ValidateSubscriptionGoogle(ctx context.Context, in *api.Vali
 		persist = in.Persist.GetValue()
 	}
 
-	validation, err := ValidateSubscriptionGoogle(ctx, logger, s.db, userID, s.config.GetIAP().Google, in.Receipt, persist)
+	validated, err := ValidateSubscription(ctx, logger, s.db, s.runtime.IAPProviderRegistry(), userID, traceID, "google", map[string]any{"receipt": in.Receipt}, nil, persist)
 	if err != nil {
 		return nil, err
 	}
+	validation := &api.ValidateSubscriptionResponse{ValidatedSubscription: validated.Subscription}
 
 	// After hook.
 	if fn := s.runtime.AfterValidateSubscriptionGoogle(); fn != nil {

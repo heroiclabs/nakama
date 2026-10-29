@@ -51,6 +51,7 @@ import (
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
 	"github.com/heroiclabs/nakama/v3/server/plugins/iap/facebookinstant"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/google"
 	"github.com/heroiclabs/nakama/v3/server/plugins/iap/huawei"
 	"github.com/heroiclabs/nakama/v3/server/plugins/iap/samsung"
 	"github.com/heroiclabs/nakama/v3/social"
@@ -6555,10 +6556,11 @@ func (n *RuntimeJavascriptNakamaModule) purchaseValidateGoogle(r *goja.Runtime) 
 			panic(r.NewGoError(errors.New("google IAP is not configured")))
 		}
 
-		validation, err := ValidatePurchaseGoogle(n.ctx, n.logger, n.db, uid, &IAPGoogleConfig{clientEmail, privateKey, "", 0, ""}, receipt, persist)
+		validated, err := ValidatePurchase(n.ctx, n.logger, n.db, n.iapProviderRegistry, uid, "", google.Name, map[string]any{"purchase": receipt}, map[string]any{"client_email": clientEmail, "private_key": privateKey}, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Google receipt: %s", err.Error())))
 		}
+		validation := &api.ValidatePurchaseResponse{ValidatedPurchases: validated.Purchase}
 
 		validationResult := purchaseResponseToJsObject(validation)
 
@@ -6875,10 +6877,11 @@ func (n *RuntimeJavascriptNakamaModule) subscriptionValidateGoogle(r *goja.Runti
 			PrivateKey:  privateKey,
 		}
 
-		validation, err := ValidateSubscriptionGoogle(n.ctx, n.logger, n.db, uid, configOverride, receipt, persist)
+		validated, err := ValidateSubscription(n.ctx, n.logger, n.db, n.iapProviderRegistry, uid, "", google.Name, map[string]any{"receipt": receipt}, map[string]any{"client_email": configOverride.ClientEmail, "private_key": configOverride.PrivateKey}, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Google receipt: %s", err.Error())))
 		}
+		validation := &api.ValidateSubscriptionResponse{ValidatedSubscription: validated.Subscription}
 
 		validationResult := subscriptionResponseToJsObject(validation)
 
