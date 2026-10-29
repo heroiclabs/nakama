@@ -55,7 +55,7 @@ func (r *RuntimeIAPProviderRegistry) Register(name, notificationEndpointId strin
 		return errors.New("expects provider name to be valid, must be 1-128 bytes and contain only [a-zA-Z0-9_-]")
 	}
 	switch name {
-	case "apple", "google", "huawei", "samsung":
+	case "apple", "google", "huawei":
 		return fmt.Errorf("IAP provider name is reserved: %s", name)
 	}
 	if notificationEndpointId != "" && !iapProviderNameRegex.MatchString(notificationEndpointId) {
@@ -65,7 +65,7 @@ func (r *RuntimeIAPProviderRegistry) Register(name, notificationEndpointId strin
 		return fmt.Errorf("IAP provider code must fit in 16 bits: %s has %d", name, code)
 	}
 	switch api.StoreProvider(code) {
-	case api.StoreProvider_APPLE_APP_STORE, api.StoreProvider_GOOGLE_PLAY_STORE, api.StoreProvider_HUAWEI_APP_GALLERY, api.StoreProvider_SAMSUNG_GALAXY_STORE:
+	case api.StoreProvider_APPLE_APP_STORE, api.StoreProvider_GOOGLE_PLAY_STORE, api.StoreProvider_HUAWEI_APP_GALLERY:
 		return fmt.Errorf("IAP provider code %d is used by a built-in store: %s", code, name)
 	}
 	provider := &RuntimeIAPProviderFunctions{name: name, notificationEndpointId: notificationEndpointId, storeCode: code, validatePurchase: validatePurchase, validateSubscription: validateSubscription, notificationHandler: notificationHandler}

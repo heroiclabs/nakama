@@ -292,10 +292,11 @@ func (s *ApiServer) ValidatePurchaseSamsung(ctx context.Context, in *api.Validat
 		persist = in.Persist.GetValue()
 	}
 
-	validation, err := ValidatePurchaseSamsung(ctx, logger, s.db, userID, s.config.GetIAP().Samsung, in.PurchaseId, persist)
+	validated, err := ValidatePurchase(ctx, logger, s.db, s.runtime.IAPProviderRegistry(), userID, traceID, "samsung", map[string]any{"purchase_id": in.PurchaseId}, nil, persist)
 	if err != nil {
 		return nil, err
 	}
+	validation := &api.ValidatePurchaseResponse{ValidatedPurchases: validated.Purchase}
 
 	if fn := s.runtime.AfterValidatePurchaseSamsung(); fn != nil {
 		afterFn := func(clientIP, clientPort string) error {
