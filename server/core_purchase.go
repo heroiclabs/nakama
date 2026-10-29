@@ -116,9 +116,9 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	}
 
 	dbPurchase = dbPurchases[0]
-	suid := dbPurchase.userID.String()
+	suid := userID.String()
 	// Avoid reporting deleted users as system users.
-	if dbPurchase.userID.IsNil() {
+	if userID.IsNil() {
 		suid = ""
 	}
 
@@ -244,9 +244,9 @@ func validateLegacyPurchaseReceiptApple(ctx context.Context, logger *zap.Logger,
 
 	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
 	for _, p := range purchases {
-		suid := p.userID.String()
+		suid := userID.String()
 		// Avoid reporting deleted users as system users.
-		if p.userID.IsNil() {
+		if userID.IsNil() {
 			suid = ""
 		}
 		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
@@ -328,9 +328,9 @@ func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB,
 
 	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
 	for _, p := range purchases {
-		suid := p.userID.String()
+		suid := userID.String()
 		// Avoid reporting deleted users as system users.
-		if p.userID.IsNil() {
+		if userID.IsNil() {
 			suid = ""
 		}
 		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
@@ -411,9 +411,9 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 
 	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
 	for _, p := range purchases {
-		suid := p.userID.String()
+		suid := userID.String()
 		// Avoid reporting deleted users as system users.
-		if p.userID.IsNil() {
+		if userID.IsNil() {
 			suid = ""
 		}
 		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
@@ -480,9 +480,9 @@ func ValidatePurchaseFacebookInstant(ctx context.Context, logger *zap.Logger, db
 
 	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
 	for _, p := range purchases {
-		suid := p.userID.String()
+		suid := userID.String()
 		// Avoid reporting deleted users as system users.
-		if p.userID.IsNil() {
+		if userID.IsNil() {
 			suid = ""
 		}
 		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
@@ -564,9 +564,9 @@ func ValidatePurchaseSamsung(ctx context.Context, logger *zap.Logger, db *sql.DB
 
 	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
 	for _, p := range purchases {
-		suid := p.userID.String()
+		suid := userID.String()
 		// Avoid reporting deleted users as system users.
-		if p.userID.IsNil() {
+		if userID.IsNil() {
 			suid = ""
 		}
 		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
@@ -1098,6 +1098,7 @@ RETURNING
 			return nil, err
 		}
 		storedPurchase := transactionIDsToPurchase[transactionId]
+		storedPurchase.userID = dbUserID
 		storedPurchase.createTime = createTime.Time
 		storedPurchase.updateTime = updateTime.Time
 		storedPurchase.seenBefore = updateTime.Time.After(createTime.Time)
@@ -1300,9 +1301,9 @@ func iapProviderNotificationHandler(logger *zap.Logger, db *sql.DB, registry *Ru
 
 			if purchaseHook != nil {
 				dbPurchase := dbPurchases[0]
-				suid := dbPurchase.userID.String()
+				suid := uid.String()
 				// Avoid reporting deleted users as system users.
-				if dbPurchase.userID.IsNil() {
+				if uid.IsNil() {
 					suid = ""
 				}
 				validatedPurchase := &api.ValidatedPurchase{

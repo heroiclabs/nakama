@@ -1339,9 +1339,9 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 
 				if purchaseNotificationCallback != nil {
 					dbPurchase := dbPurchases[0]
-					suid := dbPurchase.userID.String()
+					suid := uid.String()
 					// Avoid reporting deleted users as system users.
-					if dbPurchase.userID.IsNil() {
+					if uid.IsNil() {
 						suid = ""
 					}
 					validatedPurchase := &api.ValidatedPurchase{
@@ -1790,9 +1790,9 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 				}
 
 				if purchaseNotificationCallback != nil {
-					suid := sPurchase.userID.String()
+					suid := uid.String()
 					// Avoid reporting deleted users as system users.
-					if sPurchase.userID.IsNil() {
+					if uid.IsNil() {
 						suid = ""
 					}
 					validatedPurchase := &api.ValidatedPurchase{
