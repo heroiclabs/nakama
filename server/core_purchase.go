@@ -117,6 +117,7 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 
 	dbPurchase = dbPurchases[0]
 	suid := dbPurchase.userID.String()
+	// Avoid reporting deleted users as system users.
 	if dbPurchase.userID.IsNil() {
 		suid = ""
 	}
@@ -244,6 +245,7 @@ func validateLegacyPurchaseReceiptApple(ctx context.Context, logger *zap.Logger,
 	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
 	for _, p := range purchases {
 		suid := p.userID.String()
+		// Avoid reporting deleted users as system users.
 		if p.userID.IsNil() {
 			suid = ""
 		}
@@ -327,6 +329,7 @@ func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
 	for _, p := range purchases {
 		suid := p.userID.String()
+		// Avoid reporting deleted users as system users.
 		if p.userID.IsNil() {
 			suid = ""
 		}
@@ -409,6 +412,7 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
 	for _, p := range purchases {
 		suid := p.userID.String()
+		// Avoid reporting deleted users as system users.
 		if p.userID.IsNil() {
 			suid = ""
 		}
@@ -477,6 +481,7 @@ func ValidatePurchaseFacebookInstant(ctx context.Context, logger *zap.Logger, db
 	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
 	for _, p := range purchases {
 		suid := p.userID.String()
+		// Avoid reporting deleted users as system users.
 		if p.userID.IsNil() {
 			suid = ""
 		}
@@ -560,6 +565,7 @@ func ValidatePurchaseSamsung(ctx context.Context, logger *zap.Logger, db *sql.DB
 	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
 	for _, p := range purchases {
 		suid := p.userID.String()
+		// Avoid reporting deleted users as system users.
 		if p.userID.IsNil() {
 			suid = ""
 		}
