@@ -142,6 +142,60 @@ func (s *ApiServer) ValidateSubscriptionGoogle(ctx context.Context, in *api.Vali
 	return validation, nil
 }
 
+func (s *ApiServer) ValidateSubscription(ctx context.Context, in *api.ValidateIAPSubscriptionRequest) (*api.ValidateIAPSubscriptionResponse, error) {
+	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
+	logger, traceID := LoggerWithTraceId(ctx, s.logger)
+
+	if fn := s.runtime.BeforeValidateSubscription(); fn != nil {
+		beforeFn := func(clientIP, clientPort string) error {
+			result, err, code := fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, in)
+			if err != nil {
+				return status.Error(code, err.Error())
+			}
+			if result == nil {
+				logger.Warn("Intercepted a disabled resource.", zap.Any("resource", ctx.Value(ctxFullMethodKey{}).(string)), zap.String("uid", userID.String()))
+				return status.Error(codes.NotFound, "Requested resource was not found.")
+			}
+			in = result
+			return nil
+		}
+
+		err := traceApiBefore(ctx, logger, s.config, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), beforeFn)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if len(in.Provider) < 1 {
+		return nil, status.Error(codes.InvalidArgument, "Provider cannot be empty.")
+	}
+
+	persist := true
+	if in.Persist != nil {
+		persist = in.Persist.GetValue()
+	}
+
+	var payload map[string]any
+	if in.Payload != nil {
+		payload = in.Payload.AsMap()
+	}
+
+	validation, err := ValidateSubscription(ctx, logger, s.db, s.runtime.IAPProviderRegistry(), userID, traceID, in.Provider, payload, nil, persist)
+	if err != nil {
+		return nil, err
+	}
+
+	if fn := s.runtime.AfterValidateSubscription(); fn != nil {
+		afterFn := func(clientIP, clientPort string) error {
+			return fn(ctx, logger, traceID, userID.String(), ctx.Value(ctxUsernameKey{}).(string), ctx.Value(ctxVarsKey{}).(map[string]string), ctx.Value(ctxExpiryKey{}).(int64), clientIP, clientPort, validation, in)
+		}
+
+		traceApiAfter(ctx, logger, s.config, s.metrics, ctx.Value(ctxFullMethodKey{}).(string), afterFn)
+	}
+
+	return validation, err
+}
+
 func (s *ApiServer) ListSubscriptions(ctx context.Context, in *api.ListSubscriptionsRequest) (*api.SubscriptionList, error) {
 	userID := ctx.Value(ctxUserIDKey{}).(uuid.UUID)
 	logger, traceID := LoggerWithTraceId(ctx, s.logger)
@@ -177,7 +231,7 @@ func (s *ApiServer) ListSubscriptions(ctx context.Context, in *api.ListSubscript
 		limit = int(in.GetLimit().Value)
 	}
 
-	subscriptions, err := ListSubscriptions(ctx, logger, s.db, userID.String(), limit, in.Cursor, time.Time{}, time.Time{})
+	subscriptions, err := ListSubscriptions(ctx, logger, s.db, s.runtime.IAPProviderRegistry(), userID.String(), limit, in.Cursor, time.Time{}, time.Time{}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -222,7 +276,7 @@ func (s *ApiServer) GetSubscription(ctx context.Context, in *api.GetSubscription
 		}
 	}
 
-	sub, err := GetSubscriptionByProductId(ctx, logger, s.db, userID.String(), in.ProductId)
+	sub, err := GetSubscriptionByProductId(ctx, logger, s.db, s.runtime.IAPProviderRegistry(), userID.String(), in.ProductId)
 	if err != nil {
 		if errors.Is(err, ErrSubscriptionNotFound) {
 			return nil, status.Error(codes.NotFound, err.Error())

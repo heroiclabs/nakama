@@ -714,6 +714,22 @@ service Nakama {
     };
   }
 
+  // Validate a purchase with a registered IAP provider
+  rpc ValidatePurchase (api.ValidateIAPPurchaseRequest) returns (api.ValidateIAPPurchaseResponse) {
+    option (google.api.http) = {
+      post: "/v2/iap/purchase/{provider}",
+      body: "*"
+    };
+  }
+
+  // Validate a subscription with a registered IAP provider
+  rpc ValidateSubscription (api.ValidateIAPSubscriptionRequest) returns (api.ValidateIAPSubscriptionResponse) {
+    option (google.api.http) = {
+      post: "/v2/iap/subscription/{provider}",
+      body: "*"
+    };
+  }
+
   // Validate Apple IAP Receipt
   rpc ValidatePurchaseApple (api.ValidatePurchaseAppleRequest) returns (api.ValidatePurchaseResponse) {
     option (google.api.http) = {

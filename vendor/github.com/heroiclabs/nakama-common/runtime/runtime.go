@@ -341,6 +341,11 @@ type Initializer interface {
 	RegisterAuthenticateProvider(name string, provider AuthenticateProvider) error
 
 	/*
+		RegisterIAPProvider registers an IAP provider under its name. This name is used by server code through NakamaModule.PurchaseValidate and by clients through the generic purchase validation request to select the provider.
+	*/
+	RegisterIAPProvider(provider IAPProvider) error
+
+	/*
 		RegisterBeforeRt registers a function with for a message. Any function may be registered to intercept a message received from a client and operate on it (or reject it) based on custom logic.
 		This is useful to enforce specific rules on top of the standard features in the server.
 
@@ -382,8 +387,14 @@ type Initializer interface {
 	// RegisterPurchaseNotificationApple
 	RegisterPurchaseNotificationApple(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, notificationType NotificationType, purchase *api.ValidatedPurchase, payload *AppleNotificationData) error) error
 
+	// RegisterIAPPurchaseNotification
+	RegisterIAPPurchaseNotification(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, provider string, notificationType NotificationType, purchase *api.ValidatedPurchase, providerPayload string) error) error
+
 	// RegisterSubscriptionNotificationApple
 	RegisterSubscriptionNotificationApple(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, notificationType NotificationType, subscription *api.ValidatedSubscription, payload *AppleNotificationData) error) error
+
+	// RegisterIAPSubscriptionNotification
+	RegisterIAPSubscriptionNotification(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, provider string, notificationType NotificationType, subscription *api.ValidatedSubscription, providerPayload string) error) error
 
 	// RegisterPurchaseNotificationGoogle
 	RegisterPurchaseNotificationGoogle(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, notificationType NotificationType, purchase *api.ValidatedPurchase, providerPayload *PurchaseV2GoogleResponse) error) error
@@ -820,6 +831,18 @@ type Initializer interface {
 	// RegisterAfterValidatePurchaseSamsung can be used to perform additional logic after validating a Samsung Galaxy Store IAP receipt.
 	RegisterAfterValidatePurchaseSamsung(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseSamsungRequest) error) error
 
+	// RegisterBeforeValidatePurchase can be used to perform additional logic before validating a purchase with a registered IAP provider.
+	RegisterBeforeValidatePurchase(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ValidateIAPPurchaseRequest) (*api.ValidateIAPPurchaseRequest, error)) error
+
+	// RegisterAfterValidatePurchase can be used to perform additional logic after validating a purchase with a registered IAP provider.
+	RegisterAfterValidatePurchase(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.ValidateIAPPurchaseResponse, in *api.ValidateIAPPurchaseRequest) error) error
+
+	// RegisterBeforeValidateSubscription can be used to perform additional logic before validating a subscription with a registered IAP provider.
+	RegisterBeforeValidateSubscription(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ValidateIAPSubscriptionRequest) (*api.ValidateIAPSubscriptionRequest, error)) error
+
+	// RegisterAfterValidateSubscription can be used to perform additional logic after validating a subscription with a registered IAP provider.
+	RegisterAfterValidateSubscription(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.ValidateIAPSubscriptionResponse, in *api.ValidateIAPSubscriptionRequest) error) error
+
 	// RegisterBeforeListSubscriptions can be used to perform additional logic before listing subscriptions.
 	RegisterBeforeListSubscriptions(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ListSubscriptionsRequest) (*api.ListSubscriptionsRequest, error)) error
 
@@ -1149,6 +1172,54 @@ func (d *DefaultAuthenticateProviderResult) GetMetadata() map[string]any {
 	return d.Metadata
 }
 
+/*
+IAPProvider is a named purchase backend registered through Initializer.RegisterIAPProvider.
+*/
+type IAPProvider interface {
+	// Name selects the provider in validation requests.
+	Name() string
+	// NotificationEndpointId is the last path segment of the provider's notification endpoint.
+	NotificationEndpointId() string
+	// Code identifies the provider's purchases and subscriptions in storage.
+	Code() int
+	// ValidatePurchase verifies the caller's payload, using any server-side overrides, and returns the purchases for Nakama to store.
+	ValidatePurchase(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, payload map[string]any, overrides map[string]any) ([]*IAPProviderPurchase, error)
+	// ValidateSubscription verifies the caller's payload, using any server-side overrides, and returns the subscriptions for Nakama to store. The first one is returned to the caller.
+	ValidateSubscription(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, payload map[string]any, overrides map[string]any) ([]*IAPProviderSubscription, error)
+	// HandleNotification receives the store's notifications. It authenticates a notification and returns the updates it carries, in order, or none to acknowledge and ignore it.
+	HandleNotification(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, body []byte, headers, query map[string][]string) ([]*IAPProviderNotification, error)
+}
+
+/*
+IAPProviderNotification is one update a notification carries: a refunded Purchase, or a Subscription change.
+A Subscription with a zero Type is stored without calling the notification hook.
+*/
+type IAPProviderNotification struct {
+	Type         NotificationType
+	UserId       string
+	Purchase     *IAPProviderPurchase
+	Subscription *IAPProviderSubscription
+}
+
+type IAPProviderPurchase struct {
+	TransactionId string
+	ProductId     string
+	PurchaseTime  time.Time
+	RefundTime    time.Time
+	Environment   api.StoreEnvironment
+	RawResponse   string
+}
+
+type IAPProviderSubscription struct {
+	OriginalTransactionId string
+	ProductId             string
+	PurchaseTime          time.Time
+	ExpiryTime            time.Time
+	RefundTime            time.Time
+	Environment           api.StoreEnvironment
+	RawResponse           string
+}
+
 type NakamaModule interface {
 	Authenticate(ctx context.Context, provider string, payload map[string]any, userID, username string, create bool) (string, string, bool, error)
 	AuthenticateApple(ctx context.Context, token, username string, create bool) (string, string, bool, error)
@@ -1267,6 +1338,7 @@ type NakamaModule interface {
 	PurchaseValidateSamsung(ctx context.Context, userID, purchaseId string, persist bool) (*api.ValidatePurchaseResponse, error)
 	PurchasesList(ctx context.Context, userID string, limit int, cursor string) (*api.PurchaseList, error)
 	PurchaseGetByTransactionId(ctx context.Context, transactionID string) (*api.ValidatedPurchase, error)
+	PurchaseValidate(ctx context.Context, provider, userID string, payload map[string]any, persist bool, overrides ...map[string]any) (*api.ValidateIAPPurchaseResponse, error)
 
 	SubscriptionValidateApple(ctx context.Context, userID, receipt string, persist bool, passwordOverride ...string) (*api.ValidateSubscriptionResponse, error)
 	SubscriptionValidateGoogle(ctx context.Context, userID, receipt string, persist bool, overrides ...struct {
@@ -1275,6 +1347,7 @@ type NakamaModule interface {
 	}) (*api.ValidateSubscriptionResponse, error)
 	SubscriptionsList(ctx context.Context, userID string, limit int, cursor string) (*api.SubscriptionList, error)
 	SubscriptionGetByProductId(ctx context.Context, userID, productID string) (*api.ValidatedSubscription, error)
+	SubscriptionValidate(ctx context.Context, provider, userID string, payload map[string]any, persist bool, overrides ...map[string]any) (*api.ValidateIAPSubscriptionResponse, error)
 
 	TournamentCreate(ctx context.Context, id string, authoritative bool, sortOrder, operator, resetSchedule string, metadata map[string]interface{}, title, description string, category, startTime, endTime, duration, maxSize, maxNumScore int, joinRequired, enableRanks bool) error
 	TournamentDelete(ctx context.Context, id string) error

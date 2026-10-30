@@ -16,6 +16,7 @@ package server
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"github.com/gofrs/uuid/v5"
@@ -29,7 +30,7 @@ import (
 func (s *ConsoleServer) ListPurchases(ctx context.Context, in *console.ListPurchasesRequest) (*api.PurchaseList, error) {
 	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	if in.Filter != "" {
-		purchase, err := GetPurchaseByTransactionId(ctx, logger, s.db, in.Filter)
+		purchase, err := GetPurchaseByTransactionId(ctx, logger, s.db, s.runtime.IAPProviderRegistry(), in.Filter)
 		if err != nil {
 			return nil, status.Error(codes.Internal, "Error listing purchases.")
 		}
@@ -62,7 +63,22 @@ func (s *ConsoleServer) ListPurchases(ctx context.Context, in *console.ListPurch
 		before = in.Before.AsTime()
 	}
 
-	purchases, err := ListPurchases(ctx, logger, s.db, in.UserId, int(in.Limit), in.Cursor, after, before)
+	var store *int
+	if in.Provider != "" {
+		if code, found := api.StoreProvider_value[in.Provider]; found {
+			builtInCode := int(code)
+			store = &builtInCode
+		} else if provider := s.runtime.IAPProviderRegistry().Get(in.Provider); provider != nil {
+			store = &provider.storeCode
+		} else if code, err := strconv.Atoi(in.Provider); err == nil {
+			// Rows of a provider that is no longer registered can only be found by their code.
+			store = &code
+		} else {
+			return nil, status.Error(codes.InvalidArgument, "expects a registered IAP provider, a built-in store or a store code")
+		}
+	}
+
+	purchases, err := ListPurchases(ctx, logger, s.db, s.runtime.IAPProviderRegistry(), in.UserId, int(in.Limit), in.Cursor, after, before, store)
 	if err != nil {
 		logger.Error("Failed to list purchases", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Error listing purchases.")
@@ -77,7 +93,7 @@ func (s *ConsoleServer) GetPurchase(ctx context.Context, in *console.GetPurchase
 		return nil, status.Error(codes.InvalidArgument, "transaction id is required")
 	}
 
-	purchase, err := GetPurchaseByTransactionId(ctx, logger, s.db, in.TransactionId)
+	purchase, err := GetPurchaseByTransactionId(ctx, logger, s.db, s.runtime.IAPProviderRegistry(), in.TransactionId)
 	if err != nil || purchase == nil {
 		return nil, status.Error(codes.NotFound, "Purchase not found")
 	}

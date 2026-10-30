@@ -4334,7 +4334,9 @@ type ListPurchasesRequest struct {
 	// Optional timestamp threshold to list purchases before.
 	Before *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=before,proto3" json:"before,omitempty"`
 	// Filter to use when searching for specific purchases.
-	Filter        string `protobuf:"bytes,6,opt,name=filter,proto3" json:"filter,omitempty"`
+	Filter string `protobuf:"bytes,6,opt,name=filter,proto3" json:"filter,omitempty"`
+	// Optional IAP provider name, built-in store (APPLE_APP_STORE, GOOGLE_PLAY_STORE, HUAWEI_APP_GALLERY, FACEBOOK_INSTANT_STORE, SAMSUNG_GALAXY_STORE) or numeric store code to list purchases for.
+	Provider      string `protobuf:"bytes,7,opt,name=provider,proto3" json:"provider,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4411,6 +4413,13 @@ func (x *ListPurchasesRequest) GetFilter() string {
 	return ""
 }
 
+func (x *ListPurchasesRequest) GetProvider() string {
+	if x != nil {
+		return x.Provider
+	}
+	return ""
+}
+
 // List subscriptions.
 type ListSubscriptionsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -4425,7 +4434,9 @@ type ListSubscriptionsRequest struct {
 	// Optional timestamp threshold to list subscriptions before.
 	Before *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=before,proto3" json:"before,omitempty"`
 	// Filter to use when searching for specific subscriptions.
-	Filter        string `protobuf:"bytes,6,opt,name=filter,proto3" json:"filter,omitempty"`
+	Filter string `protobuf:"bytes,6,opt,name=filter,proto3" json:"filter,omitempty"`
+	// Optional IAP provider name, built-in store (APPLE_APP_STORE, GOOGLE_PLAY_STORE, HUAWEI_APP_GALLERY, FACEBOOK_INSTANT_STORE, SAMSUNG_GALAXY_STORE) or numeric store code to list subscriptions for.
+	Provider      string `protobuf:"bytes,7,opt,name=provider,proto3" json:"provider,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4498,6 +4509,13 @@ func (x *ListSubscriptionsRequest) GetBefore() *timestamppb.Timestamp {
 func (x *ListSubscriptionsRequest) GetFilter() string {
 	if x != nil {
 		return x.Filter
+	}
+	return ""
+}
+
+func (x *ListSubscriptionsRequest) GetProvider() string {
+	if x != nil {
+		return x.Provider
 	}
 	return ""
 }
@@ -5805,8 +5823,10 @@ type RuntimeInfo struct {
 	GoAuthenticateProviders []string `protobuf:"bytes,8,rep,name=go_authenticate_providers,json=goAuthenticateProviders,proto3" json:"go_authenticate_providers,omitempty"`
 	// JavaScript registered authentication providers
 	JsAuthenticateProviders []string `protobuf:"bytes,9,rep,name=js_authenticate_providers,json=jsAuthenticateProviders,proto3" json:"js_authenticate_providers,omitempty"`
-	unknownFields           protoimpl.UnknownFields
-	sizeCache               protoimpl.SizeCache
+	// Go registered IAP providers
+	GoIapProviders []string `protobuf:"bytes,10,rep,name=go_iap_providers,json=goIapProviders,proto3" json:"go_iap_providers,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *RuntimeInfo) Reset() {
@@ -5898,6 +5918,13 @@ func (x *RuntimeInfo) GetGoAuthenticateProviders() []string {
 func (x *RuntimeInfo) GetJsAuthenticateProviders() []string {
 	if x != nil {
 		return x.JsAuthenticateProviders
+	}
+	return nil
+}
+
+func (x *RuntimeInfo) GetGoIapProviders() []string {
+	if x != nil {
+		return x.GoIapProviders
 	}
 	return nil
 }
@@ -10125,21 +10152,23 @@ const file_console_proto_rawDesc = "" +
 	"\x18ListNotificationsRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
 	"\x05limit\x18\x02 \x01(\rR\x05limit\x12\x16\n" +
-	"\x06cursor\x18\x03 \x01(\tR\x06cursor\"\xdb\x01\n" +
+	"\x06cursor\x18\x03 \x01(\tR\x06cursor\"\xf7\x01\n" +
 	"\x14ListPurchasesRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
 	"\x05limit\x18\x02 \x01(\rR\x05limit\x12\x16\n" +
 	"\x06cursor\x18\x03 \x01(\tR\x06cursor\x120\n" +
 	"\x05after\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\x05after\x122\n" +
 	"\x06before\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\x06before\x12\x16\n" +
-	"\x06filter\x18\x06 \x01(\tR\x06filter\"\xdf\x01\n" +
+	"\x06filter\x18\x06 \x01(\tR\x06filter\x12\x1a\n" +
+	"\bprovider\x18\a \x01(\tR\bprovider\"\xfb\x01\n" +
 	"\x18ListSubscriptionsRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
 	"\x05limit\x18\x02 \x01(\rR\x05limit\x12\x16\n" +
 	"\x06cursor\x18\x03 \x01(\tR\x06cursor\x120\n" +
 	"\x05after\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\x05after\x122\n" +
 	"\x06before\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\x06before\x12\x16\n" +
-	"\x06filter\x18\x06 \x01(\tR\x06filter\"w\n" +
+	"\x06filter\x18\x06 \x01(\tR\x06filter\x12\x1a\n" +
+	"\bprovider\x18\a \x01(\tR\bprovider\"w\n" +
 	"\x12ListStorageRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x10\n" +
 	"\x03key\x18\x02 \x01(\tR\x03key\x12\x1e\n" +
@@ -10272,7 +10301,7 @@ const file_console_proto_rawDesc = "" +
 	"\vparty_count\x18\v \x01(\x05R\n" +
 	"partyCount\x12;\n" +
 	"\vcreate_time\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"createTime\"\xf3\x04\n" +
+	"createTime\"\x9d\x05\n" +
 	"\vRuntimeInfo\x12*\n" +
 	"\x11lua_rpc_functions\x18\x01 \x03(\tR\x0fluaRpcFunctions\x12(\n" +
 	"\x10go_rpc_functions\x18\x02 \x03(\tR\x0egoRpcFunctions\x12(\n" +
@@ -10285,7 +10314,9 @@ const file_console_proto_rawDesc = "" +
 	"js_modules\x18\x06 \x03(\v2&.nakama.console.RuntimeInfo.ModuleInfoR\tjsModules\x12<\n" +
 	"\x1alua_authenticate_providers\x18\a \x03(\tR\x18luaAuthenticateProviders\x12:\n" +
 	"\x19go_authenticate_providers\x18\b \x03(\tR\x17goAuthenticateProviders\x12:\n" +
-	"\x19js_authenticate_providers\x18\t \x03(\tR\x17jsAuthenticateProviders\x1aW\n" +
+	"\x19js_authenticate_providers\x18\t \x03(\tR\x17jsAuthenticateProviders\x12(\n" +
+	"\x10go_iap_providers\x18\n" +
+	" \x03(\tR\x0egoIapProviders\x1aW\n" +
 	"\n" +
 	"ModuleInfo\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x125\n" +
