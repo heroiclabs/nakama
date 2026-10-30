@@ -2972,7 +2972,7 @@ func purchaseValidationToLuaTable(l *lua.LState, validation *api.ValidatePurchas
 }
 
 func purchaseToLuaTable(l *lua.LState, p *api.ValidatedPurchase) *lua.LTable {
-	validatedPurchaseTable := l.CreateTable(0, 11)
+	validatedPurchaseTable := l.CreateTable(0, 12)
 
 	validatedPurchaseTable.RawSetString("user_id", lua.LString(p.UserId))
 	validatedPurchaseTable.RawSetString("product_id", lua.LString(p.ProductId))
@@ -3008,7 +3008,7 @@ func subscriptionValidationToLuaTable(l *lua.LState, validation *api.ValidateSub
 }
 
 func subscriptionToLuaTable(l *lua.LState, p *api.ValidatedSubscription) *lua.LTable {
-	validatedSubscriptionTable := l.CreateTable(0, 13)
+	validatedSubscriptionTable := l.CreateTable(0, 14)
 	validatedSubscriptionTable.RawSetString("user_id", lua.LString(p.UserId))
 	validatedSubscriptionTable.RawSetString("product_id", lua.LString(p.ProductId))
 	validatedSubscriptionTable.RawSetString("original_transaction_id", lua.LString(p.OriginalTransactionId))

@@ -10494,7 +10494,7 @@ func purchaseResponseToJsObject(validation *api.ValidatePurchaseResponse) map[st
 }
 
 func validatedPurchaseToJsObject(purchase *api.ValidatedPurchase) map[string]any {
-	validatedPurchaseMap := make(map[string]any, 11)
+	validatedPurchaseMap := make(map[string]any, 12)
 	validatedPurchaseMap["userId"] = purchase.UserId
 	validatedPurchaseMap["productId"] = purchase.ProductId
 	validatedPurchaseMap["transactionId"] = purchase.TransactionId
@@ -10526,7 +10526,7 @@ func subscriptionResponseToJsObject(validation *api.ValidateSubscriptionResponse
 }
 
 func subscriptionToJsObject(subscription *api.ValidatedSubscription) map[string]any {
-	validatedSubMap := make(map[string]any, 13)
+	validatedSubMap := make(map[string]any, 14)
 	validatedSubMap["userId"] = subscription.UserId
 	validatedSubMap["productId"] = subscription.ProductId
 	validatedSubMap["originalTransactionId"] = subscription.OriginalTransactionId
