@@ -15,6 +15,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Fix Huawei purchase validation failing on a malformed verification URL.
 - Return the user ID on unpersisted Samsung and Huawei purchase validations.
 - Fix a data race when leaderboard and tournament reset schedules are evaluated concurrently, which could produce wrong reset times or a panic.
+- Fix JavaScript runtime match registration failing when handler keys are quoted.
 
 ## [3.41.0] - 2026-09-18
 ### Added
