@@ -26,6 +26,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -245,7 +246,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		if provider.notificationHandler == nil {
 			continue
 		}
-		endpoint := fmt.Sprintf("/v2/console/%s/notifications", provider.notificationId)
+		endpoint := path.Join("/v2/console", provider.name, "notifications", provider.notificationEndpointId)
 		iapRouter.HandleFunc(endpoint, iapProviderNotificationHandler(logger, db, iapProviderRegistry, provider, runtime.IAPPurchaseNotification(), runtime.IAPSubscriptionNotification()))
 		logger.Info("Registered endpoint for IAP provider notifications callback", zap.String("provider", name), zap.String("endpoint", endpoint))
 	}

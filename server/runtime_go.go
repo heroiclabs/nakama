@@ -4035,7 +4035,7 @@ func (ri *RuntimeGoInitializer) RegisterIAPProvider(provider runtime.IAPProvider
 		return provider.HandleNotification(ctx, ri.logger.WithFields(map[string]any{"mode": RuntimeExecutionModeIAPPurchaseNotification.String(), "provider": name}), ri.db, ri.nk, body, headers, query)
 	}
 
-	return ri.iapProviderRegistry.Register(name, provider.NotificationId(), provider.Code(), validateFunc, validateSubscriptionFunc, notificationFunc)
+	return ri.iapProviderRegistry.Register(name, provider.NotificationEndpointId(), provider.Code(), validateFunc, validateSubscriptionFunc, notificationFunc)
 }
 
 // @group purchases
