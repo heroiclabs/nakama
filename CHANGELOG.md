@@ -10,6 +10,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add a notification endpoint for each IAP provider at `/v2/console/<Name>/notifications/<NotificationEndpointId>`, or `/v2/console/<Name>/notifications` when the provider returns no `NotificationEndpointId`.
 - Add the `RegisterIAPPurchaseNotification` and `RegisterIAPSubscriptionNotification` hooks for purchase refunds and subscription changes reported by IAP providers.
 - Add a provider filter to the console purchase and subscription lists, taking an IAP provider name or a built-in store.
+- Add IAP providers to the Lua and JavaScript runtimes, with their notification hooks and purchase and subscription validation functions.
 
 ### Changed
 - Directory listings on the console port now return an HTTP 404 Not Found error.

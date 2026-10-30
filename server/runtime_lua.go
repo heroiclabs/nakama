@@ -24,10 +24,12 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/heroiclabs/nakama-common/runtime"
 
@@ -69,6 +71,11 @@ type RuntimeLuaCallbacks struct {
 	SubscriptionNotificationGoogle *lua.LFunction
 	StorageIndexFilter             *MapOf[string, *lua.LFunction]
 	AuthenticateProvider           *MapOf[string, *lua.LFunction]
+	IAPProvider                    *MapOf[string, *lua.LFunction]
+	IAPSubscriptionProvider        *MapOf[string, *lua.LFunction]
+	IAPProviderNotification        *MapOf[string, *lua.LFunction]
+	IAPPurchaseNotification        *lua.LFunction
+	IAPSubscriptionNotification    *lua.LFunction
 }
 
 type RuntimeLuaModule struct {
@@ -117,14 +124,14 @@ type RuntimeProviderLua struct {
 	statsCtx context.Context
 }
 
-func NewRuntimeProviderLua(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, satoriClient runtime.Satori, eventFn RuntimeEventCustomFunction, rootPath string, paths []string, matchProvider *MatchProvider, storageIndex StorageIndex, authProviderRegistry *RuntimeAuthenticateProviderRegistry, iapProviderRegistry *RuntimeIAPProviderRegistry) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, RuntimeShutdownFunction, RuntimePurchaseNotificationAppleFunction, RuntimeSubscriptionNotificationAppleFunction, RuntimePurchaseNotificationGoogleFunction, RuntimeSubscriptionNotificationGoogleFunction, map[string]RuntimeStorageIndexFilterFunction, []string, error) {
+func NewRuntimeProviderLua(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, satoriClient runtime.Satori, eventFn RuntimeEventCustomFunction, rootPath string, paths []string, matchProvider *MatchProvider, storageIndex StorageIndex, authProviderRegistry *RuntimeAuthenticateProviderRegistry, iapProviderRegistry *RuntimeIAPProviderRegistry, iapPurchaseNotification *RuntimeIAPPurchaseNotificationFunction, iapSubscriptionNotification *RuntimeIAPSubscriptionNotificationFunction) ([]string, map[string]RuntimeRpcFunction, map[string]RuntimeBeforeRtFunction, map[string]RuntimeAfterRtFunction, *RuntimeBeforeReqFunctions, *RuntimeAfterReqFunctions, RuntimeMatchmakerMatchedFunction, RuntimeTournamentEndFunction, RuntimeTournamentResetFunction, RuntimeLeaderboardResetFunction, RuntimeShutdownFunction, RuntimePurchaseNotificationAppleFunction, RuntimeSubscriptionNotificationAppleFunction, RuntimePurchaseNotificationGoogleFunction, RuntimeSubscriptionNotificationGoogleFunction, map[string]RuntimeStorageIndexFilterFunction, []string, []string, error) {
 	startupLogger.Info("Initialising Lua runtime provider", zap.String("path", rootPath))
 
 	// Load Lua modules into memory by reading the file contents. No evaluation/execution at this stage.
 	moduleCache, modulePaths, stdLibs, err := openLuaModules(startupLogger, rootPath, paths)
 	if err != nil {
 		// Errors already logged in the function call above.
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 
 	once := &sync.Once{}
@@ -146,6 +153,9 @@ func NewRuntimeProviderLua(ctx context.Context, logger, startupLogger *zap.Logge
 	storageIndexFilterFunctions := make(map[string]RuntimeStorageIndexFilterFunction, 0)
 	authProviderIDs := make([]string, 0)
 	var authProviderErr error
+	iapProviderIDs := make([]string, 0)
+	iapProviderNotificationIDs := make([]string, 0)
+	iapProviders := make(map[string]*RuntimeIAPProviderFunctions)
 
 	var sharedReg *lua.LTable
 	var sharedGlobals *lua.LTable
@@ -837,6 +847,22 @@ func NewRuntimeProviderLua(ctx context.Context, logger, startupLogger *zap.Logge
 						}
 						return result.(*api.ValidateSubscriptionGoogleRequest), nil, 0
 					}
+				case "validatepurchase":
+					beforeReqFunctions.beforeValidatePurchaseFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidateIAPPurchaseRequest) (*api.ValidateIAPPurchaseRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, in)
+						if result == nil || err != nil {
+							return nil, err, code
+						}
+						return result.(*api.ValidateIAPPurchaseRequest), nil, 0
+					}
+				case "validatesubscription":
+					beforeReqFunctions.beforeValidateSubscriptionFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ValidateIAPSubscriptionRequest) (*api.ValidateIAPSubscriptionRequest, error, codes.Code) {
+						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, in)
+						if result == nil || err != nil {
+							return nil, err, code
+						}
+						return result.(*api.ValidateIAPSubscriptionRequest), nil, 0
+					}
 				case "getsubscription":
 					beforeReqFunctions.beforeGetSubscriptionFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.GetSubscriptionRequest) (*api.GetSubscriptionRequest, error, codes.Code) {
 						result, err, code := runtimeProviderLua.BeforeReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, in)
@@ -1191,6 +1217,14 @@ func NewRuntimeProviderLua(ctx context.Context, logger, startupLogger *zap.Logge
 					afterReqFunctions.afterValidateSubscriptionAppleFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidateSubscriptionResponse, in *api.ValidateSubscriptionAppleRequest) error {
 						return runtimeProviderLua.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, out, in)
 					}
+				case "validatepurchase":
+					afterReqFunctions.afterValidatePurchaseFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidateIAPPurchaseResponse, in *api.ValidateIAPPurchaseRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, out, in)
+					}
+				case "validatesubscription":
+					afterReqFunctions.afterValidateSubscriptionFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidateIAPSubscriptionResponse, in *api.ValidateIAPSubscriptionRequest) error {
+						return runtimeProviderLua.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, out, in)
+					}
 				case "getsubscription":
 					afterReqFunctions.afterGetSubscriptionFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidatedSubscription, in *api.GetSubscriptionRequest) error {
 						return runtimeProviderLua.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, out, in)
@@ -1269,14 +1303,49 @@ func NewRuntimeProviderLua(ctx context.Context, logger, startupLogger *zap.Logge
 				return
 			}
 			authProviderIDs = append(authProviderIDs, id)
+		case RuntimeExecutionModeIAPProvider:
+			iapProviderIDs = append(iapProviderIDs, id)
+		case RuntimeExecutionModeIAPProviderNotification:
+			iapProviderNotificationIDs = append(iapProviderNotificationIDs, id)
+		case RuntimeExecutionModeIAPPurchaseNotification:
+			// Go modules load first and take precedence.
+			if *iapPurchaseNotification == nil {
+				startupLogger.Info("Registered Lua runtime IAP Purchase Notification function invocation")
+				*iapPurchaseNotification = func(ctx context.Context, provider string, notificationType runtime.NotificationType, purchase *api.ValidatedPurchase, providerPayload string) error {
+					return runtimeProviderLua.IAPPurchaseNotification(ctx, provider, purchase, providerPayload, notificationType.String())
+				}
+			}
+		case RuntimeExecutionModeIAPSubscriptionNotification:
+			if *iapSubscriptionNotification == nil {
+				startupLogger.Info("Registered Lua runtime IAP Subscription Notification function invocation")
+				*iapSubscriptionNotification = func(ctx context.Context, provider string, notificationType runtime.NotificationType, subscription *api.ValidatedSubscription, providerPayload string) error {
+					return runtimeProviderLua.IAPSubscriptionNotification(ctx, provider, subscription, providerPayload, notificationType.String())
+				}
+			}
 		}
-	})
+	}, iapProviders)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 	if authProviderErr != nil {
 		startupLogger.Error("Failed to register Lua authentication provider.", zap.Error(authProviderErr))
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, authProviderErr
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, authProviderErr
+	}
+	for _, id := range iapProviderIDs {
+		var notificationHandler RuntimeIAPProviderNotificationFunction
+		if slices.Contains(iapProviderNotificationIDs, id) {
+			notificationHandler = func(ctx context.Context, body []byte, headers, query map[string][]string) ([]*runtime.IAPProviderNotification, error) {
+				return runtimeProviderLua.HandleNotification(ctx, id, body, headers, query)
+			}
+		}
+		if err = iapProviderRegistry.Register(id, iapProviders[id].notificationEndpointId, iapProviders[id].storeCode, func(ctx context.Context, traceID string, payload, overrides map[string]any) ([]*runtime.IAPProviderPurchase, error, codes.Code) {
+			return runtimeProviderLua.ValidatePurchase(ctx, id, traceID, payload, overrides)
+		}, func(ctx context.Context, traceID string, payload, overrides map[string]any) ([]*runtime.IAPProviderSubscription, error, codes.Code) {
+			return runtimeProviderLua.ValidateSubscription(ctx, id, traceID, payload, overrides)
+		}, notificationHandler); err != nil {
+			startupLogger.Error("Failed to register Lua IAP provider.", zap.Error(err))
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		}
 	}
 
 	if config.GetRuntime().GetLuaReadOnlyGlobals() {
@@ -1329,7 +1398,7 @@ func NewRuntimeProviderLua(ctx context.Context, logger, startupLogger *zap.Logge
 		r.Stop()
 
 		runtimeProviderLua.newFn = func() *RuntimeLua {
-			r, err := newRuntimeLuaVM(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, stdLibs, moduleCache, once, localCache, storageIndex, satoriClient, matchProvider.CreateMatch, eventFn, authProviderRegistry, iapProviderRegistry, nil)
+			r, err := newRuntimeLuaVM(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, leaderboardRankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, stdLibs, moduleCache, once, localCache, storageIndex, satoriClient, matchProvider.CreateMatch, eventFn, authProviderRegistry, iapProviderRegistry, nil, nil)
 			if err != nil {
 				logger.Fatal("Failed to initialize Lua runtime", zap.Error(err))
 			}
@@ -1350,7 +1419,7 @@ func NewRuntimeProviderLua(ctx context.Context, logger, startupLogger *zap.Logge
 	}
 	startupLogger.Info("Allocated minimum Lua runtime pool")
 
-	return modulePaths, rpcFunctions, beforeRtFunctions, afterRtFunctions, beforeReqFunctions, afterReqFunctions, matchmakerMatchedFunction, tournamentEndFunction, tournamentResetFunction, leaderboardResetFunction, shutdownFunction, purchaseNotificationAppleFunction, subscriptionNotificationAppleFunction, purchaseNotificationGoogleFunction, subscriptionNotificationGoogleFunction, storageIndexFilterFunctions, authProviderIDs, nil
+	return modulePaths, rpcFunctions, beforeRtFunctions, afterRtFunctions, beforeReqFunctions, afterReqFunctions, matchmakerMatchedFunction, tournamentEndFunction, tournamentResetFunction, leaderboardResetFunction, shutdownFunction, purchaseNotificationAppleFunction, subscriptionNotificationAppleFunction, purchaseNotificationGoogleFunction, subscriptionNotificationGoogleFunction, storageIndexFilterFunctions, authProviderIDs, iapProviderIDs, nil
 }
 
 func CheckRuntimeProviderLua(logger *zap.Logger, config Config, version string, paths []string) error {
@@ -1577,6 +1646,392 @@ func (rp *RuntimeProviderLua) Authenticate(ctx context.Context, name, traceID st
 	}
 
 	return providerResult, nil, codes.OK
+}
+
+func (rp *RuntimeProviderLua) ValidatePurchase(ctx context.Context, name, traceID string, payload, overrides map[string]any) ([]*runtime.IAPProviderPurchase, error, codes.Code) {
+	r, err := rp.Get(ctx)
+	if err != nil {
+		return nil, err, codes.Internal
+	}
+
+	logger, _ := LoggerWithTraceId(ctx, rp.logger)
+
+	lf := r.GetCallback(RuntimeExecutionModeIAPProvider, name)
+	if lf == nil {
+		rp.Put(r)
+		logger.Error("Lua runtime IAP provider purchase function not found.", zap.String("provider", name))
+		return nil, errors.New("Could not run IAP provider purchase function."), codes.Internal
+	}
+
+	// Set context value used for logging
+	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"provider": name})
+	vmCtx = NewRuntimeGoContext(vmCtx, r.node, r.version, r.env, RuntimeExecutionModeIAPProvider, nil, nil, traceID, 0, "", "", nil, "", "", "", "")
+	r.vm.SetContext(vmCtx)
+	result, fnErr, code, isCustomErr := r.InvokeFunction(RuntimeExecutionModeIAPProvider, lf, nil, nil, traceID, "", "", nil, 0, "", "", "", "", payload, overrides)
+	r.vm.SetContext(context.Background())
+
+	if fnErr != nil {
+		if !isCustomErr {
+			// Errors triggered with `error({msg, code})` could only have come directly from custom runtime code.
+			// Assume they've been fully handled (logged etc) before that error is invoked.
+			logger.Error("Runtime IAP provider purchase function caused an error", zap.String("provider", name), zap.Error(fnErr))
+		}
+
+		if code <= 0 || code >= 17 {
+			// If error is present but code is invalid then default to 13 (Internal) as the error code.
+			code = 13
+		}
+
+		err = clearFnError(fnErr, rp, lf)
+		rp.Put(r) // don't return VM until error originated in that VM is processed
+		return nil, err, code
+	}
+	rp.Put(r)
+
+	var purchasesIn []any
+	switch v := result.(type) {
+	case []any:
+		purchasesIn = v
+	case nil:
+	case map[string]any:
+		// An empty Lua table converts to a map, not a list.
+		if len(v) != 0 {
+			msg := "Runtime IAP provider purchase function returned invalid data - only allowed one return value of type table with a list of purchases."
+			logger.Error(msg, zap.String("provider", name))
+			return nil, errors.New(msg), codes.Internal
+		}
+	default:
+		msg := "Runtime IAP provider purchase function returned invalid data - only allowed one return value of type table with a list of purchases."
+		logger.Error(msg, zap.String("provider", name))
+		return nil, errors.New(msg), codes.Internal
+	}
+
+	purchases := make([]*runtime.IAPProviderPurchase, 0, len(purchasesIn))
+	for _, purchaseIn := range purchasesIn {
+		purchaseMap, ok := purchaseIn.(map[string]any)
+		if !ok {
+			msg := "Runtime IAP provider purchase function returned an invalid purchase - must be a table."
+			logger.Error(msg, zap.String("provider", name))
+			return nil, errors.New(msg), codes.Internal
+		}
+
+		purchase := &runtime.IAPProviderPurchase{}
+		var transactionIDOk, productIDOk, rawResponseOk bool
+		purchase.TransactionId, transactionIDOk = purchaseMap["transaction_id"].(string)
+		purchase.ProductId, productIDOk = purchaseMap["product_id"].(string)
+		purchase.RawResponse, rawResponseOk = purchaseMap["raw_response"].(string)
+		if !transactionIDOk || !productIDOk || (!rawResponseOk && purchaseMap["raw_response"] != nil) {
+			msg := "Runtime IAP provider purchase function returned an invalid purchase - transaction_id and product_id must be strings, raw_response an optional string."
+			logger.Error(msg, zap.String("provider", name))
+			return nil, errors.New(msg), codes.Internal
+		}
+
+		for key, t := range map[string]*time.Time{"purchase_time": &purchase.PurchaseTime, "refund_time": &purchase.RefundTime} {
+			switch v := purchaseMap[key].(type) {
+			case nil:
+			case int64:
+				if v > 0 {
+					*t = time.Unix(v, 0)
+				}
+			case float64:
+				if v > 0 {
+					*t = time.Unix(0, int64(v*float64(time.Second)))
+				}
+			default:
+				msg := fmt.Sprintf("Runtime IAP provider purchase function returned an invalid purchase - %s must be a number of seconds since the epoch.", key)
+				logger.Error(msg, zap.String("provider", name))
+				return nil, errors.New(msg), codes.Internal
+			}
+		}
+
+		if environmentIn, found := purchaseMap["environment"]; found {
+			environmentStr, _ := environmentIn.(string)
+			environment, ok := api.StoreEnvironment_value[strings.ToUpper(environmentStr)]
+			if !ok {
+				msg := "Runtime IAP provider purchase function returned an invalid purchase - environment must be one of UNKNOWN, SANDBOX or PRODUCTION."
+				logger.Error(msg, zap.String("provider", name))
+				return nil, errors.New(msg), codes.Internal
+			}
+			purchase.Environment = api.StoreEnvironment(environment)
+		}
+
+		purchases = append(purchases, purchase)
+	}
+
+	return purchases, nil, codes.OK
+}
+
+func (rp *RuntimeProviderLua) ValidateSubscription(ctx context.Context, name, traceID string, payload, overrides map[string]any) ([]*runtime.IAPProviderSubscription, error, codes.Code) {
+	r, err := rp.Get(ctx)
+	if err != nil {
+		return nil, err, codes.Internal
+	}
+
+	logger, _ := LoggerWithTraceId(ctx, rp.logger)
+
+	lf := r.GetCallback(RuntimeExecutionModeIAPSubscriptionProvider, name)
+	if lf == nil {
+		rp.Put(r)
+		logger.Error("Lua runtime IAP provider subscription function not found.", zap.String("provider", name))
+		return nil, errors.New("Could not run IAP provider subscription function."), codes.Internal
+	}
+
+	// Set context value used for logging
+	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"provider": name})
+	vmCtx = NewRuntimeGoContext(vmCtx, r.node, r.version, r.env, RuntimeExecutionModeIAPProvider, nil, nil, traceID, 0, "", "", nil, "", "", "", "")
+	r.vm.SetContext(vmCtx)
+	result, fnErr, code, isCustomErr := r.InvokeFunction(RuntimeExecutionModeIAPProvider, lf, nil, nil, traceID, "", "", nil, 0, "", "", "", "", payload, overrides)
+	r.vm.SetContext(context.Background())
+
+	if fnErr != nil {
+		if !isCustomErr {
+			// Errors triggered with `error({msg, code})` could only have come directly from custom runtime code.
+			// Assume they've been fully handled (logged etc) before that error is invoked.
+			logger.Error("Runtime IAP provider subscription function caused an error", zap.String("provider", name), zap.Error(fnErr))
+		}
+
+		if code <= 0 || code >= 17 {
+			// If error is present but code is invalid then default to 13 (Internal) as the error code.
+			code = 13
+		}
+
+		err = clearFnError(fnErr, rp, lf)
+		rp.Put(r) // don't return VM until error originated in that VM is processed
+		return nil, err, code
+	}
+	rp.Put(r)
+
+	var subscriptionsIn []any
+	switch v := result.(type) {
+	case []any:
+		subscriptionsIn = v
+	case nil:
+	case map[string]any:
+		// An empty Lua table converts to a map, not a list.
+		if len(v) != 0 {
+			msg := "Runtime IAP provider subscription function returned invalid data - only allowed one return value of type table with a list of subscriptions."
+			logger.Error(msg, zap.String("provider", name))
+			return nil, errors.New(msg), codes.Internal
+		}
+	default:
+		msg := "Runtime IAP provider subscription function returned invalid data - only allowed one return value of type table with a list of subscriptions."
+		logger.Error(msg, zap.String("provider", name))
+		return nil, errors.New(msg), codes.Internal
+	}
+
+	subscriptions := make([]*runtime.IAPProviderSubscription, 0, len(subscriptionsIn))
+	for _, subscriptionIn := range subscriptionsIn {
+		subscriptionMap, ok := subscriptionIn.(map[string]any)
+		if !ok {
+			msg := "Runtime IAP provider subscription function returned an invalid subscription - must be a table."
+			logger.Error(msg, zap.String("provider", name))
+			return nil, errors.New(msg), codes.Internal
+		}
+
+		subscription := &runtime.IAPProviderSubscription{}
+		var originalTransactionIDOk, productIDOk, rawResponseOk bool
+		subscription.OriginalTransactionId, originalTransactionIDOk = subscriptionMap["original_transaction_id"].(string)
+		subscription.ProductId, productIDOk = subscriptionMap["product_id"].(string)
+		subscription.RawResponse, rawResponseOk = subscriptionMap["raw_response"].(string)
+		if !originalTransactionIDOk || !productIDOk || (!rawResponseOk && subscriptionMap["raw_response"] != nil) {
+			msg := "Runtime IAP provider subscription function returned an invalid subscription - original_transaction_id and product_id must be strings, raw_response an optional string."
+			logger.Error(msg, zap.String("provider", name))
+			return nil, errors.New(msg), codes.Internal
+		}
+
+		for key, t := range map[string]*time.Time{"purchase_time": &subscription.PurchaseTime, "expiry_time": &subscription.ExpiryTime, "refund_time": &subscription.RefundTime} {
+			switch v := subscriptionMap[key].(type) {
+			case nil:
+			case int64:
+				if v > 0 {
+					*t = time.Unix(v, 0)
+				}
+			case float64:
+				if v > 0 {
+					*t = time.Unix(0, int64(v*float64(time.Second)))
+				}
+			default:
+				msg := fmt.Sprintf("Runtime IAP provider subscription function returned an invalid subscription - %s must be a number of seconds since the epoch.", key)
+				logger.Error(msg, zap.String("provider", name))
+				return nil, errors.New(msg), codes.Internal
+			}
+		}
+
+		if environmentIn, found := subscriptionMap["environment"]; found {
+			environmentStr, _ := environmentIn.(string)
+			environment, ok := api.StoreEnvironment_value[strings.ToUpper(environmentStr)]
+			if !ok {
+				msg := "Runtime IAP provider subscription function returned an invalid subscription - environment must be one of UNKNOWN, SANDBOX or PRODUCTION."
+				logger.Error(msg, zap.String("provider", name))
+				return nil, errors.New(msg), codes.Internal
+			}
+			subscription.Environment = api.StoreEnvironment(environment)
+		}
+
+		subscriptions = append(subscriptions, subscription)
+	}
+
+	return subscriptions, nil, codes.OK
+}
+
+func (rp *RuntimeProviderLua) HandleNotification(ctx context.Context, name string, body []byte, headers, query map[string][]string) ([]*runtime.IAPProviderNotification, error) {
+	r, err := rp.Get(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	lf := r.GetCallback(RuntimeExecutionModeIAPProviderNotification, name)
+	if lf == nil {
+		rp.Put(r)
+		rp.logger.Error("Lua runtime IAP provider notification function not found.", zap.String("provider", name))
+		return nil, errors.New("Could not run IAP provider notification function.")
+	}
+
+	// Set context value used for logging
+	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"provider": name})
+	vmCtx = NewRuntimeGoContext(vmCtx, r.node, r.version, r.env, RuntimeExecutionModeIAPPurchaseNotification, nil, nil, "", 0, "", "", nil, "", "", "", "")
+	r.vm.SetContext(vmCtx)
+	result, fnErr, _, isCustomErr := r.InvokeFunction(RuntimeExecutionModeIAPPurchaseNotification, lf, nil, nil, "", "", "", nil, 0, "", "", "", "", string(body), headers, query)
+	r.vm.SetContext(context.Background())
+
+	if fnErr != nil {
+		if !isCustomErr {
+			rp.logger.Error("Runtime IAP provider notification function caused an error", zap.String("provider", name), zap.Error(fnErr))
+		}
+		err = clearFnError(fnErr, rp, lf)
+		rp.Put(r) // don't return VM until error originated in that VM is processed
+		return nil, err
+	}
+	rp.Put(r)
+
+	if result == nil {
+		return nil, nil
+	}
+
+	var entries []any
+	switch v := result.(type) {
+	case []any:
+		entries = v
+	case map[string]any:
+		if len(v) != 0 {
+			return nil, errors.New("Runtime IAP provider notification function returned invalid data - only allowed one return value of type table (a list of notifications) or nil.")
+		}
+	default:
+		return nil, errors.New("Runtime IAP provider notification function returned invalid data - only allowed one return value of type table (a list of notifications) or nil.")
+	}
+
+	notifications := make([]*runtime.IAPProviderNotification, 0, len(entries))
+	for _, entry := range entries {
+		notificationMap, ok := entry.(map[string]any)
+		if !ok {
+			return nil, errors.New("Runtime IAP provider notification function returned an invalid notification - each must be a table.")
+		}
+
+		notification := &runtime.IAPProviderNotification{}
+		typeStr, typeOk := notificationMap["type"].(string)
+		for t := runtime.IAPNotificationSubscribed; t <= runtime.IAPNotificationRefunded; t++ {
+			if t.String() == strings.ToUpper(typeStr) {
+				notification.Type = t
+			}
+		}
+		if (!typeOk && notificationMap["type"] != nil) || (typeStr != "" && notification.Type == 0) {
+			return nil, errors.New("Runtime IAP provider notification function returned an invalid type - must be omitted or one of SUBSCRIBED, RENEWED, EXPIRED, CANCELLED or REFUNDED.")
+		}
+
+		var userIDOk bool
+		notification.UserId, userIDOk = notificationMap["user_id"].(string)
+		if !userIDOk && notificationMap["user_id"] != nil {
+			return nil, errors.New("Runtime IAP provider notification function returned invalid data - user_id must be an optional string.")
+		}
+
+		if purchaseIn, found := notificationMap["purchase"]; found {
+			purchaseMap, ok := purchaseIn.(map[string]any)
+			if !ok {
+				return nil, errors.New("Runtime IAP provider notification function returned an invalid purchase - must be a table.")
+			}
+
+			purchase := &runtime.IAPProviderPurchase{}
+			var transactionIDOk, productIDOk, rawResponseOk bool
+			purchase.TransactionId, transactionIDOk = purchaseMap["transaction_id"].(string)
+			purchase.ProductId, productIDOk = purchaseMap["product_id"].(string)
+			purchase.RawResponse, rawResponseOk = purchaseMap["raw_response"].(string)
+			if !transactionIDOk || !productIDOk || (!rawResponseOk && purchaseMap["raw_response"] != nil) {
+				return nil, errors.New("Runtime IAP provider notification function returned an invalid purchase - transaction_id and product_id must be strings, raw_response an optional string.")
+			}
+
+			for key, t := range map[string]*time.Time{"purchase_time": &purchase.PurchaseTime, "refund_time": &purchase.RefundTime} {
+				switch v := purchaseMap[key].(type) {
+				case nil:
+				case int64:
+					if v > 0 {
+						*t = time.Unix(v, 0)
+					}
+				case float64:
+					if v > 0 {
+						*t = time.Unix(0, int64(v*float64(time.Second)))
+					}
+				default:
+					return nil, fmt.Errorf("Runtime IAP provider notification function returned an invalid purchase - %s must be a number of seconds since the epoch.", key)
+				}
+			}
+
+			if environmentIn, found := purchaseMap["environment"]; found {
+				environmentStr, _ := environmentIn.(string)
+				environment, ok := api.StoreEnvironment_value[strings.ToUpper(environmentStr)]
+				if !ok {
+					return nil, errors.New("Runtime IAP provider notification function returned an invalid purchase - environment must be one of UNKNOWN, SANDBOX or PRODUCTION.")
+				}
+				purchase.Environment = api.StoreEnvironment(environment)
+			}
+
+			notification.Purchase = purchase
+		}
+
+		if subscriptionIn, found := notificationMap["subscription"]; found {
+			subscriptionMap, ok := subscriptionIn.(map[string]any)
+			if !ok {
+				return nil, errors.New("Runtime IAP provider notification function returned an invalid subscription - must be a table.")
+			}
+
+			subscription := &runtime.IAPProviderSubscription{}
+			var originalTransactionIDOk, productIDOk, rawResponseOk bool
+			subscription.OriginalTransactionId, originalTransactionIDOk = subscriptionMap["original_transaction_id"].(string)
+			subscription.ProductId, productIDOk = subscriptionMap["product_id"].(string)
+			subscription.RawResponse, rawResponseOk = subscriptionMap["raw_response"].(string)
+			if !originalTransactionIDOk || !productIDOk || (!rawResponseOk && subscriptionMap["raw_response"] != nil) {
+				return nil, errors.New("Runtime IAP provider notification function returned an invalid subscription - original_transaction_id and product_id must be strings, raw_response an optional string.")
+			}
+
+			for key, t := range map[string]*time.Time{"purchase_time": &subscription.PurchaseTime, "expiry_time": &subscription.ExpiryTime, "refund_time": &subscription.RefundTime} {
+				switch v := subscriptionMap[key].(type) {
+				case nil:
+				case int64:
+					if v > 0 {
+						*t = time.Unix(v, 0)
+					}
+				case float64:
+					if v > 0 {
+						*t = time.Unix(0, int64(v*float64(time.Second)))
+					}
+				default:
+					return nil, fmt.Errorf("Runtime IAP provider notification function returned an invalid subscription - %s must be a number of seconds since the epoch.", key)
+				}
+			}
+
+			if environmentIn, found := subscriptionMap["environment"]; found {
+				environmentStr, _ := environmentIn.(string)
+				environment, ok := api.StoreEnvironment_value[strings.ToUpper(environmentStr)]
+				if !ok {
+					return nil, errors.New("Runtime IAP provider notification function returned an invalid subscription - environment must be one of UNKNOWN, SANDBOX or PRODUCTION.")
+				}
+				subscription.Environment = api.StoreEnvironment(environment)
+			}
+
+			notification.Subscription = subscription
+		}
+		notifications = append(notifications, notification)
+	}
+	return notifications, nil
 }
 
 func (rp *RuntimeProviderLua) BeforeRt(ctx context.Context, id string, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, lang string, envelope *rtapi.Envelope) (*rtapi.Envelope, error) {
@@ -2262,6 +2717,74 @@ func (rp *RuntimeProviderLua) PurchaseNotificationGoogle(ctx context.Context, pu
 	return errors.New("Unexpected return type from runtime Purchase Notification Google hook, must be nil.")
 }
 
+func (rp *RuntimeProviderLua) IAPPurchaseNotification(ctx context.Context, provider string, purchase *api.ValidatedPurchase, providerPayload, notificationType string) error {
+	r, err := rp.Get(ctx)
+	if err != nil {
+		return err
+	}
+	lf := r.GetCallback(RuntimeExecutionModeIAPPurchaseNotification, "")
+	if lf == nil {
+		rp.Put(r)
+		return errors.New("Runtime IAP Purchase Notification function not found.")
+	}
+
+	luaCtx := NewRuntimeLuaContext(r.vm, r.node, r.version, r.luaEnv, RuntimeExecutionModeIAPPurchaseNotification, nil, nil, "", 0, "", "", nil, "", "", "", "")
+
+	purchaseTable := purchaseToLuaTable(r.vm, purchase)
+
+	// Set context value used for logging
+	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"mode": RuntimeExecutionModeIAPPurchaseNotification.String(), "provider": provider})
+	vmCtx = NewRuntimeGoContext(vmCtx, r.node, r.version, r.env, RuntimeExecutionModeIAPPurchaseNotification, nil, nil, "", 0, "", "", nil, "", "", "", "")
+	r.vm.SetContext(vmCtx)
+	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, purchaseTable, lua.LString(providerPayload), lua.LString(notificationType), lua.LString(provider))
+	r.vm.SetContext(context.Background())
+	rp.Put(r)
+	if err != nil {
+		return errors.New("Could not run IAP Purchase Notification hook.")
+	}
+
+	if retValue == nil || retValue == lua.LNil {
+		// No return value needed.
+		return nil
+	}
+
+	return errors.New("Unexpected return type from runtime IAP Purchase Notification hook, must be nil.")
+}
+
+func (rp *RuntimeProviderLua) IAPSubscriptionNotification(ctx context.Context, provider string, subscription *api.ValidatedSubscription, providerPayload, notificationType string) error {
+	r, err := rp.Get(ctx)
+	if err != nil {
+		return err
+	}
+	lf := r.GetCallback(RuntimeExecutionModeIAPSubscriptionNotification, "")
+	if lf == nil {
+		rp.Put(r)
+		return errors.New("Runtime IAP Subscription Notification function not found.")
+	}
+
+	luaCtx := NewRuntimeLuaContext(r.vm, r.node, r.version, r.luaEnv, RuntimeExecutionModeIAPSubscriptionNotification, nil, nil, "", 0, "", "", nil, "", "", "", "")
+
+	subscriptionTable := subscriptionToLuaTable(r.vm, subscription)
+
+	// Set context value used for logging
+	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"mode": RuntimeExecutionModeIAPSubscriptionNotification.String(), "provider": provider})
+	vmCtx = NewRuntimeGoContext(vmCtx, r.node, r.version, r.env, RuntimeExecutionModeIAPSubscriptionNotification, nil, nil, "", 0, "", "", nil, "", "", "", "")
+	r.vm.SetContext(vmCtx)
+	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, subscriptionTable, lua.LString(providerPayload), lua.LString(notificationType), lua.LString(provider))
+	r.vm.SetContext(context.Background())
+	rp.Put(r)
+	if err != nil {
+		return errors.New("Could not run IAP Subscription Notification hook.")
+	}
+
+	if retValue == nil || retValue == lua.LNil {
+		// No return value needed.
+		return nil
+	}
+
+	return errors.New("Unexpected return type from runtime IAP Subscription Notification hook, must be nil.")
+}
+
 func (rp *RuntimeProviderLua) SubscriptionNotificationGoogle(ctx context.Context, subscription *api.ValidatedSubscription, providerPayload, notificationType string) error {
 	r, err := rp.Get(ctx)
 	if err != nil {
@@ -2533,6 +3056,28 @@ func (r *RuntimeLua) GetCallback(e RuntimeExecutionMode, key string) *lua.LFunct
 			return nil
 		}
 		return fn
+	case RuntimeExecutionModeIAPProvider:
+		fn, found := r.callbacks.IAPProvider.Load(key)
+		if !found {
+			return nil
+		}
+		return fn
+	case RuntimeExecutionModeIAPSubscriptionProvider:
+		fn, found := r.callbacks.IAPSubscriptionProvider.Load(key)
+		if !found {
+			return nil
+		}
+		return fn
+	case RuntimeExecutionModeIAPProviderNotification:
+		fn, found := r.callbacks.IAPProviderNotification.Load(key)
+		if !found {
+			return nil
+		}
+		return fn
+	case RuntimeExecutionModeIAPPurchaseNotification:
+		return r.callbacks.IAPPurchaseNotification
+	case RuntimeExecutionModeIAPSubscriptionNotification:
+		return r.callbacks.IAPSubscriptionNotification
 	}
 
 	return nil
@@ -2659,7 +3204,7 @@ func checkRuntimeLuaVM(logger *zap.Logger, config Config, version string, stdLib
 		vm.Push(lua.LString(name))
 		vm.Call(1, 0)
 	}
-	nakamaModule := NewRuntimeLuaNakamaModule(logger, nil, nil, nil, config, version, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	nakamaModule := NewRuntimeLuaNakamaModule(logger, nil, nil, nil, config, version, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	vm.PreloadModule("nakama", nakamaModule.Loader)
 
 	preload := vm.GetField(vm.GetField(vm.Get(lua.EnvironIndex), "package"), "preload")
@@ -2680,7 +3225,7 @@ func checkRuntimeLuaVM(logger *zap.Logger, config Config, version string, stdLib
 	return nil
 }
 
-func newRuntimeLuaVM(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, stdLibs map[string]lua.LGFunction, moduleCache *RuntimeLuaModuleCache, once *sync.Once, localCache *RuntimeLuaLocalCache, storageIndex StorageIndex, satoriClient runtime.Satori, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, authProviderRegistry *RuntimeAuthenticateProviderRegistry, iapProviderRegistry *RuntimeIAPProviderRegistry, announceCallbackFn func(RuntimeExecutionMode, string)) (*RuntimeLua, error) {
+func newRuntimeLuaVM(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, stdLibs map[string]lua.LGFunction, moduleCache *RuntimeLuaModuleCache, once *sync.Once, localCache *RuntimeLuaLocalCache, storageIndex StorageIndex, satoriClient runtime.Satori, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, authProviderRegistry *RuntimeAuthenticateProviderRegistry, iapProviderRegistry *RuntimeIAPProviderRegistry, announceCallbackFn func(RuntimeExecutionMode, string), iapProviders map[string]*RuntimeIAPProviderFunctions) (*RuntimeLua, error) {
 	vm := lua.NewState(lua.Options{
 		CallStackSize:       config.GetRuntime().GetLuaCallStackSize(),
 		RegistrySize:        config.GetRuntime().GetLuaRegistrySize(),
@@ -2694,11 +3239,14 @@ func newRuntimeLuaVM(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojs
 		vm.Call(1, 0)
 	}
 	callbacks := &RuntimeLuaCallbacks{
-		RPC:                  &MapOf[string, *lua.LFunction]{},
-		Before:               &MapOf[string, *lua.LFunction]{},
-		After:                &MapOf[string, *lua.LFunction]{},
-		StorageIndexFilter:   &MapOf[string, *lua.LFunction]{},
-		AuthenticateProvider: &MapOf[string, *lua.LFunction]{},
+		RPC:                     &MapOf[string, *lua.LFunction]{},
+		Before:                  &MapOf[string, *lua.LFunction]{},
+		After:                   &MapOf[string, *lua.LFunction]{},
+		StorageIndexFilter:      &MapOf[string, *lua.LFunction]{},
+		AuthenticateProvider:    &MapOf[string, *lua.LFunction]{},
+		IAPProvider:             &MapOf[string, *lua.LFunction]{},
+		IAPSubscriptionProvider: &MapOf[string, *lua.LFunction]{},
+		IAPProviderNotification: &MapOf[string, *lua.LFunction]{},
 	}
 	registerCallbackFn := func(e RuntimeExecutionMode, key string, fn *lua.LFunction) {
 		switch e {
@@ -2728,9 +3276,19 @@ func newRuntimeLuaVM(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojs
 			callbacks.StorageIndexFilter.Store(key, fn)
 		case RuntimeExecutionModeAuthenticateProvider:
 			callbacks.AuthenticateProvider.Store(key, fn)
+		case RuntimeExecutionModeIAPProvider:
+			callbacks.IAPProvider.Store(key, fn)
+		case RuntimeExecutionModeIAPSubscriptionProvider:
+			callbacks.IAPSubscriptionProvider.Store(key, fn)
+		case RuntimeExecutionModeIAPProviderNotification:
+			callbacks.IAPProviderNotification.Store(key, fn)
+		case RuntimeExecutionModeIAPPurchaseNotification:
+			callbacks.IAPPurchaseNotification = fn
+		case RuntimeExecutionModeIAPSubscriptionNotification:
+			callbacks.IAPSubscriptionNotification = fn
 		}
 	}
-	nakamaModule := NewRuntimeLuaNakamaModule(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, rankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, once, localCache, storageIndex, satoriClient, matchCreateFn, eventFn, authProviderRegistry, iapProviderRegistry, registerCallbackFn, announceCallbackFn)
+	nakamaModule := NewRuntimeLuaNakamaModule(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, rankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, once, localCache, storageIndex, satoriClient, matchCreateFn, eventFn, authProviderRegistry, iapProviderRegistry, registerCallbackFn, announceCallbackFn, iapProviders)
 	vm.PreloadModule("nakama", nakamaModule.Loader)
 	r := &RuntimeLua{
 		logger:    logger,

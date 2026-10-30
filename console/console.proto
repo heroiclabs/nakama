@@ -1564,6 +1564,10 @@ message RuntimeInfo {
   repeated string js_authenticate_providers = 9;
   // Go registered IAP providers
   repeated string go_iap_providers = 10;
+  // Lua registered IAP providers
+  repeated string lua_iap_providers = 11;
+  // JavaScript registered IAP providers
+  repeated string js_iap_providers = 12;
 }
 
 // An individual update to a user's wallet.
