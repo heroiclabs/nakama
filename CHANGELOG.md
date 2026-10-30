@@ -10,6 +10,10 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Fixed
 - Only apply Google Authentication token aud/azp validation if explicitly configured via google_auth.client_ids.
+- Fix leaderboard reset and tournament end and reset hooks sometimes being skipped by the scheduler.
+- Fix tournament end and reset hooks sometimes not firing for the first active period when the start time is in the future.
+- Fix Huawei purchase validation failing on a malformed verification URL.
+- Return the user ID on unpersisted Samsung and Huawei purchase validations.
 - Fix a data race when leaderboard and tournament reset schedules are evaluated concurrently, which could produce wrong reset times or a panic.
 
 ## [3.41.0] - 2026-09-18
