@@ -1280,6 +1280,11 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 						w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
 						return
 					}
+					if s != nil && s.Store != api.StoreProvider_APPLE_APP_STORE {
+						logger.Warn("App Store refund notification original transaction ID belongs to another store", zap.String("original_transaction_id", transactionInfo.OriginalTransactionId))
+						w.WriteHeader(http.StatusOK)
+						return
+					}
 					if s == nil || s.UserId == "" {
 						// No subscription found, we do not want to upsert or run the hook.
 						logger.Warn("No userId found for this Apple IAP refund notification", zap.String("notification_type", notificationType), zap.Any("payload", notificationData))
