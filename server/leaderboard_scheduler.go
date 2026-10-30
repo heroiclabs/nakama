@@ -150,7 +150,7 @@ func (ls *LocalLeaderboardScheduler) Update() {
 }
 
 func (ls *LocalLeaderboardScheduler) scheduleLoop() {
-	var lastFireUnix int64
+	lastSeenTs := time.Now().UTC().Unix()
 	for {
 		// While paused, block until a signal arrives.
 		if ls.active.Load() == 0 {
@@ -159,22 +159,12 @@ func (ls *LocalLeaderboardScheduler) scheduleLoop() {
 				return
 			case <-ls.updateCh:
 			}
+			// Hooks that came due while paused are skipped.
+			lastSeenTs = max(lastSeenTs, time.Now().UTC().Unix())
 			continue
 		}
 
-		now := time.Now().UTC()
-		endActiveTs, expiryTs, endActiveIds, expiryIds := ls.computeNext(now)
-
-		// Filter out any events already processed in a previous iteration to
-		// guard against re-queuing hooks within the same second as the last fire.
-		if endActiveTs > 0 && endActiveTs <= lastFireUnix {
-			endActiveTs = -1
-			endActiveIds = nil
-		}
-		if expiryTs > 0 && expiryTs <= lastFireUnix {
-			expiryTs = -1
-			expiryIds = nil
-		}
+		endActiveTs, expiryTs, endActiveIds, expiryIds := ls.computeNext(lastSeenTs)
 
 		// Pick the earlier of the two deadlines as the next wake time.
 		wakeTs := int64(-1)
@@ -198,11 +188,15 @@ func (ls *LocalLeaderboardScheduler) scheduleLoop() {
 			case <-ls.ctx.Done():
 				return
 			case <-ls.updateCh:
+				// Nothing was due as of the last computation, so skip deadlines before now that belong to
+				// leaderboards created or updated since.
+				lastSeenTs = max(lastSeenTs, time.Now().UTC().Unix())
 				continue
 			}
 		}
 
-		delay := max(time.Unix(wakeTs, 0).UTC().Sub(now), 0)
+		wakeTime := time.Unix(wakeTs, 0).UTC()
+		delay := max(time.Until(wakeTime), 0)
 
 		timer := time.NewTimer(delay)
 		select {
@@ -211,42 +205,34 @@ func (ls *LocalLeaderboardScheduler) scheduleLoop() {
 			return
 
 		case <-ls.updateCh:
-			// Update() called while waiting for next hook execution, recompute schedules.
-			select {
-			case t := <-timer.C:
-				// Timer fired at the same time as an Update() call, process hooks.
-				lastFireUnix = t.Unix()
-				ls.processHooks(t, endActiveTs, expiryTs, endActiveIds, expiryIds)
-			default:
-				// Update() was called, stop timer and recalculate new wake time.
-				timer.Stop()
-			}
-		case t := <-timer.C:
-			lastFireUnix = t.Unix()
-			ls.processHooks(t, endActiveTs, expiryTs, endActiveIds, expiryIds)
+			// Update() called while waiting for next hook execution, stop timer and recalculate new wake time.
+			timer.Stop()
+			// Nothing was due before the wake time, so advance the last seen time up to now, but not past the wake time.
+			lastSeenTs = max(lastSeenTs, min(time.Now().UTC().Unix(), wakeTs-1))
+		case <-timer.C:
+			ls.processHooks(wakeTs, endActiveTs, expiryTs, endActiveIds, expiryIds)
+			lastSeenTs = wakeTs
 		}
 	}
 }
 
-func (ls *LocalLeaderboardScheduler) processHooks(ts time.Time, endActiveTs, expiryTs int64, endActiveIds, expiryIds []string) {
+func (ls *LocalLeaderboardScheduler) processHooks(ts int64, endActiveTs, expiryTs int64, endActiveIds, expiryIds []string) {
 	if ls.active.Load() != 1 {
 		return
 	}
 
-	fireUnix := ts.Unix()
-	if endActiveTs > 0 && endActiveTs <= fireUnix {
+	if endActiveTs > 0 && endActiveTs <= ts {
 		ls.processEndActive(time.Unix(endActiveTs, 0).UTC(), endActiveIds)
 	}
-	if expiryTs > 0 && expiryTs <= fireUnix {
+	if expiryTs > 0 && expiryTs <= ts {
 		ls.rankCache.TrimExpired(expiryTs)
 		ls.processExpiry(time.Unix(expiryTs, 0).UTC(), expiryIds)
 	}
 }
 
-func (ls *LocalLeaderboardScheduler) computeNext(now time.Time) (endActiveTs, expiryTs int64, endActiveIds []string, expiryIds []string) {
+func (ls *LocalLeaderboardScheduler) computeNext(now int64) (endActiveTs, expiryTs int64, endActiveIds []string, expiryIds []string) {
 	endActiveTs = -1
 	expiryTs = -1
-	nowUnix := now.Unix()
 
 	var cursor *LeaderboardAllCursor
 	for {
@@ -254,15 +240,22 @@ func (ls *LocalLeaderboardScheduler) computeNext(now time.Time) (endActiveTs, ex
 		leaderboards, _, cursor = ls.cache.ListAll(1_000, false, cursor)
 
 		for _, l := range leaderboards {
-			if l.IsTournament() {
-				_, endActive, expiry := calculateTournamentDeadlines(l.StartTime, l.EndTime, int64(l.Duration), l.ResetSchedule, now)
+			// Never look before the leaderboard existed.
+			fromUnix := max(now, l.CreateTime)
 
-				if l.EndTime > 0 && l.EndTime < nowUnix {
+			if l.IsTournament() {
+				if l.ResetSchedule != nil {
+					// Look from the start at the earliest, or the first cycle is missed; only tournaments with a reset schedule depend on this time.
+					fromUnix = max(fromUnix, l.StartTime)
+				}
+				_, endActive, expiry := calculateTournamentDeadlines(l.StartTime, l.EndTime, int64(l.Duration), l.ResetSchedule, time.Unix(fromUnix, 0).UTC())
+
+				if l.EndTime > 0 && l.EndTime < fromUnix {
 					// Tournament has ended permanently.
 					continue
 				}
 
-				if endActive > 0 && nowUnix < endActive {
+				if endActive > 0 && fromUnix < endActive {
 					if endActiveTs < 0 || endActive < endActiveTs {
 						endActiveTs = endActive
 						endActiveIds = []string{l.Id}
@@ -271,7 +264,7 @@ func (ls *LocalLeaderboardScheduler) computeNext(now time.Time) (endActiveTs, ex
 					}
 				}
 
-				if expiry > 0 && nowUnix < expiry {
+				if expiry > 0 && fromUnix < expiry {
 					if expiryTs < 0 || expiry < expiryTs {
 						expiryTs = expiry
 						expiryIds = []string{l.Id}
@@ -282,7 +275,7 @@ func (ls *LocalLeaderboardScheduler) computeNext(now time.Time) (endActiveTs, ex
 			} else {
 				// Leaderboards don't end, only check for expiry.
 				if l.ResetSchedule != nil {
-					expiry := l.ResetSchedule.Next(now).UTC().Unix()
+					expiry := l.ResetSchedule.Next(time.Unix(fromUnix, 0).UTC()).UTC().Unix()
 					if expiryTs < 0 || expiry < expiryTs {
 						expiryTs = expiry
 						expiryIds = []string{l.Id}
