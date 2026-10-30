@@ -40,7 +40,7 @@ type RuntimeIAPProviderFunctions struct {
 	name                   string
 	notificationEndpointId string
 	storeCode              int
-	validate               RuntimeIAPProviderPurchaseFunction
+	validatePurchase       RuntimeIAPProviderPurchaseFunction
 	validateSubscription   RuntimeIAPProviderSubscriptionFunction
 	notificationHandler    RuntimeIAPProviderNotificationFunction
 }
@@ -50,7 +50,7 @@ type RuntimeIAPProviderRegistry struct {
 	providersByCode MapOf[int, *RuntimeIAPProviderFunctions]
 }
 
-func (r *RuntimeIAPProviderRegistry) Register(name, notificationEndpointId string, code int, validate RuntimeIAPProviderPurchaseFunction, validateSubscription RuntimeIAPProviderSubscriptionFunction, notificationHandler RuntimeIAPProviderNotificationFunction) error {
+func (r *RuntimeIAPProviderRegistry) Register(name, notificationEndpointId string, code int, validatePurchase RuntimeIAPProviderPurchaseFunction, validateSubscription RuntimeIAPProviderSubscriptionFunction, notificationHandler RuntimeIAPProviderNotificationFunction) error {
 	if !iapProviderNameRegex.MatchString(name) {
 		return errors.New("expects provider name to be valid, must be 1-128 bytes and contain only [a-zA-Z0-9_-]")
 	}
@@ -67,7 +67,7 @@ func (r *RuntimeIAPProviderRegistry) Register(name, notificationEndpointId strin
 	if _, builtIn := api.StoreProvider_name[int32(code)]; builtIn {
 		return fmt.Errorf("IAP provider code %d is used by a built-in store: %s", code, name)
 	}
-	provider := &RuntimeIAPProviderFunctions{name: name, notificationEndpointId: notificationEndpointId, storeCode: code, validate: validate, validateSubscription: validateSubscription, notificationHandler: notificationHandler}
+	provider := &RuntimeIAPProviderFunctions{name: name, notificationEndpointId: notificationEndpointId, storeCode: code, validatePurchase: validatePurchase, validateSubscription: validateSubscription, notificationHandler: notificationHandler}
 	if _, found := r.providersByName.LoadOrStore(name, provider); found {
 		return fmt.Errorf("IAP provider already registered: %s", name)
 	}

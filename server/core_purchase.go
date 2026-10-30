@@ -653,7 +653,7 @@ func ValidatePurchase(ctx context.Context, logger *zap.Logger, db *sql.DB, regis
 		return nil, status.Error(codes.InvalidArgument, "IAP provider not found: "+providerName)
 	}
 
-	purchases, err, code := provider.validate(ctx, traceID, payload, overrides)
+	purchases, err, code := provider.validatePurchase(ctx, traceID, payload, overrides)
 	if err != nil {
 		return nil, status.Error(code, err.Error())
 	}
