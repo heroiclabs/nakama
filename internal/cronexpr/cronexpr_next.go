@@ -41,8 +41,8 @@ func (expr *Expression) nextYear(t time.Time) time.Time {
 		return time.Time{}
 	}
 	// Year changed, need to recalculate actual days of month
-	expr.actualDaysOfMonthList = expr.calculateActualDaysOfMonth(expr.yearList[i], expr.monthList[0])
-	if len(expr.actualDaysOfMonthList) == 0 {
+	actualDaysOfMonthList := expr.calculateActualDaysOfMonth(expr.yearList[i], expr.monthList[0])
+	if len(actualDaysOfMonthList) == 0 {
 		return expr.nextMonth(time.Date(
 			expr.yearList[i],
 			time.Month(expr.monthList[0]),
@@ -56,7 +56,7 @@ func (expr *Expression) nextYear(t time.Time) time.Time {
 	return time.Date(
 		expr.yearList[i],
 		time.Month(expr.monthList[0]),
-		expr.actualDaysOfMonthList[0],
+		actualDaysOfMonthList[0],
 		expr.hourList[0],
 		expr.minuteList[0],
 		expr.secondList[0],
@@ -80,11 +80,11 @@ func (expr *Expression) lastYear(t time.Time, acc bool) time.Time {
 		year = expr.yearList[i-1]
 	}
 	// Year changed, need to recalculate actual days of month
-	expr.actualDaysOfMonthList = expr.calculateActualDaysOfMonth(
+	actualDaysOfMonthList := expr.calculateActualDaysOfMonth(
 		year,
 		expr.monthList[len(expr.monthList)-1])
 
-	if len(expr.actualDaysOfMonthList) == 0 {
+	if len(actualDaysOfMonthList) == 0 {
 		return expr.lastMonth(time.Date(
 			year,
 			time.Month(expr.monthList[len(expr.monthList)-1]),
@@ -98,7 +98,7 @@ func (expr *Expression) lastYear(t time.Time, acc bool) time.Time {
 	return time.Date(
 		year,
 		time.Month(expr.monthList[len(expr.monthList)-1]),
-		expr.actualDaysOfMonthList[len(expr.actualDaysOfMonthList)-1],
+		actualDaysOfMonthList[len(actualDaysOfMonthList)-1],
 		expr.hourList[len(expr.hourList)-1],
 		expr.minuteList[len(expr.minuteList)-1],
 		expr.secondList[len(expr.secondList)-1],
@@ -159,8 +159,8 @@ func (expr *Expression) lastMonth(t time.Time, acc bool) time.Time {
 	}
 
 	// Month changed, need to recalculate actual days of month
-	expr.actualDaysOfMonthList = expr.calculateActualDaysOfMonth(t.Year(), month)
-	if len(expr.actualDaysOfMonthList) == 0 {
+	actualDaysOfMonthList := expr.calculateActualDaysOfMonth(t.Year(), month)
+	if len(actualDaysOfMonthList) == 0 {
 		return expr.lastMonth(time.Date(
 			t.Year(),
 			time.Month(month),
@@ -175,7 +175,7 @@ func (expr *Expression) lastMonth(t time.Time, acc bool) time.Time {
 	return time.Date(
 		t.Year(),
 		time.Month(month),
-		expr.actualDaysOfMonthList[len(expr.actualDaysOfMonthList)-1],
+		actualDaysOfMonthList[len(actualDaysOfMonthList)-1],
 		expr.hourList[len(expr.hourList)-1],
 		expr.minuteList[len(expr.minuteList)-1],
 		expr.secondList[len(expr.secondList)-1],
@@ -204,21 +204,21 @@ func (expr *Expression) nextDayOfMonth(t time.Time, actualDaysOfMonthList []int)
 		t.Location())
 }
 
-func (expr *Expression) lastActualDayOfMonth(t time.Time, acc bool) time.Time {
+func (expr *Expression) lastActualDayOfMonth(t time.Time, acc bool, actualDaysOfMonthList []int) time.Time {
 	// candidate day of month
 	v := t.Day()
 	if acc {
 		v--
 	}
-	i := sort.SearchInts(expr.actualDaysOfMonthList, v)
+	i := sort.SearchInts(actualDaysOfMonthList, v)
 
 	var day int
-	if i < len(expr.actualDaysOfMonthList) && v == expr.actualDaysOfMonthList[i] {
-		day = expr.actualDaysOfMonthList[i]
+	if i < len(actualDaysOfMonthList) && v == actualDaysOfMonthList[i] {
+		day = actualDaysOfMonthList[i]
 	} else if i == 0 {
 		return expr.lastMonth(t, true)
 	} else {
-		day = expr.actualDaysOfMonthList[i-1]
+		day = actualDaysOfMonthList[i-1]
 	}
 
 	return time.Date(
@@ -255,7 +255,7 @@ func (expr *Expression) nextHour(t time.Time, actualDaysOfMonthList []int) time.
 
 /******************************************************************************/
 
-func (expr *Expression) lastHour(t time.Time, acc bool) time.Time {
+func (expr *Expression) lastHour(t time.Time, acc bool, actualDaysOfMonthList []int) time.Time {
 	// candidate hour
 	v := t.Hour()
 	if acc {
@@ -267,7 +267,7 @@ func (expr *Expression) lastHour(t time.Time, acc bool) time.Time {
 	if i < len(expr.hourList) && v == expr.hourList[i] {
 		hour = expr.hourList[i]
 	} else if i == 0 {
-		return expr.lastActualDayOfMonth(t, true)
+		return expr.lastActualDayOfMonth(t, true, actualDaysOfMonthList)
 	} else {
 		hour = expr.hourList[i-1]
 	}
@@ -308,7 +308,7 @@ func (expr *Expression) nextMinute(t time.Time, actualDaysOfMonthList []int) tim
 
 /******************************************************************************/
 
-func (expr *Expression) lastMinute(t time.Time, acc bool) time.Time {
+func (expr *Expression) lastMinute(t time.Time, acc bool, actualDaysOfMonthList []int) time.Time {
 	// candidate minute
 	v := t.Minute()
 	if !acc {
@@ -319,7 +319,7 @@ func (expr *Expression) lastMinute(t time.Time, acc bool) time.Time {
 	if i < len(expr.minuteList) && v == expr.minuteList[i] {
 		min = expr.minuteList[i]
 	} else if i == 0 {
-		return expr.lastHour(t, true)
+		return expr.lastHour(t, true, actualDaysOfMonthList)
 	} else {
 		min = expr.minuteList[i-1]
 	}
@@ -362,12 +362,12 @@ func (expr *Expression) nextSecond(t time.Time, actualDaysOfMonthList []int) tim
 /******************************************************************************/
 // lastSecond() assumes all other fields are exactly matched
 // to the cron expression
-func (expr *Expression) lastSecond(t time.Time) time.Time {
+func (expr *Expression) lastSecond(t time.Time, actualDaysOfMonthList []int) time.Time {
 	// candidate second
 	v := t.Second() - 1
 	i := sort.SearchInts(expr.secondList, v)
 	if i == len(expr.secondList) || expr.secondList[i] != v {
-		return expr.lastMinute(t, false)
+		return expr.lastMinute(t, false, actualDaysOfMonthList)
 	}
 
 	return time.Date(
