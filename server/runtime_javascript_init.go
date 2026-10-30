@@ -1965,9 +1965,9 @@ func (im *RuntimeJavascriptInitModule) getMatchHookFnIdentifier(r *goja.Runtime,
 						for _, prop := range obj.Value {
 							if propKeyed, ok := prop.(*ast.PropertyKeyed); ok {
 								if key, ok := propKeyed.Key.(*ast.StringLiteral); ok {
-									if key.Literal == string(matchfnId) {
+									if key.Value.String() == string(matchfnId) {
 										if sl, ok := propKeyed.Value.(*ast.StringLiteral); ok {
-											return sl.Literal, nil
+											return sl.Value.String(), nil
 										} else if id, ok := propKeyed.Value.(*ast.Identifier); ok {
 											return id.Name.String(), nil
 										} else {
