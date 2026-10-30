@@ -56,9 +56,15 @@ type subscriptionsListCursor struct {
 	IsNext                bool
 	After                 time.Time
 	Before                time.Time
+	Store                 string // String instead of *int since gob decodes a pointer to 0 as nil, losing an Apple store filter.
 }
 
 func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimeIAPProviderRegistry, userID string, limit int, cursor string, after, before time.Time, storeFilter *int) (*api.SubscriptionList, error) {
+	var cursorStore string
+	if storeFilter != nil {
+		cursorStore = strconv.Itoa(*storeFilter)
+	}
+
 	var incomingCursor *subscriptionsListCursor
 	if cursor != "" {
 		cb, err := base64.URLEncoding.DecodeString(cursor)
@@ -77,6 +83,9 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, regi
 			return nil, ErrSubscriptionsListInvalidCursor
 		}
 		if !before.Equal(incomingCursor.Before) {
+			return nil, ErrSubscriptionsListInvalidCursor
+		}
+		if cursorStore != incomingCursor.Store {
 			return nil, ErrSubscriptionsListInvalidCursor
 		}
 	}
@@ -194,6 +203,7 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, regi
 				PurchaseTime:  timestamppb.New(purchaseTime.Time),
 				UserId:        dbUserID.String(),
 				IsNext:        true,
+				Store:         cursorStore,
 			}
 			break
 		}
@@ -238,6 +248,7 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, regi
 				PurchaseTime:  timestamppb.New(purchaseTime.Time),
 				UserId:        dbUserID.String(),
 				IsNext:        false,
+				Store:         cursorStore,
 			}
 		}
 	}
