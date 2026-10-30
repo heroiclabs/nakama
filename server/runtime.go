@@ -1760,7 +1760,7 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	}
 	if goBeforeReqFns.beforeValidatePurchaseAppleFunction != nil {
 		allBeforeReqFunctions.beforeValidatePurchaseAppleFunction = goBeforeReqFns.beforeValidatePurchaseAppleFunction
-		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "validateapple"))
+		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "validatepurchaseapple"))
 	}
 	if goBeforeReqFns.beforeValidatePurchaseGoogleFunction != nil {
 		allBeforeReqFunctions.beforeValidatePurchaseGoogleFunction = goBeforeReqFns.beforeValidatePurchaseGoogleFunction
@@ -2043,19 +2043,19 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "validatepurchasesamsung"))
 	}
 	if allAfterReqFunctions.afterValidateSubscriptionAppleFunction != nil {
-		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "validatesubscriptionapple"))
+		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "validatesubscriptionapple"))
 	}
 	if allAfterReqFunctions.afterValidateSubscriptionGoogleFunction != nil {
-		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "validatesubscriptiongoogle"))
+		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "validatesubscriptiongoogle"))
 	}
 	if allAfterReqFunctions.afterGetSubscriptionFunction != nil {
-		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "getsubscription"))
+		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "getsubscription"))
 	}
 	if allAfterReqFunctions.afterListSubscriptionsFunction != nil {
-		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "listsubscriptions"))
+		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "listsubscriptions"))
 	}
 	if allAfterReqFunctions.afterListPartiesFunction != nil {
-		startupLogger.Info("Registered JavaScript runtime Before function invocation", zap.String("id", "listparties"))
+		startupLogger.Info("Registered JavaScript runtime After function invocation", zap.String("id", "listparties"))
 	}
 	if allAfterReqFunctions.afterEventFunction != nil {
 		startupLogger.Info("Registered JavaScript runtime After custom events function invocation")
@@ -2392,7 +2392,7 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	}
 	if luaAfterReqFns.afterListPartiesFunction != nil {
 		allAfterReqFunctions.afterListPartiesFunction = luaAfterReqFns.afterListPartiesFunction
-		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "listparties"))
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "listparties"))
 	}
 	if luaAfterReqFns.afterEventFunction != nil {
 		allAfterReqFunctions.afterEventFunction = luaAfterReqFns.afterEventFunction
@@ -2718,23 +2718,23 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	}
 	if goAfterReqFns.afterValidateSubscriptionAppleFunction != nil {
 		allAfterReqFunctions.afterValidateSubscriptionAppleFunction = goAfterReqFns.afterValidateSubscriptionAppleFunction
-		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "validatesubscriptionapple"))
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "validatesubscriptionapple"))
 	}
 	if goAfterReqFns.afterValidateSubscriptionGoogleFunction != nil {
 		allAfterReqFunctions.afterValidateSubscriptionGoogleFunction = goAfterReqFns.afterValidateSubscriptionGoogleFunction
-		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "validatesubscriptiongoogle"))
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "validatesubscriptiongoogle"))
 	}
 	if goAfterReqFns.afterGetSubscriptionFunction != nil {
 		allAfterReqFunctions.afterGetSubscriptionFunction = goAfterReqFns.afterGetSubscriptionFunction
-		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "getsubscription"))
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "getsubscription"))
 	}
 	if goAfterReqFns.afterListSubscriptionsFunction != nil {
 		allAfterReqFunctions.afterListSubscriptionsFunction = goAfterReqFns.afterListSubscriptionsFunction
-		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "listsubscriptions"))
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "listsubscriptions"))
 	}
 	if goAfterReqFns.afterListPartiesFunction != nil {
 		allAfterReqFunctions.afterListPartiesFunction = goAfterReqFns.afterListPartiesFunction
-		startupLogger.Info("Registered Go runtime Before function invocation", zap.String("id", "listparties"))
+		startupLogger.Info("Registered Go runtime After function invocation", zap.String("id", "listparties"))
 	}
 	if goAfterReqFns.afterEventFunction != nil {
 		allAfterReqFunctions.afterEventFunction = goAfterReqFns.afterEventFunction
