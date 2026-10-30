@@ -10,6 +10,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Fixed
 - Only apply Google Authentication token aud/azp validation if explicitly configured via google_auth.client_ids.
+- Fix JavaScript runtime not finding `InitModule` or match handlers declared after another variable in the same declaration.
 
 ## [3.41.0] - 2026-09-18
 ### Added
