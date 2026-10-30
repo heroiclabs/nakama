@@ -1199,9 +1199,6 @@ type IAPProviderNotification struct {
 	UserId       string
 	Purchase     *IAPProviderPurchase
 	Subscription *IAPProviderSubscription
-	// RequireUser makes Nakama answer with an error, so the store delivers the notification again, when neither
-	// UserId nor a stored row names the user.
-	RequireUser bool
 }
 
 type IAPProviderPurchase struct {

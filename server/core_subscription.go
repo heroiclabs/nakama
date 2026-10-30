@@ -1948,10 +1948,6 @@ func iapProviderNotificationHandler(logger *zap.Logger, db *sql.DB, registry *Ru
 				if uid.IsNil() {
 					if existing == nil || existing.UserId == "" {
 						logger.Warn("No userId found for this IAP provider subscription notification", zap.String("original_transaction_id", subscription.OriginalTransactionId))
-						if notification.RequireUser {
-							w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
-							return
-						}
 						continue
 					}
 					uid = uuid.Must(uuid.FromString(existing.UserId))
@@ -2045,10 +2041,6 @@ func iapProviderNotificationHandler(logger *zap.Logger, db *sql.DB, registry *Ru
 			if uid.IsNil() {
 				if existing == nil || existing.UserId == "" {
 					logger.Warn("No userId found for this IAP provider refund notification", zap.String("transaction_id", purchase.TransactionId))
-					if notification.RequireUser {
-						w.WriteHeader(http.StatusInternalServerError) // Return error to keep retrying.
-						return
-					}
 					continue
 				}
 				uid = uuid.Must(uuid.FromString(existing.UserId))
