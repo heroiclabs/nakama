@@ -174,8 +174,8 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, regi
 	}
 	defer rows.Close()
 
-	var nextCursor *purchasesListCursor
-	var prevCursor *purchasesListCursor
+	var nextCursor *subscriptionsListCursor
+	var prevCursor *subscriptionsListCursor
 	subscriptions := make([]*api.ValidatedSubscription, 0, limit)
 
 	for rows.Next() {
@@ -198,12 +198,14 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, regi
 		}
 
 		if len(subscriptions) >= limit {
-			nextCursor = &purchasesListCursor{
-				TransactionId: originalTransactionId,
-				PurchaseTime:  timestamppb.New(purchaseTime.Time),
-				UserId:        dbUserID.String(),
-				IsNext:        true,
-				Store:         cursorStore,
+			nextCursor = &subscriptionsListCursor{
+				OriginalTransactionId: originalTransactionId,
+				PurchaseTime:          timestamppb.New(purchaseTime.Time),
+				UserId:                dbUserID.String(),
+				IsNext:                true,
+				After:                 after,
+				Before:                before,
+				Store:                 cursorStore,
 			}
 			break
 		}
@@ -243,12 +245,14 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, regi
 		subscriptions = append(subscriptions, subscription)
 
 		if incomingCursor != nil && prevCursor == nil {
-			prevCursor = &purchasesListCursor{
-				TransactionId: originalTransactionId,
-				PurchaseTime:  timestamppb.New(purchaseTime.Time),
-				UserId:        dbUserID.String(),
-				IsNext:        false,
-				Store:         cursorStore,
+			prevCursor = &subscriptionsListCursor{
+				OriginalTransactionId: originalTransactionId,
+				PurchaseTime:          timestamppb.New(purchaseTime.Time),
+				UserId:                dbUserID.String(),
+				IsNext:                false,
+				After:                 after,
+				Before:                before,
+				Store:                 cursorStore,
 			}
 		}
 	}
