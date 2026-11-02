@@ -1550,9 +1550,12 @@ func (rp *RuntimeProviderLua) Authenticate(ctx context.Context, name, traceID st
 	// Set context value used for logging
 	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"provider": name})
 	vmCtx = NewRuntimeGoContext(vmCtx, r.node, r.version, r.env, RuntimeExecutionModeAuthenticateProvider, nil, nil, traceID, 0, "", "", nil, "", "", "", "")
+	lease := newLuaRuntimeLease(r)
+	vmCtx = context.WithValue(vmCtx, ctxLuaRuntimeKey{}, lease)
 	prevCtx := r.vm.Context()
 	r.vm.SetContext(vmCtx)
 	result, fnErr, code, isCustomErr := r.InvokeFunction(RuntimeExecutionModeAuthenticateProvider, lf, nil, nil, traceID, "", "", nil, 0, "", "", "", "", payload)
+	lease.r.Store(nil)
 	r.vm.SetContext(prevCtx)
 
 	if fnErr != nil {
