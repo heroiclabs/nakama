@@ -45,6 +45,20 @@ import (
 
 const LTSentinel = lua.LValueType(-1)
 
+type ctxLuaRuntimeKey struct{}
+
+// luaRuntimeLease is how a nested call finds the VM running its caller. Each call lends its VM this way and
+// clears the lease when it returns, so a context that outlives the call leases from the pool instead.
+type luaRuntimeLease struct {
+	r atomic.Pointer[RuntimeLua]
+}
+
+func newLuaRuntimeLease(r *RuntimeLua) *luaRuntimeLease {
+	lease := &luaRuntimeLease{}
+	lease.r.Store(r)
+	return lease
+}
+
 type LSentinelType struct {
 	lua.LNilType
 }
@@ -1481,8 +1495,11 @@ func (rp *RuntimeProviderLua) Rpc(ctx context.Context, id string, headers, query
 	// Set context value used for logging
 	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"rpc_id": id})
 	vmCtx = NewRuntimeGoContext(vmCtx, r.node, r.version, r.env, RuntimeExecutionModeRPC, headers, queryParams, traceID, expiry, userID, username, vars, sessionID, clientIP, clientPort, lang)
+	lease := newLuaRuntimeLease(r)
+	vmCtx = context.WithValue(vmCtx, ctxLuaRuntimeKey{}, lease)
 	r.vm.SetContext(vmCtx)
 	result, fnErr, code, isCustomErr := r.InvokeFunction(RuntimeExecutionModeRPC, lf, headers, queryParams, traceID, userID, username, vars, expiry, sessionID, clientIP, clientPort, lang, payload)
+	lease.r.Store(nil)
 	r.vm.SetContext(context.Background())
 
 	if fnErr != nil {
@@ -1646,8 +1663,11 @@ func (rp *RuntimeProviderLua) BeforeRt(ctx context.Context, id string, logger *z
 	// Set context value used for logging
 	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"api_id": strings.TrimPrefix(id, RTAPI_PREFIX_LOWERCASE), "mode": RuntimeExecutionModeBefore.String()})
 	vmCtx = NewRuntimeGoContext(vmCtx, r.node, r.version, r.env, RuntimeExecutionModeBefore, nil, nil, traceID, expiry, userID, username, vars, sessionID, clientIP, clientPort, lang)
+	lease := newLuaRuntimeLease(r)
+	vmCtx = context.WithValue(vmCtx, ctxLuaRuntimeKey{}, lease)
 	r.vm.SetContext(vmCtx)
 	result, fnErr, _, isCustomErr := r.InvokeFunction(RuntimeExecutionModeBefore, lf, nil, nil, traceID, userID, username, vars, expiry, sessionID, clientIP, clientPort, lang, envelopeMap)
+	lease.r.Store(nil)
 	r.vm.SetContext(context.Background())
 
 	if fnErr != nil {
@@ -1723,8 +1743,11 @@ func (rp *RuntimeProviderLua) AfterRt(ctx context.Context, id string, logger *za
 	// Set context value used for logging
 	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"api_id": strings.TrimPrefix(id, RTAPI_PREFIX_LOWERCASE), "mode": RuntimeExecutionModeAfter.String()})
 	vmCtx = NewRuntimeGoContext(vmCtx, r.node, r.version, r.env, RuntimeExecutionModeAfter, nil, nil, traceID, expiry, userID, username, vars, sessionID, clientIP, clientPort, lang)
+	lease := newLuaRuntimeLease(r)
+	vmCtx = context.WithValue(vmCtx, ctxLuaRuntimeKey{}, lease)
 	r.vm.SetContext(vmCtx)
 	_, fnErr, _, isCustomErr := r.InvokeFunction(RuntimeExecutionModeAfter, lf, nil, nil, traceID, userID, username, vars, expiry, sessionID, clientIP, clientPort, lang, outMap, inMap)
+	lease.r.Store(nil)
 	r.vm.SetContext(context.Background())
 
 	if fnErr != nil {
@@ -1781,8 +1804,11 @@ func (rp *RuntimeProviderLua) BeforeReq(ctx context.Context, id string, logger *
 	// Set context value used for logging
 	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"api_id": strings.TrimPrefix(id, API_PREFIX_LOWERCASE), "mode": RuntimeExecutionModeBefore.String()})
 	vmCtx = NewRuntimeGoContext(vmCtx, r.node, r.version, r.env, RuntimeExecutionModeBefore, nil, nil, traceID, expiry, userID, username, vars, "", clientIP, clientPort, "")
+	lease := newLuaRuntimeLease(r)
+	vmCtx = context.WithValue(vmCtx, ctxLuaRuntimeKey{}, lease)
 	r.vm.SetContext(vmCtx)
 	result, fnErr, code, isCustomErr := r.InvokeFunction(RuntimeExecutionModeBefore, lf, nil, nil, traceID, userID, username, vars, expiry, "", clientIP, clientPort, "", reqMap)
+	lease.r.Store(nil)
 	r.vm.SetContext(context.Background())
 
 	if fnErr != nil {
@@ -1877,8 +1903,11 @@ func (rp *RuntimeProviderLua) AfterReq(ctx context.Context, id string, logger *z
 	// Set context value used for logging
 	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"api_id": strings.TrimPrefix(id, API_PREFIX_LOWERCASE), "mode": RuntimeExecutionModeAfter.String()})
 	vmCtx = NewRuntimeGoContext(vmCtx, r.node, r.version, r.env, RuntimeExecutionModeAfter, nil, nil, traceID, expiry, userID, username, vars, "", clientIP, clientPort, "")
+	lease := newLuaRuntimeLease(r)
+	vmCtx = context.WithValue(vmCtx, ctxLuaRuntimeKey{}, lease)
 	r.vm.SetContext(vmCtx)
 	_, fnErr, _, isCustomErr := r.InvokeFunction(RuntimeExecutionModeAfter, lf, nil, nil, traceID, userID, username, vars, expiry, "", clientIP, clientPort, "", resMap, reqMap)
+	lease.r.Store(nil)
 	r.vm.SetContext(context.Background())
 
 	if fnErr != nil {

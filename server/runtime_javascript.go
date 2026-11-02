@@ -46,6 +46,20 @@ import (
 
 const JsEntrypointFilename = "index.js"
 
+type ctxJsRuntimeKey struct{}
+
+// jsRuntimeLease is how a nested call finds the VM running its caller. Each call lends its VM this way and
+// clears the lease when it returns, so a context that outlives the call leases from the pool instead.
+type jsRuntimeLease struct {
+	r atomic.Pointer[RuntimeJS]
+}
+
+func newJsRuntimeLease(r *RuntimeJS) *jsRuntimeLease {
+	lease := &jsRuntimeLease{}
+	lease.r.Store(r)
+	return lease
+}
+
 type RuntimeJS struct {
 	logger       *zap.Logger
 	node         string
@@ -216,8 +230,11 @@ func (rp *RuntimeProviderJS) Rpc(ctx context.Context, id string, headers, queryP
 	}
 
 	ctx = NewRuntimeGoContext(ctx, r.node, r.version, r.envMap, RuntimeExecutionModeRPC, headers, queryParams, traceID, expiry, userID, username, vars, sessionID, clientIP, clientPort, lang)
+	lease := newJsRuntimeLease(r)
+	ctx = context.WithValue(ctx, ctxJsRuntimeKey{}, lease)
 	r.SetContext(ctx)
 	retValue, err, code := r.InvokeFunction(RuntimeExecutionModeRPC, id, fn, jsLogger, headers, queryParams, traceID, userID, username, vars, expiry, sessionID, clientIP, clientPort, lang, payload)
+	lease.r.Store(nil)
 	r.SetContext(context.Background())
 	rp.Put(r)
 	if err != nil {
@@ -379,8 +396,11 @@ func (rp *RuntimeProviderJS) BeforeRt(ctx context.Context, id string, logger *za
 	}
 
 	ctx = NewRuntimeGoContext(ctx, r.node, r.version, r.envMap, RuntimeExecutionModeBefore, nil, nil, traceID, expiry, userID, username, vars, sessionID, clientIP, clientPort, lang)
+	lease := newJsRuntimeLease(r)
+	ctx = context.WithValue(ctx, ctxJsRuntimeKey{}, lease)
 	r.SetContext(ctx)
 	result, fnErr, _ := r.InvokeFunction(RuntimeExecutionModeBefore, id, fn, jsLogger, nil, nil, traceID, userID, username, vars, expiry, sessionID, clientIP, clientPort, lang, envelopeMap)
+	lease.r.Store(nil)
 	r.SetContext(context.Background())
 	rp.Put(r)
 
@@ -465,8 +485,11 @@ func (rp *RuntimeProviderJS) AfterRt(ctx context.Context, id string, logger *zap
 	}
 
 	ctx = NewRuntimeGoContext(ctx, r.node, r.version, r.envMap, RuntimeExecutionModeAfter, nil, nil, traceID, expiry, userID, username, vars, sessionID, clientIP, clientPort, lang)
+	lease := newJsRuntimeLease(r)
+	ctx = context.WithValue(ctx, ctxJsRuntimeKey{}, lease)
 	r.SetContext(ctx)
 	_, fnErr, _ := r.InvokeFunction(RuntimeExecutionModeAfter, id, fn, jsLogger, nil, nil, traceID, userID, username, vars, expiry, sessionID, clientIP, clientPort, lang, outMap, inMap)
+	lease.r.Store(nil)
 	r.SetContext(context.Background())
 	rp.Put(r)
 
@@ -532,8 +555,11 @@ func (rp *RuntimeProviderJS) BeforeReq(ctx context.Context, id string, logger *z
 	}
 
 	ctx = NewRuntimeGoContext(ctx, r.node, r.version, r.envMap, RuntimeExecutionModeBefore, nil, nil, traceID, expiry, userID, username, vars, "", clientIP, clientPort, "")
+	lease := newJsRuntimeLease(r)
+	ctx = context.WithValue(ctx, ctxJsRuntimeKey{}, lease)
 	r.SetContext(ctx)
 	result, fnErr, code := r.InvokeFunction(RuntimeExecutionModeBefore, id, fn, jsLogger, nil, nil, traceID, userID, username, vars, expiry, "", clientIP, clientPort, "", reqMap)
+	lease.r.Store(nil)
 	r.SetContext(context.Background())
 	rp.Put(r)
 
@@ -637,8 +663,11 @@ func (rp *RuntimeProviderJS) AfterReq(ctx context.Context, id string, logger *za
 	}
 
 	ctx = NewRuntimeGoContext(ctx, r.node, r.version, r.envMap, RuntimeExecutionModeAfter, nil, nil, traceID, expiry, userID, username, vars, "", clientIP, clientPort, "")
+	lease := newJsRuntimeLease(r)
+	ctx = context.WithValue(ctx, ctxJsRuntimeKey{}, lease)
 	r.SetContext(ctx)
 	_, fnErr, _ := r.InvokeFunction(RuntimeExecutionModeAfter, id, fn, jsLogger, nil, nil, traceID, userID, username, vars, expiry, "", clientIP, clientPort, "", resMap, reqMap)
+	lease.r.Store(nil)
 	r.SetContext(context.Background())
 	rp.Put(r)
 
