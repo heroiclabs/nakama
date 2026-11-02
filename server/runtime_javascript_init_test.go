@@ -235,6 +235,21 @@ function InitModule(ctx, logger, nk, initializer) {
 				return err
 			},
 		},
+		{
+			name: "after ListParties",
+			module: `function hook(ctx, logger, nk, data, request) {
+  throw new Error("hook ran");
+}
+
+function InitModule(ctx, logger, nk, initializer) {
+  initializer.registerAfterListParties(hook);
+}`,
+			invoke: func(t *testing.T, r *Runtime) error {
+				fn := r.AfterListParties()
+				require.NotNil(t, fn)
+				return fn(ctx, logger, "", "", "", nil, 0, "", "", &api.PartyList{}, &api.ListPartiesRequest{})
+			},
+		},
 	}
 
 	for _, tc := range cases {
