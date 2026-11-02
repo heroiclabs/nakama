@@ -2402,6 +2402,7 @@ func (rp *RuntimeProviderLua) StorageIndexFilter(ctx context.Context, indexName 
 	valueMap := make(map[string]any)
 	err = json.Unmarshal([]byte(write.Object.Value), &valueMap)
 	if err != nil {
+		rp.Put(r)
 		return false, fmt.Errorf("failed to convert value to json: %s", err.Error())
 	}
 	valueTable := RuntimeLuaConvertMap(r.vm, valueMap)
