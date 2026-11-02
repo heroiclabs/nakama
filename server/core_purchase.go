@@ -77,7 +77,7 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 
 	dbPurchase := &storagePurchase{
 		userID:        userID,
-		store:         api.StoreProvider_APPLE_APP_STORE,
+		store:         int(api.StoreProvider_APPLE_APP_STORE),
 		productId:     transactionInfo.ProductId,
 		transactionId: transactionInfo.TransactionId,
 		purchaseTime:  parseMillisecondUnixTimestamp(transactionInfo.PurchaseDate),
@@ -106,15 +106,16 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	}
 	dbPurchase.rawResponse = string(receiptJson)
 
-	dbPurchases, err := upsertPurchases(ctx, db, []*storagePurchase{dbPurchase})
+	dbPurchases, err := upsertPurchases(ctx, db, dbPurchase)
 	if err != nil || len(dbPurchases) == 0 {
 		logger.Error("Failed to store App Store notification purchase data", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Failed to store app store purchase data")
 	}
 
 	dbPurchase = dbPurchases[0]
-	suid := dbPurchase.userID.String()
-	if dbPurchase.userID.IsNil() {
+	suid := userID.String()
+	// Avoid reporting deleted users as system users.
+	if userID.IsNil() {
 		suid = ""
 	}
 
@@ -175,7 +176,7 @@ func validateLegacyPurchaseReceiptApple(ctx context.Context, logger *zap.Logger,
 		seenTransactionIDs[purchase.TransactionId] = struct{}{}
 		storagePurchases = append(storagePurchases, &storagePurchase{
 			userID:        userID,
-			store:         api.StoreProvider_APPLE_APP_STORE,
+			store:         int(api.StoreProvider_APPLE_APP_STORE),
 			productId:     purchase.ProductID,
 			transactionId: purchase.TransactionId,
 			rawResponse:   string(raw),
@@ -201,7 +202,7 @@ func validateLegacyPurchaseReceiptApple(ctx context.Context, logger *zap.Logger,
 		seenTransactionIDs[purchase.TransactionId] = struct{}{}
 		storagePurchases = append(storagePurchases, &storagePurchase{
 			userID:        userID,
-			store:         api.StoreProvider_APPLE_APP_STORE,
+			store:         int(api.StoreProvider_APPLE_APP_STORE),
 			productId:     purchase.ProductId,
 			transactionId: purchase.TransactionId,
 			rawResponse:   string(raw),
@@ -223,7 +224,7 @@ func validateLegacyPurchaseReceiptApple(ctx context.Context, logger *zap.Logger,
 				UserId:           p.userID.String(),
 				ProductId:        p.productId,
 				TransactionId:    p.transactionId,
-				Store:            p.store,
+				Store:            api.StoreProvider(p.store),
 				PurchaseTime:     timestamppb.New(p.purchaseTime),
 				ProviderResponse: string(raw),
 				Environment:      p.environment,
@@ -233,22 +234,23 @@ func validateLegacyPurchaseReceiptApple(ctx context.Context, logger *zap.Logger,
 		return &api.ValidatePurchaseResponse{ValidatedPurchases: validatedPurchases}, nil
 	}
 
-	purchases, err := upsertPurchases(ctx, db, storagePurchases)
+	purchases, err := upsertPurchases(ctx, db, storagePurchases...)
 	if err != nil {
 		return nil, err
 	}
 
 	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
 	for _, p := range purchases {
-		suid := p.userID.String()
-		if p.userID.IsNil() {
+		suid := userID.String()
+		// Avoid reporting deleted users as system users.
+		if userID.IsNil() {
 			suid = ""
 		}
 		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
 			UserId:           suid,
 			ProductId:        p.productId,
 			TransactionId:    p.transactionId,
-			Store:            p.store,
+			Store:            api.StoreProvider(p.store),
 			PurchaseTime:     timestamppb.New(p.purchaseTime),
 			CreateTime:       timestamppb.New(p.createTime),
 			UpdateTime:       timestamppb.New(p.updateTime),
@@ -289,7 +291,7 @@ func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB,
 
 	sPurchase := &storagePurchase{
 		userID:        userID,
-		store:         api.StoreProvider_GOOGLE_PLAY_STORE,
+		store:         int(api.StoreProvider_GOOGLE_PLAY_STORE),
 		productId:     gReceipt.ProductID,
 		transactionId: gReceipt.PurchaseToken,
 		rawResponse:   string(raw),
@@ -303,7 +305,7 @@ func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB,
 				UserId:           userID.String(),
 				ProductId:        sPurchase.productId,
 				TransactionId:    sPurchase.transactionId,
-				Store:            sPurchase.store,
+				Store:            api.StoreProvider(sPurchase.store),
 				PurchaseTime:     timestamppb.New(sPurchase.purchaseTime),
 				ProviderResponse: string(raw),
 				Environment:      sPurchase.environment,
@@ -313,7 +315,7 @@ func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		return &api.ValidatePurchaseResponse{ValidatedPurchases: validatedPurchases}, nil
 	}
 
-	purchases, err := upsertPurchases(ctx, db, []*storagePurchase{sPurchase})
+	purchases, err := upsertPurchases(ctx, db, sPurchase)
 	if err != nil {
 		if !errors.Is(err, context.Canceled) {
 			logger.Error("Error storing Google receipt", zap.Error(err))
@@ -323,15 +325,16 @@ func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB,
 
 	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
 	for _, p := range purchases {
-		suid := p.userID.String()
-		if p.userID.IsNil() {
+		suid := userID.String()
+		// Avoid reporting deleted users as system users.
+		if userID.IsNil() {
 			suid = ""
 		}
 		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
 			UserId:           suid,
 			ProductId:        p.productId,
 			TransactionId:    p.transactionId,
-			Store:            p.store,
+			Store:            api.StoreProvider(p.store),
 			PurchaseTime:     timestamppb.New(p.purchaseTime),
 			CreateTime:       timestamppb.New(p.createTime),
 			UpdateTime:       timestamppb.New(p.updateTime),
@@ -371,7 +374,7 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 
 	sPurchase := &storagePurchase{
 		userID:        userID,
-		store:         api.StoreProvider_HUAWEI_APP_GALLERY,
+		store:         int(api.StoreProvider_HUAWEI_APP_GALLERY),
 		productId:     validation.PurchaseTokenData.ProductId,
 		transactionId: validation.PurchaseTokenData.PurchaseToken,
 		rawResponse:   string(raw),
@@ -385,7 +388,7 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 				UserId:           userID.String(),
 				ProductId:        sPurchase.productId,
 				TransactionId:    sPurchase.transactionId,
-				Store:            sPurchase.store,
+				Store:            api.StoreProvider(sPurchase.store),
 				PurchaseTime:     timestamppb.New(sPurchase.purchaseTime),
 				ProviderResponse: string(raw),
 				Environment:      sPurchase.environment,
@@ -395,7 +398,7 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		return &api.ValidatePurchaseResponse{ValidatedPurchases: validatedPurchases}, nil
 	}
 
-	purchases, err := upsertPurchases(ctx, db, []*storagePurchase{sPurchase})
+	purchases, err := upsertPurchases(ctx, db, sPurchase)
 	if err != nil {
 		if err != context.Canceled {
 			logger.Error("Error storing Huawei receipt", zap.Error(err))
@@ -405,15 +408,16 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 
 	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
 	for _, p := range purchases {
-		suid := p.userID.String()
-		if p.userID.IsNil() {
+		suid := userID.String()
+		// Avoid reporting deleted users as system users.
+		if userID.IsNil() {
 			suid = ""
 		}
 		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
 			UserId:           suid,
 			ProductId:        p.productId,
 			TransactionId:    p.transactionId,
-			Store:            p.store,
+			Store:            api.StoreProvider(p.store),
 			PurchaseTime:     timestamppb.New(p.purchaseTime),
 			CreateTime:       timestamppb.New(p.createTime),
 			UpdateTime:       timestamppb.New(p.updateTime),
@@ -439,7 +443,7 @@ func ValidatePurchaseFacebookInstant(ctx context.Context, logger *zap.Logger, db
 
 	sPurchase := &storagePurchase{
 		userID:        userID,
-		store:         api.StoreProvider_FACEBOOK_INSTANT_STORE,
+		store:         int(api.StoreProvider_FACEBOOK_INSTANT_STORE),
 		productId:     payment.ProductId,
 		transactionId: payment.PurchaseToken,
 		rawResponse:   rawResponse,
@@ -453,7 +457,7 @@ func ValidatePurchaseFacebookInstant(ctx context.Context, logger *zap.Logger, db
 				UserId:           userID.String(),
 				ProductId:        sPurchase.productId,
 				TransactionId:    sPurchase.transactionId,
-				Store:            sPurchase.store,
+				Store:            api.StoreProvider(sPurchase.store),
 				PurchaseTime:     timestamppb.New(sPurchase.purchaseTime),
 				ProviderResponse: rawResponse,
 				Environment:      sPurchase.environment,
@@ -463,7 +467,7 @@ func ValidatePurchaseFacebookInstant(ctx context.Context, logger *zap.Logger, db
 		return &api.ValidatePurchaseResponse{ValidatedPurchases: validatedPurchases}, nil
 	}
 
-	purchases, err := upsertPurchases(ctx, db, []*storagePurchase{sPurchase})
+	purchases, err := upsertPurchases(ctx, db, sPurchase)
 	if err != nil {
 		if err != context.Canceled {
 			logger.Error("Error storing Facebook Instant receipt", zap.Error(err))
@@ -473,15 +477,16 @@ func ValidatePurchaseFacebookInstant(ctx context.Context, logger *zap.Logger, db
 
 	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
 	for _, p := range purchases {
-		suid := p.userID.String()
-		if p.userID.IsNil() {
+		suid := userID.String()
+		// Avoid reporting deleted users as system users.
+		if userID.IsNil() {
 			suid = ""
 		}
 		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
 			UserId:           suid,
 			ProductId:        p.productId,
 			TransactionId:    p.transactionId,
-			Store:            p.store,
+			Store:            api.StoreProvider(p.store),
 			PurchaseTime:     timestamppb.New(p.purchaseTime),
 			CreateTime:       timestamppb.New(p.createTime),
 			UpdateTime:       timestamppb.New(p.updateTime),
@@ -522,7 +527,7 @@ func ValidatePurchaseSamsung(ctx context.Context, logger *zap.Logger, db *sql.DB
 
 	sPurchase := &storagePurchase{
 		userID:        userID,
-		store:         api.StoreProvider_SAMSUNG_GALAXY_STORE,
+		store:         int(api.StoreProvider_SAMSUNG_GALAXY_STORE),
 		productId:     orderResp.ItemId,
 		transactionId: purchaseId,
 		rawResponse:   string(raw),
@@ -537,7 +542,7 @@ func ValidatePurchaseSamsung(ctx context.Context, logger *zap.Logger, db *sql.DB
 					UserId:           userID.String(),
 					ProductId:        sPurchase.productId,
 					TransactionId:    sPurchase.transactionId,
-					Store:            sPurchase.store,
+					Store:            api.StoreProvider(sPurchase.store),
 					PurchaseTime:     timestamppb.New(sPurchase.purchaseTime),
 					ProviderResponse: string(raw),
 					Environment:      sPurchase.environment,
@@ -546,7 +551,7 @@ func ValidatePurchaseSamsung(ctx context.Context, logger *zap.Logger, db *sql.DB
 		}, nil
 	}
 
-	purchases, err := upsertPurchases(ctx, db, []*storagePurchase{sPurchase})
+	purchases, err := upsertPurchases(ctx, db, sPurchase)
 	if err != nil {
 		if err != context.Canceled {
 			logger.Error("Error storing Samsung receipt", zap.Error(err))
@@ -556,15 +561,16 @@ func ValidatePurchaseSamsung(ctx context.Context, logger *zap.Logger, db *sql.DB
 
 	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
 	for _, p := range purchases {
-		suid := p.userID.String()
-		if p.userID.IsNil() {
+		suid := userID.String()
+		// Avoid reporting deleted users as system users.
+		if userID.IsNil() {
 			suid = ""
 		}
 		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
 			UserId:           suid,
 			ProductId:        p.productId,
 			TransactionId:    p.transactionId,
-			Store:            p.store,
+			Store:            api.StoreProvider(p.store),
 			PurchaseTime:     timestamppb.New(p.purchaseTime),
 			CreateTime:       timestamppb.New(p.createTime),
 			UpdateTime:       timestamppb.New(p.updateTime),
@@ -579,11 +585,11 @@ func ValidatePurchaseSamsung(ctx context.Context, logger *zap.Logger, db *sql.DB
 	}, nil
 }
 
-func GetPurchaseByTransactionId(ctx context.Context, logger *zap.Logger, db *sql.DB, transactionID string) (*api.ValidatedPurchase, error) {
+func GetPurchaseByTransactionId(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimeIAPProviderRegistry, transactionID string) (*api.ValidatedPurchase, error) {
 	var (
 		dbTransactionId string
 		dbUserId        uuid.UUID
-		dbStore         api.StoreProvider
+		dbStore         int
 		dbCreateTime    pgtype.Timestamptz
 		dbUpdateTime    pgtype.Timestamptz
 		dbPurchaseTime  pgtype.Timestamptz
@@ -622,18 +628,115 @@ func GetPurchaseByTransactionId(ctx context.Context, logger *zap.Logger, db *sql
 		suid = ""
 	}
 
-	return &api.ValidatedPurchase{
+	purchase := &api.ValidatedPurchase{
 		UserId:           suid,
 		ProductId:        dbProductId,
 		TransactionId:    dbTransactionId,
-		Store:            dbStore,
+		Store:            api.StoreProvider(dbStore),
 		PurchaseTime:     timestamppb.New(dbPurchaseTime.Time),
 		CreateTime:       timestamppb.New(dbCreateTime.Time),
 		UpdateTime:       timestamppb.New(dbUpdateTime.Time),
 		Environment:      dbEnvironment,
 		RefundTime:       timestamppb.New(dbRefundTime.Time),
 		ProviderResponse: dbRawResponse,
-	}, nil
+	}
+	if name := registry.GetName(dbStore); name != "" {
+		purchase.Provider = name
+	}
+
+	return purchase, nil
+}
+
+func ValidatePurchase(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimeIAPProviderRegistry, userID uuid.UUID, traceID, providerName string, payload, overrides map[string]any, persist bool) (*api.ValidateIAPPurchaseResponse, error) {
+	provider := registry.Get(providerName)
+	if provider == nil {
+		return nil, status.Error(codes.InvalidArgument, "IAP provider not found: "+providerName)
+	}
+
+	purchases, err, code := provider.validatePurchase(ctx, traceID, payload, overrides)
+	if err != nil {
+		return nil, status.Error(code, err.Error())
+	}
+
+	if len(purchases) == 0 {
+		logger.Warn("IAP provider returned no purchases.", zap.String("provider", provider.name))
+		return nil, status.Error(codes.FailedPrecondition, "Invalid Receipt. No purchases found.")
+	}
+
+	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
+	storagePurchases := make([]*storagePurchase, 0, len(purchases))
+	seenTransactionIDs := make(map[string]struct{}, len(purchases))
+	for _, purchase := range purchases {
+		if purchase == nil || purchase.TransactionId == "" {
+			logger.Error("IAP provider returned a purchase without a transaction ID.", zap.String("provider", provider.name))
+			return nil, status.Error(codes.FailedPrecondition, "Invalid Receipt. Transaction ID is required.")
+		}
+
+		if _, seen := seenTransactionIDs[purchase.TransactionId]; seen {
+			continue
+		}
+		seenTransactionIDs[purchase.TransactionId] = struct{}{}
+
+		validatedPurchase := &api.ValidatedPurchase{
+			UserId:           userID.String(),
+			ProductId:        purchase.ProductId,
+			TransactionId:    purchase.TransactionId,
+			Store:            api.StoreProvider(provider.storeCode),
+			Provider:         provider.name,
+			PurchaseTime:     timestamppb.New(purchase.PurchaseTime),
+			ProviderResponse: purchase.RawResponse,
+			Environment:      purchase.Environment,
+		}
+		if !purchase.RefundTime.IsZero() {
+			validatedPurchase.RefundTime = timestamppb.New(purchase.RefundTime)
+		}
+		validatedPurchases = append(validatedPurchases, validatedPurchase)
+
+		storagePurchases = append(storagePurchases, &storagePurchase{
+			userID:        userID,
+			store:         provider.storeCode,
+			productId:     purchase.ProductId,
+			transactionId: purchase.TransactionId,
+			rawResponse:   purchase.RawResponse,
+			purchaseTime:  purchase.PurchaseTime,
+			refundTime:    purchase.RefundTime,
+			environment:   purchase.Environment,
+		})
+	}
+
+	if !persist {
+		return &api.ValidateIAPPurchaseResponse{Purchase: validatedPurchases}, nil
+	}
+
+	stored, err := upsertPurchases(ctx, db, storagePurchases...)
+	if err != nil {
+		if !errors.Is(err, context.Canceled) {
+			logger.Error("Error storing purchase from provider", zap.String("provider", provider.name), zap.Error(err))
+		}
+		return nil, err
+	}
+
+	for _, validatedPurchase := range validatedPurchases {
+		for _, storedPurchase := range stored {
+			if storedPurchase.transactionId != validatedPurchase.TransactionId {
+				continue
+			}
+			if storedPurchase.createTime.IsZero() {
+				logger.Warn("IAP provider transaction ID belongs to another store, not storing.", zap.String("provider", provider.name), zap.String("transaction_id", storedPurchase.transactionId))
+				validatedPurchase.SeenBefore = true
+				break
+			}
+			validatedPurchase.CreateTime = timestamppb.New(storedPurchase.createTime)
+			validatedPurchase.UpdateTime = timestamppb.New(storedPurchase.updateTime)
+			validatedPurchase.SeenBefore = storedPurchase.seenBefore
+			if storedPurchase.refundTime.Unix() != 0 {
+				validatedPurchase.RefundTime = timestamppb.New(storedPurchase.refundTime)
+			}
+			break
+		}
+	}
+
+	return &api.ValidateIAPPurchaseResponse{Purchase: validatedPurchases}, nil
 }
 
 type purchasesListCursor struct {
@@ -643,9 +746,15 @@ type purchasesListCursor struct {
 	IsNext        bool
 	After         time.Time
 	Before        time.Time
+	Store         string // String instead of *int since gob decodes a pointer to 0 as nil, losing an Apple store filter.
 }
 
-func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID string, limit int, cursor string, after, before time.Time) (*api.PurchaseList, error) {
+func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimeIAPProviderRegistry, userID string, limit int, cursor string, after, before time.Time, storeFilter *int) (*api.PurchaseList, error) {
+	var cursorStore string
+	if storeFilter != nil {
+		cursorStore = strconv.Itoa(*storeFilter)
+	}
+
 	var incomingCursor *purchasesListCursor
 	if cursor != "" {
 		cb, err := base64.URLEncoding.DecodeString(cursor)
@@ -664,6 +773,9 @@ func ListPurchases(ctx context.Context, logger *zap.Logger, db *sql.DB, userID s
 			return nil, ErrPurchasesListInvalidCursor
 		}
 		if !before.Equal(incomingCursor.Before) {
+			return nil, ErrPurchasesListInvalidCursor
+		}
+		if cursorStore != incomingCursor.Store {
 			return nil, ErrPurchasesListInvalidCursor
 		}
 	}
@@ -734,6 +846,15 @@ FROM
 			query += fmt.Sprintf(" AND purchase_time <= $%v", len(params))
 		}
 	}
+	if cursorStore != "" {
+		if len(params) == 0 {
+			params = append(params, cursorStore)
+			query += fmt.Sprintf(" WHERE store = $%v::smallint", len(params))
+		} else {
+			params = append(params, cursorStore)
+			query += fmt.Sprintf(" AND store = $%v::smallint", len(params))
+		}
+	}
 
 	// Add order to query.
 	query += order
@@ -760,7 +881,7 @@ FROM
 	var dbUserID uuid.UUID
 	var transactionId string
 	var productId string
-	var store api.StoreProvider
+	var store int
 	var rawResponse string
 	var purchaseTime pgtype.Timestamptz
 	var createTime pgtype.Timestamptz
@@ -777,6 +898,7 @@ FROM
 				IsNext:        true,
 				After:         after,
 				Before:        before,
+				Store:         cursorStore,
 			}
 			break
 		}
@@ -795,13 +917,17 @@ FROM
 			UserId:           suid,
 			ProductId:        productId,
 			TransactionId:    transactionId,
-			Store:            store,
+			Store:            api.StoreProvider(store),
 			PurchaseTime:     timestamppb.New(purchaseTime.Time),
 			CreateTime:       timestamppb.New(createTime.Time),
 			UpdateTime:       timestamppb.New(updateTime.Time),
 			ProviderResponse: rawResponse,
 			Environment:      environment,
 			RefundTime:       timestamppb.New(refundTime.Time),
+		}
+
+		if name := registry.GetName(store); name != "" {
+			purchase.Provider = name
 		}
 
 		purchases = append(purchases, purchase)
@@ -814,6 +940,7 @@ FROM
 				IsNext:        false,
 				After:         after,
 				Before:        before,
+				Store:         cursorStore,
 			}
 		}
 	}
@@ -862,7 +989,7 @@ FROM
 
 type storagePurchase struct {
 	userID        uuid.UUID
-	store         api.StoreProvider
+	store         int
 	productId     string
 	transactionId string
 	rawResponse   string
@@ -874,7 +1001,7 @@ type storagePurchase struct {
 	seenBefore    bool // Set by upsertPurchases
 }
 
-func upsertPurchases(ctx context.Context, db *sql.DB, purchases []*storagePurchase) ([]*storagePurchase, error) {
+func upsertPurchases(ctx context.Context, db *sql.DB, purchases ...*storagePurchase) ([]*storagePurchase, error) {
 	if len(purchases) < 1 {
 		return nil, errors.New("expects at least one receipt")
 	}
@@ -882,7 +1009,7 @@ func upsertPurchases(ctx context.Context, db *sql.DB, purchases []*storagePurcha
 	transactionIDsToPurchase := make(map[string]*storagePurchase)
 
 	userIdParams := make([]uuid.UUID, 0, len(purchases))
-	storeParams := make([]api.StoreProvider, 0, len(purchases))
+	storeParams := make([]int, 0, len(purchases))
 	transactionIdParams := make([]string, 0, len(purchases))
 	productIdParams := make([]string, 0, len(purchases))
 	purchaseTimeParams := make([]time.Time, 0, len(purchases))
@@ -927,6 +1054,8 @@ ON CONFLICT
 DO UPDATE SET
 	refund_time = EXCLUDED.refund_time,
 	update_time = now()
+WHERE
+	purchase.store = EXCLUDED.store
 RETURNING
 	user_id,
 	transaction_id,
@@ -951,6 +1080,7 @@ RETURNING
 			return nil, err
 		}
 		storedPurchase := transactionIDsToPurchase[transactionId]
+		storedPurchase.userID = dbUserID
 		storedPurchase.createTime = createTime.Time
 		storedPurchase.updateTime = updateTime.Time
 		storedPurchase.seenBefore = updateTime.Time.After(createTime.Time)
@@ -965,6 +1095,10 @@ RETURNING
 
 	storedPurchases := make([]*storagePurchase, 0, len(transactionIDsToPurchase))
 	for _, purchase := range transactionIDsToPurchase {
+		if purchase.createTime.IsZero() {
+			// The conflict update's store predicate rejected the row: another store already owns this transaction ID.
+			purchase.seenBefore = true
+		}
 		storedPurchases = append(storedPurchases, purchase)
 	}
 

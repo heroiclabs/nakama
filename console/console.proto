@@ -1271,6 +1271,8 @@ message ListPurchasesRequest {
   google.protobuf.Timestamp before = 5;
   // Filter to use when searching for specific purchases.
   string filter = 6;
+  // Optional IAP provider name, built-in store (APPLE_APP_STORE, GOOGLE_PLAY_STORE, HUAWEI_APP_GALLERY, FACEBOOK_INSTANT_STORE, SAMSUNG_GALAXY_STORE) or numeric store code to list purchases for.
+  string provider = 7;
 }
 
 // List subscriptions.
@@ -1287,6 +1289,8 @@ message ListSubscriptionsRequest {
   google.protobuf.Timestamp before = 5;
   // Filter to use when searching for specific subscriptions.
   string filter = 6;
+  // Optional IAP provider name, built-in store (APPLE_APP_STORE, GOOGLE_PLAY_STORE, HUAWEI_APP_GALLERY, FACEBOOK_INSTANT_STORE, SAMSUNG_GALAXY_STORE) or numeric store code to list subscriptions for.
+  string provider = 7;
 }
 
 // List (and optionally filter) storage objects.
@@ -1558,6 +1562,8 @@ message RuntimeInfo {
   repeated string go_authenticate_providers = 8;
   // JavaScript registered authentication providers
   repeated string js_authenticate_providers = 9;
+  // Go registered IAP providers
+  repeated string go_iap_providers = 10;
 }
 
 // An individual update to a user's wallet.

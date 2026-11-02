@@ -1278,6 +1278,26 @@ message ValidatePurchaseSamsungRequest {
   google.protobuf.BoolValue persist = 2;
 }
 
+// Validate a purchase with a runtime-registered IAP provider.
+message ValidateIAPPurchaseRequest {
+  // The name the provider was registered under during runtime initialization.
+  string provider = 1;
+  // Opaque JSON passed through to the registered provider.
+  google.protobuf.Struct payload = 2;
+  // Persist the purchase so that seenBefore can be computed to protect against replay attacks.
+  google.protobuf.BoolValue persist = 3;
+}
+
+// Validate a subscription with a runtime-registered IAP provider.
+message ValidateIAPSubscriptionRequest {
+  // The name the provider was registered under during runtime initialization.
+  string provider = 1;
+  // Opaque JSON passed through to the registered provider.
+  google.protobuf.Struct payload = 2;
+  // Persist the subscription.
+  google.protobuf.BoolValue persist = 3;
+}
+
 // Validated Purchase stored by Nakama.
 message ValidatedPurchase {
   // Purchase User ID.
@@ -1302,6 +1322,8 @@ message ValidatedPurchase {
   StoreEnvironment environment = 10;
   // Whether the purchase had already been validated by Nakama before.
   bool seen_before = 11;
+  // Name of the IAP provider that validated the purchase, empty for a built-in store. For IAP providers, store holds the provider's code.
+  string provider = 12;
 }
 
 // Validate IAP response.
@@ -1313,6 +1335,17 @@ message ValidatePurchaseResponse {
 // Validate Subscription response.
 message ValidateSubscriptionResponse {
   ValidatedSubscription validated_subscription = 1;
+}
+
+// Purchases validated by a runtime-registered IAP provider.
+message ValidateIAPPurchaseResponse {
+  // Validated purchases.
+  repeated ValidatedPurchase purchase = 1;
+}
+
+// Subscription validated by a runtime-registered IAP provider.
+message ValidateIAPSubscriptionResponse {
+  ValidatedSubscription subscription = 1;
 }
 
 // Validation Provider,
@@ -1366,6 +1399,8 @@ message ValidatedSubscription {
   string provider_notification = 12;
   // Whether the subscription is currently active or not.
   bool active = 13;
+  // Name of the IAP provider that validated the subscription, empty for a built-in store. For IAP providers, store holds the provider's code.
+  string provider = 14;
 }
 
 // A list of validated purchases stored by Nakama.

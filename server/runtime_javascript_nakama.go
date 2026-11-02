@@ -87,11 +87,12 @@ type RuntimeJavascriptNakamaModule struct {
 	matchCreateFn        RuntimeMatchCreateFunction
 	eventFn              RuntimeEventCustomFunction
 	authProviderRegistry *RuntimeAuthenticateProviderRegistry
+	iapProviderRegistry  *RuntimeIAPProviderRegistry
 
 	satori runtime.Satori
 }
 
-func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, storageIndex StorageIndex, localCache *RuntimeJavascriptLocalCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, satoriClient runtime.Satori, eventFn RuntimeEventCustomFunction, matchCreateFn RuntimeMatchCreateFunction, authProviderRegistry *RuntimeAuthenticateProviderRegistry) *RuntimeJavascriptNakamaModule {
+func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, storageIndex StorageIndex, localCache *RuntimeJavascriptLocalCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, satoriClient runtime.Satori, eventFn RuntimeEventCustomFunction, matchCreateFn RuntimeMatchCreateFunction, authProviderRegistry *RuntimeAuthenticateProviderRegistry, iapProviderRegistry *RuntimeIAPProviderRegistry) *RuntimeJavascriptNakamaModule {
 	return &RuntimeJavascriptNakamaModule{
 		ctx:                  context.Background(),
 		logger:               logger,
@@ -120,6 +121,7 @@ func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonM
 		node:                 config.GetName(),
 		eventFn:              eventFn,
 		authProviderRegistry: authProviderRegistry,
+		iapProviderRegistry:  iapProviderRegistry,
 		matchCreateFn:        matchCreateFn,
 
 		satori: satoriClient,
@@ -6706,7 +6708,7 @@ func (n *RuntimeJavascriptNakamaModule) purchaseGetByTransactionId(r *goja.Runti
 			panic(r.NewTypeError("expects a transaction id string"))
 		}
 
-		purchase, err := GetPurchaseByTransactionId(n.ctx, n.logger, n.db, transactionID)
+		purchase, err := GetPurchaseByTransactionId(n.ctx, n.logger, n.db, n.iapProviderRegistry, transactionID)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error retrieving purchase: %s", err.Error())))
 		}
@@ -6745,7 +6747,7 @@ func (n *RuntimeJavascriptNakamaModule) purchasesList(r *goja.Runtime) func(goja
 			cursor = getJsString(r, f.Argument(2))
 		}
 
-		purchases, err := ListPurchases(n.ctx, n.logger, n.db, userID, limit, cursor, time.Time{}, time.Time{})
+		purchases, err := ListPurchases(n.ctx, n.logger, n.db, n.iapProviderRegistry, userID, limit, cursor, time.Time{}, time.Time{}, nil)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error retrieving purchases: %s", err.Error())))
 		}
@@ -6900,7 +6902,7 @@ func (n *RuntimeJavascriptNakamaModule) subscriptionGetByProductId(r *goja.Runti
 			panic(r.NewTypeError("expects a transaction id string"))
 		}
 
-		subscription, err := GetSubscriptionByProductId(n.ctx, n.logger, n.db, uid.String(), productID)
+		subscription, err := GetSubscriptionByProductId(n.ctx, n.logger, n.db, n.iapProviderRegistry, uid.String(), productID)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error retrieving purchase: %s", err.Error())))
 		}
@@ -6939,7 +6941,7 @@ func (n *RuntimeJavascriptNakamaModule) subscriptionsList(r *goja.Runtime) func(
 			cursor = getJsString(r, f.Argument(2))
 		}
 
-		subscriptions, err := ListSubscriptions(n.ctx, n.logger, n.db, userID, limit, cursor, time.Time{}, time.Time{})
+		subscriptions, err := ListSubscriptions(n.ctx, n.logger, n.db, n.iapProviderRegistry, userID, limit, cursor, time.Time{}, time.Time{}, nil)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error retrieving purchases: %s", err.Error())))
 		}
@@ -10492,7 +10494,7 @@ func purchaseResponseToJsObject(validation *api.ValidatePurchaseResponse) map[st
 }
 
 func validatedPurchaseToJsObject(purchase *api.ValidatedPurchase) map[string]any {
-	validatedPurchaseMap := make(map[string]any, 11)
+	validatedPurchaseMap := make(map[string]any, 12)
 	validatedPurchaseMap["userId"] = purchase.UserId
 	validatedPurchaseMap["productId"] = purchase.ProductId
 	validatedPurchaseMap["transactionId"] = purchase.TransactionId
@@ -10512,6 +10514,9 @@ func validatedPurchaseToJsObject(purchase *api.ValidatedPurchase) map[string]any
 	}
 	validatedPurchaseMap["environment"] = purchase.Environment.String()
 	validatedPurchaseMap["seenBefore"] = purchase.SeenBefore
+	if purchase.Provider != "" {
+		validatedPurchaseMap["provider"] = purchase.Provider
+	}
 
 	return validatedPurchaseMap
 }
@@ -10521,7 +10526,7 @@ func subscriptionResponseToJsObject(validation *api.ValidateSubscriptionResponse
 }
 
 func subscriptionToJsObject(subscription *api.ValidatedSubscription) map[string]any {
-	validatedSubMap := make(map[string]any, 13)
+	validatedSubMap := make(map[string]any, 14)
 	validatedSubMap["userId"] = subscription.UserId
 	validatedSubMap["productId"] = subscription.ProductId
 	validatedSubMap["originalTransactionId"] = subscription.OriginalTransactionId
@@ -10543,6 +10548,9 @@ func subscriptionToJsObject(subscription *api.ValidatedSubscription) map[string]
 	validatedSubMap["active"] = subscription.Active
 	validatedSubMap["providerResponse"] = subscription.ProviderResponse
 	validatedSubMap["providerNotification"] = subscription.ProviderNotification
+	if subscription.Provider != "" {
+		validatedSubMap["provider"] = subscription.Provider
+	}
 
 	return validatedSubMap
 }

@@ -93,11 +93,12 @@ type RuntimeLuaNakamaModule struct {
 	matchCreateFn        RuntimeMatchCreateFunction
 	eventFn              RuntimeEventCustomFunction
 	authProviderRegistry *RuntimeAuthenticateProviderRegistry
+	iapProviderRegistry  *RuntimeIAPProviderRegistry
 
 	satori runtime.Satori
 }
 
-func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, storageIndex StorageIndex, satoriClient runtime.Satori, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, authProviderRegistry *RuntimeAuthenticateProviderRegistry, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
+func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, storageIndex StorageIndex, satoriClient runtime.Satori, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, authProviderRegistry *RuntimeAuthenticateProviderRegistry, iapProviderRegistry *RuntimeIAPProviderRegistry, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
 	return &RuntimeLuaNakamaModule{
 		logger:               logger,
 		db:                   db,
@@ -130,6 +131,7 @@ func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshale
 		matchCreateFn:        matchCreateFn,
 		eventFn:              eventFn,
 		authProviderRegistry: authProviderRegistry,
+		iapProviderRegistry:  iapProviderRegistry,
 
 		satori: satoriClient,
 	}
@@ -137,19 +139,23 @@ func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshale
 
 func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 	functions := map[string]lua.LGFunction{
-		"register_rpc":                       n.registerRPC,
-		"register_authenticate_provider":     n.registerAuthenticateProvider,
-		"register_req_before":                n.registerReqBefore,
-		"register_req_after":                 n.registerReqAfter,
-		"register_rt_before":                 n.registerRTBefore,
-		"register_rt_after":                  n.registerRTAfter,
-		"register_matchmaker_matched":        n.registerMatchmakerMatched,
-		"register_tournament_end":            n.registerTournamentEnd,
-		"register_tournament_reset":          n.registerTournamentReset,
-		"register_leaderboard_reset":         n.registerLeaderboardReset,
-		"register_shutdown":                  n.registerShutdown,
-		"register_storage_index":             n.registerStorageIndex,
-		"register_storage_index_filter":      n.registerStorageIndexFilter,
+		"register_rpc":                              n.registerRPC,
+		"register_authenticate_provider":            n.registerAuthenticateProvider,
+		"register_req_before":                       n.registerReqBefore,
+		"register_req_after":                        n.registerReqAfter,
+		"register_rt_before":                        n.registerRTBefore,
+		"register_rt_after":                         n.registerRTAfter,
+		"register_matchmaker_matched":               n.registerMatchmakerMatched,
+		"register_tournament_end":                   n.registerTournamentEnd,
+		"register_tournament_reset":                 n.registerTournamentReset,
+		"register_leaderboard_reset":                n.registerLeaderboardReset,
+		"register_shutdown":                         n.registerShutdown,
+		"register_storage_index":                    n.registerStorageIndex,
+		"register_storage_index_filter":             n.registerStorageIndexFilter,
+		"register_purchase_notification_apple":      n.registerPurchaseNotificationApple,
+		"register_subscription_notification_apple":  n.registerSubscriptionNotificationApple,
+		"register_purchase_notification_google":     n.registerPurchaseNotificationGoogle,
+		"register_subscription_notification_google": n.registerSubscriptionNotificationGoogle,
 		"run_once":                           n.runOnce,
 		"get_context":                        n.getContext,
 		"event":                              n.event,
@@ -574,6 +580,70 @@ func (n *RuntimeLuaNakamaModule) registerShutdown(l *lua.LState) int {
 	}
 	if n.announceCallbackFn != nil {
 		n.announceCallbackFn(RuntimeExecutionModeShutdown, "")
+	}
+	return 0
+}
+
+// @group hooks
+// @summary Registers a function to be run when an Apple purchase notification is received.
+// @param fn(type=function) A function reference which will be executed on each purchase notification. It receives the context, the validated purchase, the provider payload as a JSON string and the notification type.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) registerPurchaseNotificationApple(l *lua.LState) int {
+	fn := l.CheckFunction(1)
+
+	if n.registerCallbackFn != nil {
+		n.registerCallbackFn(RuntimeExecutionModePurchaseNotificationApple, "", fn)
+	}
+	if n.announceCallbackFn != nil {
+		n.announceCallbackFn(RuntimeExecutionModePurchaseNotificationApple, "")
+	}
+	return 0
+}
+
+// @group hooks
+// @summary Registers a function to be run when an Apple subscription notification is received.
+// @param fn(type=function) A function reference which will be executed on each subscription notification. It receives the context, the validated subscription, the provider payload as a JSON string and the notification type.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) registerSubscriptionNotificationApple(l *lua.LState) int {
+	fn := l.CheckFunction(1)
+
+	if n.registerCallbackFn != nil {
+		n.registerCallbackFn(RuntimeExecutionModeSubscriptionNotificationApple, "", fn)
+	}
+	if n.announceCallbackFn != nil {
+		n.announceCallbackFn(RuntimeExecutionModeSubscriptionNotificationApple, "")
+	}
+	return 0
+}
+
+// @group hooks
+// @summary Registers a function to be run when a Google purchase notification is received.
+// @param fn(type=function) A function reference which will be executed on each purchase notification. It receives the context, the validated purchase, the provider payload as a JSON string and the notification type.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) registerPurchaseNotificationGoogle(l *lua.LState) int {
+	fn := l.CheckFunction(1)
+
+	if n.registerCallbackFn != nil {
+		n.registerCallbackFn(RuntimeExecutionModePurchaseNotificationGoogle, "", fn)
+	}
+	if n.announceCallbackFn != nil {
+		n.announceCallbackFn(RuntimeExecutionModePurchaseNotificationGoogle, "")
+	}
+	return 0
+}
+
+// @group hooks
+// @summary Registers a function to be run when a Google subscription notification is received.
+// @param fn(type=function) A function reference which will be executed on each subscription notification. It receives the context, the validated subscription, the provider payload as a JSON string and the notification type.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) registerSubscriptionNotificationGoogle(l *lua.LState) int {
+	fn := l.CheckFunction(1)
+
+	if n.registerCallbackFn != nil {
+		n.registerCallbackFn(RuntimeExecutionModeSubscriptionNotificationGoogle, "", fn)
+	}
+	if n.announceCallbackFn != nil {
+		n.announceCallbackFn(RuntimeExecutionModeSubscriptionNotificationGoogle, "")
 	}
 	return 0
 }
@@ -2970,7 +3040,7 @@ func purchaseValidationToLuaTable(l *lua.LState, validation *api.ValidatePurchas
 }
 
 func purchaseToLuaTable(l *lua.LState, p *api.ValidatedPurchase) *lua.LTable {
-	validatedPurchaseTable := l.CreateTable(0, 11)
+	validatedPurchaseTable := l.CreateTable(0, 12)
 
 	validatedPurchaseTable.RawSetString("user_id", lua.LString(p.UserId))
 	validatedPurchaseTable.RawSetString("product_id", lua.LString(p.ProductId))
@@ -2991,6 +3061,9 @@ func purchaseToLuaTable(l *lua.LState, p *api.ValidatedPurchase) *lua.LTable {
 	}
 	validatedPurchaseTable.RawSetString("environment", lua.LString(p.Environment.String()))
 	validatedPurchaseTable.RawSetString("seen_before", lua.LBool(p.SeenBefore))
+	if p.Provider != "" {
+		validatedPurchaseTable.RawSetString("provider", lua.LString(p.Provider))
+	}
 
 	return validatedPurchaseTable
 }
@@ -3003,7 +3076,7 @@ func subscriptionValidationToLuaTable(l *lua.LState, validation *api.ValidateSub
 }
 
 func subscriptionToLuaTable(l *lua.LState, p *api.ValidatedSubscription) *lua.LTable {
-	validatedSubscriptionTable := l.CreateTable(0, 13)
+	validatedSubscriptionTable := l.CreateTable(0, 14)
 	validatedSubscriptionTable.RawSetString("user_id", lua.LString(p.UserId))
 	validatedSubscriptionTable.RawSetString("product_id", lua.LString(p.ProductId))
 	validatedSubscriptionTable.RawSetString("original_transaction_id", lua.LString(p.OriginalTransactionId))
@@ -3025,6 +3098,9 @@ func subscriptionToLuaTable(l *lua.LState, p *api.ValidatedSubscription) *lua.LT
 	validatedSubscriptionTable.RawSetString("active", lua.LBool(p.Active))
 	validatedSubscriptionTable.RawSetString("provider_response", lua.LString(p.ProviderResponse))
 	validatedSubscriptionTable.RawSetString("provider_notification", lua.LString(p.ProviderNotification))
+	if p.Provider != "" {
+		validatedSubscriptionTable.RawSetString("provider", lua.LString(p.Provider))
+	}
 
 	return validatedSubscriptionTable
 }
@@ -8425,7 +8501,7 @@ func (n *RuntimeLuaNakamaModule) purchaseGetByTransactionId(l *lua.LState) int {
 		return 0
 	}
 
-	purchase, err := GetPurchaseByTransactionId(l.Context(), n.logger, n.db, transactionID)
+	purchase, err := GetPurchaseByTransactionId(l.Context(), n.logger, n.db, n.iapProviderRegistry, transactionID)
 	if err != nil {
 		l.RaiseError("error retrieving purchase: %v", err.Error())
 		return 0
@@ -8459,7 +8535,7 @@ func (n *RuntimeLuaNakamaModule) purchasesList(l *lua.LState) int {
 
 	cursor := l.OptString(3, "")
 
-	purchases, err := ListPurchases(l.Context(), n.logger, n.db, userID, limit, cursor, time.Time{}, time.Time{})
+	purchases, err := ListPurchases(l.Context(), n.logger, n.db, n.iapProviderRegistry, userID, limit, cursor, time.Time{}, time.Time{}, nil)
 	if err != nil {
 		l.RaiseError("error retrieving purchases: %v", err.Error())
 		return 0
@@ -8604,7 +8680,7 @@ func (n *RuntimeLuaNakamaModule) subscriptionGetByProductId(l *lua.LState) int {
 		return 0
 	}
 
-	subscription, err := GetSubscriptionByProductId(l.Context(), n.logger, n.db, uid.String(), productID)
+	subscription, err := GetSubscriptionByProductId(l.Context(), n.logger, n.db, n.iapProviderRegistry, uid.String(), productID)
 	if err != nil {
 		l.RaiseError("error retrieving subscription: %v", err.Error())
 		return 0
@@ -8638,7 +8714,7 @@ func (n *RuntimeLuaNakamaModule) subscriptionsList(l *lua.LState) int {
 
 	cursor := l.OptString(3, "")
 
-	subscriptions, err := ListSubscriptions(l.Context(), n.logger, n.db, userID, limit, cursor, time.Time{}, time.Time{})
+	subscriptions, err := ListSubscriptions(l.Context(), n.logger, n.db, n.iapProviderRegistry, userID, limit, cursor, time.Time{}, time.Time{}, nil)
 	if err != nil {
 		l.RaiseError("error retrieving subscriptions: %v", err.Error())
 		return 0

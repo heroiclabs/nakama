@@ -1366,9 +1366,11 @@ func (im *RuntimeJavascriptInitModule) getInitModuleFn() (*ast.BlockStatement, s
 			fl = funDecl.Function
 			break
 		} else if varStat, ok := dec.(*ast.VariableStatement); ok {
-			if id, ok := varStat.List[0].Target.(*ast.Identifier); ok && id.Name == INIT_MODULE_FN_NAME {
-				if fnLit, ok := varStat.List[0].Initializer.(*ast.FunctionLiteral); ok {
-					fl = fnLit
+			for _, binding := range varStat.List {
+				if id, ok := binding.Target.(*ast.Identifier); ok && id.Name == INIT_MODULE_FN_NAME {
+					if fnLit, ok := binding.Initializer.(*ast.FunctionLiteral); ok {
+						fl = fnLit
+					}
 				}
 			}
 		}
@@ -1951,10 +1953,12 @@ func (im *RuntimeJavascriptInitModule) getMatchHookFnIdentifier(r *goja.Runtime,
 							// We know the obj is an identifier, we need to lookup it's definition in the AST
 							matchHandlerIdStr := matchHandlerId.Name.String()
 							for _, mhDec := range im.ast.DeclarationList {
-								if mhDecId, ok := mhDec.List[0].Target.(*ast.Identifier); ok && mhDecId.Name.String() == matchHandlerIdStr {
-									objLiteral, ok := mhDec.List[0].Initializer.(*ast.ObjectLiteral)
-									if ok {
-										obj = objLiteral
+								for _, binding := range mhDec.List {
+									if mhDecId, ok := binding.Target.(*ast.Identifier); ok && mhDecId.Name.String() == matchHandlerIdStr {
+										objLiteral, ok := binding.Initializer.(*ast.ObjectLiteral)
+										if ok {
+											obj = objLiteral
+										}
 									}
 								}
 							}
