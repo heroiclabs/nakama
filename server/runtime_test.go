@@ -30,6 +30,7 @@ import (
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	rt "github.com/heroiclabs/nakama-common/runtime"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -912,6 +913,73 @@ nakama.register_req_after(after_storage_write, "WriteStorageObjects")`,
 
 	if account.Wallet != `{"gem": 10}` {
 		t.Fatalf("Unexpected wallet value: %s", account.Wallet)
+	}
+}
+
+func TestRuntimeLuaRequestHooksRun(t *testing.T) {
+	ctx := context.Background()
+
+	cases := []struct {
+		name   string
+		module string
+		invoke func(t *testing.T, r *Runtime) error
+	}{
+		{
+			name: "after ListFriendsOfFriends",
+			module: `local nk = require("nakama")
+
+local function hook(ctx, out, input)
+	error("hook ran")
+end
+
+nk.register_req_after(hook, "ListFriendsOfFriends")`,
+			invoke: func(t *testing.T, r *Runtime) error {
+				fn := r.AfterListFriendsOfFriends()
+				require.NotNil(t, fn)
+				return fn(ctx, logger, "", "", "", nil, 0, "", "", &api.FriendsOfFriendsList{})
+			},
+		},
+		{
+			name: "before DemoteGroupUsers",
+			module: `local nk = require("nakama")
+
+local function hook(ctx, input)
+	error("hook ran")
+end
+
+nk.register_req_before(hook, "DemoteGroupUsers")`,
+			invoke: func(t *testing.T, r *Runtime) error {
+				fn := r.BeforeDemoteGroupUsers()
+				require.NotNil(t, fn)
+				_, err, _ := fn(ctx, logger, "", "", "", nil, 0, "", "", &api.DemoteGroupUsersRequest{})
+				return err
+			},
+		},
+		{
+			name: "after DemoteGroupUsers",
+			module: `local nk = require("nakama")
+
+local function hook(ctx, out, input)
+	error("hook ran")
+end
+
+nk.register_req_after(hook, "DemoteGroupUsers")`,
+			invoke: func(t *testing.T, r *Runtime) error {
+				fn := r.AfterDemoteGroupUsers()
+				require.NotNil(t, fn)
+				return fn(ctx, logger, "", "", "", nil, 0, "", "", &api.DemoteGroupUsersRequest{})
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r, _, err := runtimeWithModules(t, map[string]string{"hooks": tc.module})
+			require.NoError(t, err)
+
+			err = tc.invoke(t, r)
+			require.ErrorContains(t, err, "hook ran", "failed to call hook")
+		})
 	}
 }
 
