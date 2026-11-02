@@ -2426,6 +2426,13 @@ func (rp *RuntimeProviderLua) StorageIndexFilter(ctx context.Context, indexName 
 }
 
 func (rp *RuntimeProviderLua) Get(ctx context.Context) (*RuntimeLua, error) {
+	if lease, ok := ctx.Value(ctxLuaRuntimeKey{}).(*luaRuntimeLease); ok {
+		if r := lease.r.Load(); r != nil {
+			// A call nested inside one already running on r reuses it rather than wait on a pool its caller holds.
+			r.nested.Inc()
+			return r, nil
+		}
+	}
 	select {
 	case <-ctx.Done():
 		// Context cancelled
@@ -2461,6 +2468,12 @@ func (rp *RuntimeProviderLua) Get(ctx context.Context) (*RuntimeLua, error) {
 }
 
 func (rp *RuntimeProviderLua) Put(r *RuntimeLua) {
+	for n := r.nested.Load(); n > 0; n = r.nested.Load() {
+		// Only the call that leased r from the pool returns it.
+		if r.nested.CompareAndSwap(n, n-1) {
+			return
+		}
+	}
 	select {
 	case rp.poolCh <- r:
 		// Runtime is successfully returned to the pool.
@@ -2479,6 +2492,7 @@ type RuntimeLua struct {
 	luaEnv    *lua.LTable
 	env       map[string]string
 	callbacks *RuntimeLuaCallbacks
+	nested    atomic.Int32
 }
 
 func (r *RuntimeLua) loadModules(moduleCache *RuntimeLuaModuleCache) error {
