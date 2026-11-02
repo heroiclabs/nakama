@@ -397,6 +397,10 @@ func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.
 }
 
 func validateLegacySubscriptionReceiptApple(ctx context.Context, logger *zap.Logger, db *sql.DB, httpc *http.Client, userID uuid.UUID, password, receipt string, persist bool) (*api.ValidateSubscriptionResponse, error) {
+	if password == "" {
+		return nil, status.Error(codes.FailedPrecondition, "Apple IAP is not configured.")
+	}
+
 	validation, raw, err := iap.ValidateLegacyReceiptApple(ctx, httpc, password, receipt)
 	if err != nil {
 		if !errors.Is(err, context.Canceled) {

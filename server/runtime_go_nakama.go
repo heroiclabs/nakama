@@ -3301,9 +3301,6 @@ func (n *RuntimeGoNakamaModule) TournamentRecordsHaystack(ctx context.Context, i
 // @return validation(*api.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) PurchaseValidateApple(ctx context.Context, userID, receipt string, persist bool, passwordOverride ...string) (*api.ValidatePurchaseResponse, error) {
-	if n.config.GetIAP().Apple.SharedPassword == "" && len(passwordOverride) == 0 {
-		return nil, errors.New("apple IAP is not configured")
-	}
 	password := n.config.GetIAP().Apple.SharedPassword
 	if len(passwordOverride) > 1 {
 		return nil, errors.New("expects a single password override parameter")
@@ -3525,9 +3522,6 @@ func (n *RuntimeGoNakamaModule) PurchaseGetByTransactionId(ctx context.Context, 
 // @return validation(*api.ValidateSubscriptionResponse) The resulting successfully validated subscription purchase.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) SubscriptionValidateApple(ctx context.Context, userID, receipt string, persist bool, passwordOverride ...string) (*api.ValidateSubscriptionResponse, error) {
-	if n.config.GetIAP().Apple.SharedPassword == "" && len(passwordOverride) == 0 {
-		return nil, errors.New("apple IAP is not configured")
-	}
 	password := n.config.GetIAP().Apple.SharedPassword
 	if len(passwordOverride) > 1 {
 		return nil, errors.New("expects a single password override parameter")
