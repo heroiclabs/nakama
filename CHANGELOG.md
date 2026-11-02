@@ -14,12 +14,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Changed
 - Directory listings on the console port now return an HTTP 404 Not Found error.
 - Change the Fleet Manager Init interface to receive the namespace of the instance being registered.
-<<<<<<< HEAD
 - Fleet Manager registration by name is now case-insensitive.
-||||||| parent of c4a7187 (Make auth providers email import optionally opt-out.)
-=======
-- Change Authenticate/Link{Apple,Facebook,Google} APIs to optionally opt-out from importing the email address from the provider.
->>>>>>> c4a7187 (Make auth providers email import optionally opt-out.)
+- Change Authenticate/Link{Apple,Facebook,Google} APIs to optionally allow opting-out from importing the email address from the provider.
 
 ### Fixed
 - Only apply Google Authentication token aud/azp validation if explicitly configured via google_auth.client_ids.
