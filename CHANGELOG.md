@@ -10,6 +10,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Fixed
 - Only apply Google Authentication token aud/azp validation if explicitly configured via google_auth.client_ids.
+- Fix JavaScript runtime not finding `InitModule` or match handlers declared after another variable in the same declaration.
 - Fix leaderboard reset and tournament end and reset hooks sometimes being skipped by the scheduler.
 - Fix tournament end and reset hooks sometimes not firing for the first active period when the start time is in the future.
 - Fix Huawei purchase validation failing on a malformed verification URL.
