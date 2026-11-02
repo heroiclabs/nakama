@@ -15,10 +15,12 @@
 package server
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/heroiclabs/nakama-common/api"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
@@ -83,4 +85,165 @@ function matchSignal(ctx, logger, nk, dispatcher, tick, state, data) { return { 
 	require.NotNil(t, matchHandlers.Get("lobby"))
 	require.Equal(t, "matchInit", matchHandlers.Get("lobby").initFn)
 	require.Equal(t, "matchSignal", matchHandlers.Get("lobby").signalFn)
+}
+
+func TestRuntimeJavascriptRequestHooksRun(t *testing.T) {
+	ctx := context.Background()
+
+	cases := []struct {
+		name   string
+		module string
+		invoke func(t *testing.T, r *Runtime) error
+	}{
+		{
+			name: "before ListFriendsOfFriends",
+			module: `function hook(ctx, logger, nk, data) {
+  throw new Error("hook ran");
+}
+
+function InitModule(ctx, logger, nk, initializer) {
+  initializer.registerBeforeListFriendsOfFriends(hook);
+}`,
+			invoke: func(t *testing.T, r *Runtime) error {
+				fn := r.BeforeListFriendsOfFriends()
+				require.NotNil(t, fn)
+				_, err, _ := fn(ctx, logger, "", "", "", nil, 0, "", "", &api.ListFriendsOfFriendsRequest{})
+				return err
+			},
+		},
+		{
+			name: "after ListFriendsOfFriends",
+			module: `function hook(ctx, logger, nk, data, request) {
+  throw new Error("hook ran");
+}
+
+function InitModule(ctx, logger, nk, initializer) {
+  initializer.registerAfterListFriendsOfFriends(hook);
+}`,
+			invoke: func(t *testing.T, r *Runtime) error {
+				fn := r.AfterListFriendsOfFriends()
+				require.NotNil(t, fn)
+				return fn(ctx, logger, "", "", "", nil, 0, "", "", &api.FriendsOfFriendsList{})
+			},
+		},
+		{
+			name: "before GetMatchmakerStats",
+			module: `function hook(ctx, logger, nk, data) {
+  throw new Error("hook ran");
+}
+
+function InitModule(ctx, logger, nk, initializer) {
+  initializer.registerBeforeGetMatchmakerStats(hook);
+}`,
+			invoke: func(t *testing.T, r *Runtime) error {
+				fn := r.BeforeGetMatchmakerStats()
+				require.NotNil(t, fn)
+				err, _ := fn(ctx, logger, "", "", "", nil, 0, "", "")
+				return err
+			},
+		},
+		{
+			name: "after GetMatchmakerStats",
+			module: `function hook(ctx, logger, nk, data, request) {
+  throw new Error("hook ran");
+}
+
+function InitModule(ctx, logger, nk, initializer) {
+  initializer.registerAfterGetMatchmakerStats(hook);
+}`,
+			invoke: func(t *testing.T, r *Runtime) error {
+				fn := r.AfterGetMatchmakerStats()
+				require.NotNil(t, fn)
+				return fn(ctx, logger, "", "", "", nil, 0, "", "", &api.MatchmakerStats{})
+			},
+		},
+		{
+			name: "before ImportSteamFriends",
+			module: `function hook(ctx, logger, nk, data) {
+  throw new Error("hook ran");
+}
+
+function InitModule(ctx, logger, nk, initializer) {
+  initializer.registerBeforeImportSteamFriends(hook);
+}`,
+			invoke: func(t *testing.T, r *Runtime) error {
+				fn := r.BeforeImportSteamFriends()
+				require.NotNil(t, fn)
+				_, err, _ := fn(ctx, logger, "", "", "", nil, 0, "", "", &api.ImportSteamFriendsRequest{})
+				return err
+			},
+		},
+		{
+			name: "after ImportSteamFriends",
+			module: `function hook(ctx, logger, nk, data, request) {
+  throw new Error("hook ran");
+}
+
+function InitModule(ctx, logger, nk, initializer) {
+  initializer.registerAfterImportSteamFriends(hook);
+}`,
+			invoke: func(t *testing.T, r *Runtime) error {
+				fn := r.AfterImportSteamFriends()
+				require.NotNil(t, fn)
+				return fn(ctx, logger, "", "", "", nil, 0, "", "", &api.ImportSteamFriendsRequest{})
+			},
+		},
+		{
+			name: "before DeleteTournamentRecord",
+			module: `function hook(ctx, logger, nk, data) {
+  throw new Error("hook ran");
+}
+
+function InitModule(ctx, logger, nk, initializer) {
+  initializer.registerBeforeDeleteTournamentRecord(hook);
+}`,
+			invoke: func(t *testing.T, r *Runtime) error {
+				fn := r.BeforeDeleteTournamentRecord()
+				require.NotNil(t, fn)
+				_, err, _ := fn(ctx, logger, "", "", "", nil, 0, "", "", &api.DeleteTournamentRecordRequest{})
+				return err
+			},
+		},
+		{
+			name: "after DeleteTournamentRecord",
+			module: `function hook(ctx, logger, nk, data, request) {
+  throw new Error("hook ran");
+}
+
+function InitModule(ctx, logger, nk, initializer) {
+  initializer.registerAfterDeleteTournamentRecord(hook);
+}`,
+			invoke: func(t *testing.T, r *Runtime) error {
+				fn := r.AfterDeleteTournamentRecord()
+				require.NotNil(t, fn)
+				return fn(ctx, logger, "", "", "", nil, 0, "", "", &api.DeleteTournamentRecordRequest{})
+			},
+		},
+		{
+			name: "before ListParties",
+			module: `function hook(ctx, logger, nk, data) {
+  throw new Error("hook ran");
+}
+
+function InitModule(ctx, logger, nk, initializer) {
+  initializer.registerBeforeListParties(hook);
+}`,
+			invoke: func(t *testing.T, r *Runtime) error {
+				fn := r.BeforeListParties()
+				require.NotNil(t, fn)
+				_, err, _ := fn(ctx, logger, "", "", "", nil, 0, "", "", &api.ListPartiesRequest{})
+				return err
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r, _, err := runtimeWithModules(t, map[string]string{"index.js": tc.module})
+			require.NoError(t, err)
+
+			err = tc.invoke(t, r)
+			require.ErrorContains(t, err, "hook ran", "failed to call hook")
+		})
+	}
 }

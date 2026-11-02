@@ -83,7 +83,11 @@ func runtimeWithModulesWithData(t *testing.T, modules map[string]string) (*Runti
 	defer os.RemoveAll(dir)
 
 	for moduleName, moduleData := range modules {
-		if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("%v.lua", moduleName)), []byte(moduleData), 0o644); err != nil {
+		fileName := moduleName + ".lua"
+		if filepath.Ext(moduleName) == ".js" {
+			fileName = moduleName
+		}
+		if err := os.WriteFile(filepath.Join(dir, fileName), []byte(moduleData), 0o644); err != nil {
 			t.Fatalf("Failed initializing runtime modules tempfile: %s", err.Error())
 		}
 	}
