@@ -2695,9 +2695,13 @@ func (rp *RuntimeProviderJS) StorageIndexFilter(ctx context.Context, indexName s
 	objectMap["value"] = valueMap
 
 	ctx = NewRuntimeGoContext(ctx, r.node, r.version, r.envMap, RuntimeExecutionModeStorageIndexFilter, nil, nil, "", 0, "", "", nil, "", "", "", "")
+	lease := newJsRuntimeLease(r)
+	ctx = context.WithValue(ctx, ctxJsRuntimeKey{}, lease)
+	prevCtx := r.nakamaModule.ctx
 	r.SetContext(ctx)
 	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModeStorageIndexFilter, "storageIndexFilter", fn, jsLogger, nil, nil, "", "", "", nil, 0, "", "", "", "", r.vm.ToValue(objectMap))
-	r.SetContext(context.Background())
+	lease.r.Store(nil)
+	r.SetContext(prevCtx)
 	rp.Put(r)
 	if err != nil {
 		return false, fmt.Errorf("Error running runtime Storage Index Filter hook for %q index: %v", indexName, err.Error())
