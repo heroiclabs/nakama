@@ -291,17 +291,39 @@ func TestPCall(t *testing.T) {
 	}))
 	errorIfFalse(t, strings.Contains(err.Error(), "by handler"), "")
 
+	L.Push(L.GetGlobal("f1"))
 	err = L.PCall(0, 0, L.NewFunction(func(L *LState) int {
 		L.RaiseError("error!")
 		return 1
 	}))
 	errorIfFalse(t, strings.Contains(err.Error(), "error!"), "")
 
+	L.Push(L.GetGlobal("f1"))
 	err = L.PCall(0, 0, L.NewFunction(func(L *LState) int {
 		panic("panicc!")
 		return 1
 	}))
 	errorIfFalse(t, strings.Contains(err.Error(), "panicc!"), "")
+
+	// Issue #452, expected to be revert back to previous call stack after any error.
+	currentFrame, currentTop, currentSp := L.currentFrame, L.GetTop(), L.stack.Sp()
+	L.Push(L.GetGlobal("f1"))
+	err = L.PCall(0, 0, nil)
+	errorIfFalse(t, err != nil, "")
+	errorIfFalse(t, L.currentFrame == currentFrame, "")
+	errorIfFalse(t, L.GetTop() == currentTop, "")
+	errorIfFalse(t, L.stack.Sp() == currentSp, "")
+
+	currentFrame, currentTop, currentSp = L.currentFrame, L.GetTop(), L.stack.Sp()
+	L.Push(L.GetGlobal("f1"))
+	err = L.PCall(0, 0, L.NewFunction(func(L *LState) int {
+		L.RaiseError("error!")
+		return 1
+	}))
+	errorIfFalse(t, err != nil, "")
+	errorIfFalse(t, L.currentFrame == currentFrame, "")
+	errorIfFalse(t, L.GetTop() == currentTop, "")
+	errorIfFalse(t, L.stack.Sp() == currentSp, "")
 }
 
 func TestCoroutineApi1(t *testing.T) {
@@ -518,7 +540,7 @@ func TestRegistryAutoGrow(t *testing.T) {
 	}()
 	reg := state.reg
 	test := LString("test")
-	for range 300 {
+	for i := 0; i < 300; i++ {
 		reg.Push(test)
 	}
 	expectedPanic = true
@@ -567,10 +589,10 @@ func BenchmarkCallFrameStackPushPopAutoGrow(t *testing.B) {
 
 	const Iterations = 256
 	for j := 0; j < t.N; j++ {
-		for range Iterations {
+		for i := 0; i < Iterations; i++ {
 			stack.Push(callFrame{})
 		}
-		for range Iterations {
+		for i := 0; i < Iterations; i++ {
 			stack.Pop()
 		}
 	}
@@ -583,10 +605,10 @@ func BenchmarkCallFrameStackPushPopFixed(t *testing.B) {
 
 	const Iterations = 256
 	for j := 0; j < t.N; j++ {
-		for range Iterations {
+		for i := 0; i < Iterations; i++ {
 			stack.Push(callFrame{})
 		}
-		for range Iterations {
+		for i := 0; i < Iterations; i++ {
 			stack.Pop()
 		}
 	}
@@ -600,10 +622,10 @@ func BenchmarkCallFrameStackPushPopShallowAutoGrow(t *testing.B) {
 
 	const Iterations = 8
 	for j := 0; j < t.N; j++ {
-		for range Iterations {
+		for i := 0; i < Iterations; i++ {
 			stack.Push(callFrame{})
 		}
-		for range Iterations {
+		for i := 0; i < Iterations; i++ {
 			stack.Pop()
 		}
 	}
@@ -616,10 +638,10 @@ func BenchmarkCallFrameStackPushPopShallowFixed(t *testing.B) {
 
 	const Iterations = 8
 	for j := 0; j < t.N; j++ {
-		for range Iterations {
+		for i := 0; i < Iterations; i++ {
 			stack.Push(callFrame{})
 		}
-		for range Iterations {
+		for i := 0; i < Iterations; i++ {
 			stack.Pop()
 		}
 	}
@@ -632,10 +654,10 @@ func BenchmarkCallFrameStackPushPopFixedNoInterface(t *testing.B) {
 
 	const Iterations = 256
 	for j := 0; j < t.N; j++ {
-		for range Iterations {
+		for i := 0; i < Iterations; i++ {
 			stack.Push(callFrame{})
 		}
-		for range Iterations {
+		for i := 0; i < Iterations; i++ {
 			stack.Pop()
 		}
 	}
@@ -648,7 +670,7 @@ func BenchmarkCallFrameStackUnwindAutoGrow(t *testing.B) {
 
 	const Iterations = 256
 	for j := 0; j < t.N; j++ {
-		for range Iterations {
+		for i := 0; i < Iterations; i++ {
 			stack.Push(callFrame{})
 		}
 		stack.SetSp(0)
@@ -662,7 +684,7 @@ func BenchmarkCallFrameStackUnwindFixed(t *testing.B) {
 
 	const Iterations = 256
 	for j := 0; j < t.N; j++ {
-		for range Iterations {
+		for i := 0; i < Iterations; i++ {
 			stack.Push(callFrame{})
 		}
 		stack.SetSp(0)
@@ -676,7 +698,7 @@ func BenchmarkCallFrameStackUnwindFixedNoInterface(t *testing.B) {
 
 	const Iterations = 256
 	for j := 0; j < t.N; j++ {
-		for range Iterations {
+		for i := 0; i < Iterations; i++ {
 			stack.Push(callFrame{})
 		}
 		stack.SetSp(0)
@@ -699,10 +721,10 @@ func BenchmarkRegistryPushPopAutoGrow(t *testing.B) {
 	t.ResetTimer()
 
 	for j := 0; j < t.N; j++ {
-		for range sz {
+		for i := 0; i < sz; i++ {
 			reg.Push(value)
 		}
-		for range sz {
+		for i := 0; i < sz; i++ {
 			reg.Pop()
 		}
 	}
@@ -717,10 +739,10 @@ func BenchmarkRegistryPushPopFixed(t *testing.B) {
 	t.ResetTimer()
 
 	for j := 0; j < t.N; j++ {
-		for range sz {
+		for i := 0; i < sz; i++ {
 			reg.Push(value)
 		}
-		for range sz {
+		for i := 0; i < sz; i++ {
 			reg.Pop()
 		}
 	}

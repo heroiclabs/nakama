@@ -27,10 +27,10 @@ func intMax(a, b int) int {
 	}
 }
 
-func defaultFormat(v any, f fmt.State, c rune) {
+func defaultFormat(v interface{}, f fmt.State, c rune) {
 	buf := make([]string, 0, 10)
 	buf = append(buf, "%")
-	for i := range 128 {
+	for i := 0; i < 128; i++ {
 		if f.Flag(i) {
 			buf = append(buf, string(rune(i)))
 		}

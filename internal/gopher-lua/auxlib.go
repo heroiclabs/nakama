@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"slices"
 	"strings"
 )
 
@@ -40,6 +39,11 @@ func (ls *LState) CheckNumber(n int) LNumber {
 	v := ls.Get(n)
 	if lv, ok := v.(LNumber); ok {
 		return lv
+	}
+	if lv, ok := v.(LString); ok {
+		if num, err := parseNumber(string(lv)); err == nil {
+			return num
+		}
 	}
 	ls.TypeError(n, LTNumber)
 	return 0
@@ -110,8 +114,10 @@ func (ls *LState) CheckType(n int, typ LValueType) {
 
 func (ls *LState) CheckTypes(n int, typs ...LValueType) {
 	vt := ls.Get(n).Type()
-	if slices.Contains(typs, vt) {
-		return
+	for _, typ := range typs {
+		if vt == typ {
+			return
+		}
 	}
 	buf := []string{}
 	for _, typ := range typs {
@@ -412,7 +418,7 @@ func (ls *LState) DoString(source string) error {
 // ToStringMeta returns string representation of given LValue.
 // This method calls the `__tostring` meta method if defined.
 func (ls *LState) ToStringMeta(lv LValue) LValue {
-	if fn, ok := ls.metaOp1(lv, "__tostring").assertFunction(); ok {
+	if fn, ok := ls.metaOp1(lv, "__tostring").(*LFunction); ok {
 		ls.Push(fn)
 		ls.Push(lv)
 		ls.Call(1, 1)

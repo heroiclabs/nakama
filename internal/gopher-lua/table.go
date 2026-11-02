@@ -314,7 +314,7 @@ func (tb *LTable) RawGetInt(key int) LValue {
 	return tb.array[index]
 }
 
-// RawGetH returns an LValue associated with a given key without __index metamethod.
+// RawGet returns an LValue associated with a given key without __index metamethod.
 func (tb *LTable) RawGetH(key LValue) LValue {
 	if s, sok := key.(LString); sok {
 		if tb.strdict == nil {

@@ -35,7 +35,7 @@ func loFindFile(L *LState, name, pname string) (string, string) {
 		L.RaiseError("package.%s must be a string", pname)
 	}
 	messages := []string{}
-	for pattern := range strings.SplitSeq(string(path), ";") {
+	for _, pattern := range strings.Split(string(path), ";") {
 		luapath := strings.Replace(pattern, "?", name, -1)
 		if _, err := os.Stat(luapath); err == nil {
 			return luapath, ""

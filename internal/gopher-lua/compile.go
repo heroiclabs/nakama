@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math"
 	"reflect"
-	"slices"
 
 	"github.com/heroiclabs/nakama/v3/internal/gopher-lua/ast"
 )
@@ -110,7 +109,7 @@ func savereg(ec *expcontext, reg int) int {
 	return ec.reg
 }
 
-func raiseCompileError(context *funcContext, line int, format string, args ...any) {
+func raiseCompileError(context *funcContext, line int, format string, args ...interface{}) {
 	msg := fmt.Sprintf(format, args...)
 	panic(&CompileError{context: context, Line: line, Message: msg})
 }
@@ -237,12 +236,13 @@ func (cd *codeStore) PropagateMV(top int, save *int, reg *int, inc int) {
 }
 
 func (cd *codeStore) AddLoadNil(a, b, line int) {
-	last := cd.Last()
-	if opGetOpCode(last) == OP_LOADNIL && (opGetArgA(last)+opGetArgB(last)) == a {
-		cd.SetB(cd.LastPC(), b)
-	} else {
-		cd.AddABC(OP_LOADNIL, a, b, 0, line)
-	}
+	// this method used to merge multiple consecutive LOADNIL instructions
+	// of consecutive registers into a single LOADNIL instruction, but it
+	// caused issues when the merged instructions were JMP targets, and so
+	// generated invalid code; so the merging functionality has been removed.
+	// It is safe to merge the LOADNIL instructions under certain conditions,
+	// but additional logic / complexity would be needed here.
+	cd.AddABC(OP_LOADNIL, a, b, 0, line)
 }
 
 func (cd *codeStore) SetOpCode(pc int, v int) {
@@ -330,8 +330,8 @@ func (vp *varNamePool) LastIndex() int {
 }
 
 func (vp *varNamePool) Find(name string) int {
-	for i, v := range slices.Backward(vp.names) {
-		if v == name {
+	for i := len(vp.names) - 1; i >= 0; i-- {
+		if vp.names[i] == name {
 			return i + vp.offset
 		}
 	}

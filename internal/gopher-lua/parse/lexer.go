@@ -484,14 +484,14 @@ func Parse(reader io.Reader, name string) (chunk []ast.Stmt, err error) {
 
 func isInlineDumpNode(rv reflect.Value) bool {
 	switch rv.Kind() {
-	case reflect.Struct, reflect.Slice, reflect.Interface, reflect.Pointer:
+	case reflect.Struct, reflect.Slice, reflect.Interface, reflect.Ptr:
 		return false
 	default:
 		return true
 	}
 }
 
-func dump(node any, level int, s string) string {
+func dump(node interface{}, level int, s string) string {
 	rt := reflect.TypeOf(node)
 	if fmt.Sprint(rt) == "<nil>" {
 		return strings.Repeat(s, level) + "<nil>"
@@ -507,7 +507,7 @@ func dump(node any, level int, s string) string {
 		for i := 0; i < rv.Len(); i++ {
 			buf = append(buf, dump(rv.Index(i).Interface(), level, s))
 		}
-	case reflect.Pointer:
+	case reflect.Ptr:
 		vt := rv.Elem()
 		tt := rt.Elem()
 		indicies := []int{}

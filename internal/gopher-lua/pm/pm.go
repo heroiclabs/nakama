@@ -5,8 +5,11 @@ import (
 	"fmt"
 )
 
-const EOS = -1
-const _UNKNOWN = -2
+const (
+	EOS               = -1
+	_UNKNOWN          = -2
+	maxRecursionLevel = 1000000
+)
 
 /* Error {{{ */
 
@@ -15,7 +18,7 @@ type Error struct {
 	Message string
 }
 
-func newError(pos int, message string, args ...any) *Error {
+func newError(pos int, message string, args ...interface{}) *Error {
 	if len(args) == 0 {
 		return &Error{pos, message}
 	}
@@ -268,7 +271,7 @@ func (pn *rangeClass) Matches(ch int) bool {
 
 // patterns {{{
 
-type pattern any
+type pattern interface{}
 
 type singlePattern struct {
 	Class class
@@ -524,7 +527,11 @@ func compilePattern(p pattern, ps ...*iptr) []inst {
 
 // Simple recursive virtual machine based on the
 // "Regular Expression Matching: the Virtual Machine Approach" (https://swtch.com/~rsc/regexp/regexp2.html)
-func recursiveVM(src []byte, insts []inst, pc, sp int, ms ...*MatchData) (bool, int, *MatchData) {
+func recursiveVM(src []byte, insts []inst, pc, sp, recLevel int, ms ...*MatchData) (bool, int, *MatchData) {
+	recLevel++
+	if recLevel > maxRecursionLevel {
+		panic(newError(_UNKNOWN, "pattern/input too complex"))
+	}
 	var m *MatchData
 	if len(ms) == 0 {
 		m = newMatchState()
@@ -549,14 +556,14 @@ redo:
 		pc = inst.Operand1
 		goto redo
 	case opSplit:
-		if ok, nsp, _ := recursiveVM(src, insts, inst.Operand1, sp, m); ok {
+		if ok, nsp, _ := recursiveVM(src, insts, inst.Operand1, sp, recLevel, m); ok {
 			return true, nsp, m
 		}
 		pc = inst.Operand2
 		goto redo
 	case opSave:
 		s := m.setCapture(inst.Operand1, sp)
-		if ok, nsp, _ := recursiveVM(src, insts, pc+1, sp, m); ok {
+		if ok, nsp, _ := recursiveVM(src, insts, pc+1, sp, recLevel, m); ok {
 			return true, nsp, m
 		}
 		m.restoreCapture(inst.Operand1, s)
@@ -590,7 +597,7 @@ redo:
 			panic(newError(_UNKNOWN, "invalid capture index"))
 		}
 		capture := src[m.Capture(idx):m.Capture(idx+1)]
-		for i := range capture {
+		for i := 0; i < len(capture); i++ {
 			if i+sp >= len(src) || capture[i] != src[i+sp] {
 				return false, sp, m
 			}
@@ -620,7 +627,7 @@ func Find(p string, src []byte, offset, limit int) (matches []*MatchData, err er
 	insts := compilePattern(pat)
 	matches = []*MatchData{}
 	for sp := offset; sp <= len(src); {
-		ok, nsp, ms := recursiveVM(src, insts, 0, sp)
+		ok, nsp, ms := recursiveVM(src, insts, 0, sp, 0)
 		sp++
 		if ok {
 			if sp < nsp {

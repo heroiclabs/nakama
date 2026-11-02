@@ -2,7 +2,7 @@
 package parse
 
 import (
-  "github.com/heroiclabs/nakama/v3/internal/gopher-lua/ast"
+  "github.com/yuin/gopher-lua/ast"
 )
 %}
 %type<stmts> chunk
@@ -69,7 +69,7 @@ import (
 
 %%
 
-chunk:
+chunk: 
         chunk1 {
             $$ = $1
             if l, ok := yylex.(*Lexer); ok {
@@ -81,7 +81,7 @@ chunk:
             if l, ok := yylex.(*Lexer); ok {
                 l.Stmts = $$
             }
-        } |
+        } | 
         chunk1 laststat ';' {
             $$ = append($1, $2)
             if l, ok := yylex.(*Lexer); ok {
@@ -89,18 +89,18 @@ chunk:
             }
         }
 
-chunk1:
+chunk1: 
         {
             $$ = []ast.Stmt{}
         } |
         chunk1 stat {
             $$ = append($1, $2)
-        } |
+        } | 
         chunk1 ';' {
             $$ = $1
         }
 
-block:
+block: 
         chunk {
             $$ = $1
         }
@@ -179,7 +179,7 @@ stat:
             $$ = &ast.LocalAssignStmt{Names:[]string{$3.Str}, Exprs: []ast.Expr{$4}}
             $$.SetLine($1.Pos.Line)
             $$.SetLastLine($4.LastLine())
-        } |
+        } | 
         TLocal namelist '=' exprlist {
             $$ = &ast.LocalAssignStmt{Names: $2, Exprs:$4}
             $$.SetLine($1.Pos.Line)
@@ -197,10 +197,10 @@ stat:
             $$.SetLine($1.Pos.Line)
         }
 
-elseifs:
+elseifs: 
         {
             $$ = []ast.Stmt{}
-        } |
+        } | 
         elseifs TElseIf expr TThen block {
             $$ = append($1, &ast.IfStmt{Condition: $3, Then: $5})
             $$[len($$)-1].SetLine($2.Pos.Line)
@@ -220,7 +220,7 @@ laststat:
             $$.SetLine($1.Pos.Line)
         }
 
-funcname:
+funcname: 
         funcname1 {
             $$ = $1
         } |
@@ -232,7 +232,7 @@ funcname1:
         TIdent {
             $$ = &ast.FuncName{Func: &ast.IdentExpr{Value:$1.Str}}
             $$.Func.SetLine($1.Pos.Line)
-        } |
+        } | 
         funcname1 '.' TIdent {
             key:= &ast.StringExpr{Value:$3.Str}
             key.SetLine($3.Pos.Line)
@@ -244,7 +244,7 @@ funcname1:
 varlist:
         var {
             $$ = []ast.Expr{$1}
-        } |
+        } | 
         varlist ',' var {
             $$ = append($1, $3)
         }
@@ -257,7 +257,7 @@ var:
         prefixexp '[' expr ']' {
             $$ = &ast.AttrGetExpr{Object: $1, Key: $3}
             $$.SetLine($1.Line())
-        } |
+        } | 
         prefixexp '.' TIdent {
             key := &ast.StringExpr{Value:$3.Str}
             key.SetLine($3.Pos.Line)
@@ -268,7 +268,7 @@ var:
 namelist:
         TIdent {
             $$ = []string{$1.Str}
-        } |
+        } | 
         namelist ','  TIdent {
             $$ = append($1, $3.Str)
         }
@@ -285,26 +285,26 @@ expr:
         TNil {
             $$ = &ast.NilExpr{}
             $$.SetLine($1.Pos.Line)
-        } |
+        } | 
         TFalse {
             $$ = &ast.FalseExpr{}
             $$.SetLine($1.Pos.Line)
-        } |
+        } | 
         TTrue {
             $$ = &ast.TrueExpr{}
             $$.SetLine($1.Pos.Line)
-        } |
+        } | 
         TNumber {
             $$ = &ast.NumberExpr{Value: $1.Str}
             $$.SetLine($1.Pos.Line)
-        } |
+        } | 
         T3Comma {
             $$ = &ast.Comma3Expr{}
             $$.SetLine($1.Pos.Line)
         } |
         function {
             $$ = $1
-        } |
+        } | 
         prefixexp {
             $$ = $1
         } |
@@ -387,11 +387,11 @@ expr:
             $$.SetLine($2.Line())
         }
 
-string:
+string: 
         TString {
             $$ = &ast.StringExpr{Value: $1.Str}
             $$.SetLine($1.Pos.Line)
-        }
+        } 
 
 prefixexp:
         var {
@@ -442,7 +442,7 @@ args:
         } |
         tableconstructor {
             $$ = []ast.Expr{$1}
-        } |
+        } | 
         string {
             $$ = []ast.Expr{$1}
         }
@@ -459,7 +459,7 @@ funcbody:
             $$ = &ast.FunctionExpr{ParList: $2, Stmts: $4}
             $$.SetLine($1.Pos.Line)
             $$.SetLastLine($5.Pos.Line)
-        } |
+        } | 
         '(' ')' block TEnd {
             $$ = &ast.FunctionExpr{ParList: &ast.ParList{HasVargs: false, Names: []string{}}, Stmts: $3}
             $$.SetLine($1.Pos.Line)
@@ -469,11 +469,11 @@ funcbody:
 parlist:
         T3Comma {
             $$ = &ast.ParList{HasVargs: true, Names: []string{}}
-        } |
+        } | 
         namelist {
           $$ = &ast.ParList{HasVargs: false, Names: []string{}}
           $$.Names = append($$.Names, $1...)
-        } |
+        } | 
         namelist ',' T3Comma {
           $$ = &ast.ParList{HasVargs: true, Names: []string{}}
           $$.Names = append($$.Names, $1...)
@@ -494,10 +494,10 @@ tableconstructor:
 fieldlist:
         field {
             $$ = []*ast.Field{$1}
-        } |
+        } | 
         fieldlist fieldsep field {
             $$ = append($1, $3)
-        } |
+        } | 
         fieldlist fieldsep {
             $$ = $1
         }
@@ -506,7 +506,7 @@ field:
         TIdent '=' expr {
             $$ = &ast.Field{Key: &ast.StringExpr{Value:$1.Str}, Value: $3}
             $$.Key.SetLine($1.Pos.Line)
-        } |
+        } | 
         '[' expr ']' '=' expr {
             $$ = &ast.Field{Key: $2, Value: $5}
         } |
@@ -517,7 +517,7 @@ field:
 fieldsep:
         ',' {
             $$ = ","
-        } |
+        } | 
         ';' {
             $$ = ";"
         }
