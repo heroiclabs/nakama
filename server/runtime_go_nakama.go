@@ -4674,5 +4674,5 @@ func (n *RuntimeGoNakamaModule) GetFleetManager() runtime.FleetManager {
 // @param name(type=string) The name the Fleet Manager was registered under. The empty name is the default.
 // @return fleetManager(runtime.FleetManager) The Fleet Manager client, or nil if none is registered under that name.
 func (n *RuntimeGoNakamaModule) GetFleetManagerByName(name string) runtime.FleetManager {
-	return n.fleetManagers[name]
+	return n.fleetManagers[strings.ToLower(name)]
 }
