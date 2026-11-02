@@ -2716,6 +2716,8 @@ func newRuntimeLuaVM(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojs
 			callbacks.TournamentReset = fn
 		case RuntimeExecutionModeLeaderboardReset:
 			callbacks.LeaderboardReset = fn
+		case RuntimeExecutionModeShutdown:
+			callbacks.Shutdown = fn
 		case RuntimeExecutionModePurchaseNotificationApple:
 			callbacks.PurchaseNotificationApple = fn
 		case RuntimeExecutionModeSubscriptionNotificationApple:
