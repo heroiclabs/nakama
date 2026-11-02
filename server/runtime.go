@@ -1281,6 +1281,10 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		allBeforeReqFunctions.beforePromoteGroupUsersFunction = luaBeforeReqFns.beforePromoteGroupUsersFunction
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "promotegroupusers"))
 	}
+	if luaBeforeReqFns.beforeDemoteGroupUsersFunction != nil {
+		allBeforeReqFunctions.beforeDemoteGroupUsersFunction = luaBeforeReqFns.beforeDemoteGroupUsersFunction
+		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "demotegroupusers"))
+	}
 	if luaBeforeReqFns.beforeListGroupUsersFunction != nil {
 		allBeforeReqFunctions.beforeListGroupUsersFunction = luaBeforeReqFns.beforeListGroupUsersFunction
 		startupLogger.Info("Registered Lua runtime Before function invocation", zap.String("id", "listgroupusers"))
@@ -2171,6 +2175,10 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		allAfterReqFunctions.afterListFriendsFunction = luaAfterReqFns.afterListFriendsFunction
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "listfriends"))
 	}
+	if luaAfterReqFns.afterListFriendsOfFriendsFunction != nil {
+		allAfterReqFunctions.afterListFriendsOfFriendsFunction = luaAfterReqFns.afterListFriendsOfFriendsFunction
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "listfriendsoffriends"))
+	}
 	if luaAfterReqFns.afterAddFriendsFunction != nil {
 		allAfterReqFunctions.afterAddFriendsFunction = luaAfterReqFns.afterAddFriendsFunction
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "addfriends"))
@@ -2226,6 +2234,10 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 	if luaAfterReqFns.afterPromoteGroupUsersFunction != nil {
 		allAfterReqFunctions.afterPromoteGroupUsersFunction = luaAfterReqFns.afterPromoteGroupUsersFunction
 		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "promotegroupusers"))
+	}
+	if luaAfterReqFns.afterDemoteGroupUsersFunction != nil {
+		allAfterReqFunctions.afterDemoteGroupUsersFunction = luaAfterReqFns.afterDemoteGroupUsersFunction
+		startupLogger.Info("Registered Lua runtime After function invocation", zap.String("id", "demotegroupusers"))
 	}
 	if luaAfterReqFns.afterListGroupUsersFunction != nil {
 		allAfterReqFunctions.afterListGroupUsersFunction = luaAfterReqFns.afterListGroupUsersFunction
