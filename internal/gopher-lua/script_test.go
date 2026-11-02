@@ -84,17 +84,17 @@ func testScriptDir(t *testing.T, tests []string, directory string) {
 	}
 }
 
-var numActiveUserDatas int32 = 0
+var numActiveUserDatas atomic.Int32
 
 type finalizerStub struct{ x byte }
 
 func allocFinalizerUserData(L *LState) int {
 	ud := L.NewUserData()
-	atomic.AddInt32(&numActiveUserDatas, 1)
+	numActiveUserDatas.Add(1)
 	a := finalizerStub{}
 	ud.Value = &a
 	runtime.SetFinalizer(&a, func(aa *finalizerStub) {
-		atomic.AddInt32(&numActiveUserDatas, -1)
+		numActiveUserDatas.Add(-1)
 	})
 	L.Push(ud)
 	return 1
@@ -106,7 +106,7 @@ func sleep(L *LState) int {
 }
 
 func countFinalizers(L *LState) int {
-	L.Push(LNumber(numActiveUserDatas))
+	L.Push(LNumber(numActiveUserDatas.Load()))
 	return 1
 }
 
