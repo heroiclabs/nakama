@@ -18,7 +18,7 @@ type Error struct {
 	Message string
 }
 
-func newError(pos int, message string, args ...interface{}) *Error {
+func newError(pos int, message string, args ...any) *Error {
 	if len(args) == 0 {
 		return &Error{pos, message}
 	}
@@ -271,7 +271,7 @@ func (pn *rangeClass) Matches(ch int) bool {
 
 // patterns {{{
 
-type pattern interface{}
+type pattern any
 
 type singlePattern struct {
 	Class class
@@ -597,7 +597,7 @@ redo:
 			panic(newError(_UNKNOWN, "invalid capture index"))
 		}
 		capture := src[m.Capture(idx):m.Capture(idx+1)]
-		for i := 0; i < len(capture); i++ {
+		for i := range capture {
 			if i+sp >= len(src) || capture[i] != src[i+sp] {
 				return false, sp, m
 			}

@@ -276,7 +276,7 @@ func (rp *RuntimeProviderJS) Authenticate(ctx context.Context, name, traceID str
 		return nil, err, code
 	}
 
-	resultMap, ok := retValue.(map[string]interface{})
+	resultMap, ok := retValue.(map[string]any)
 	if !ok {
 		msg := "Runtime authentication provider function returned invalid data - only allowed one return value of type object."
 		logger.Error(msg, zap.String("provider", name))
@@ -308,7 +308,7 @@ func (rp *RuntimeProviderJS) Authenticate(ctx context.Context, name, traceID str
 	}
 
 	if varsIn, found := resultMap["vars"]; found && varsIn != nil {
-		varsMap, ok := varsIn.(map[string]interface{})
+		varsMap, ok := varsIn.(map[string]any)
 		if !ok {
 			msg := "Runtime authentication provider function returned invalid vars - must be an object with string values."
 			logger.Error(msg, zap.String("provider", name))
@@ -327,7 +327,7 @@ func (rp *RuntimeProviderJS) Authenticate(ctx context.Context, name, traceID str
 	}
 
 	if metadataIn, found := resultMap["metadata"]; found && metadataIn != nil {
-		metadataMap, ok := metadataIn.(map[string]interface{})
+		metadataMap, ok := metadataIn.(map[string]any)
 		if !ok {
 			msg := "Runtime authentication provider function returned invalid metadata - must be an object with any values."
 			logger.Error(msg, zap.String("provider", name))

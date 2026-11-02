@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 )
 
@@ -114,10 +115,8 @@ func (ls *LState) CheckType(n int, typ LValueType) {
 
 func (ls *LState) CheckTypes(n int, typs ...LValueType) {
 	vt := ls.Get(n).Type()
-	for _, typ := range typs {
-		if vt == typ {
-			return
-		}
+	if slices.Contains(typs, vt) {
+		return
 	}
 	buf := []string{}
 	for _, typ := range typs {

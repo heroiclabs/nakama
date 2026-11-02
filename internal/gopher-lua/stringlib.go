@@ -135,7 +135,7 @@ func strFind(L *LState) int {
 
 func strFormat(L *LState) int {
 	str := L.CheckString(1)
-	args := make([]interface{}, L.GetTop()-1)
+	args := make([]any, L.GetTop()-1)
 	top := L.GetTop()
 	for i := 2; i <= top; i++ {
 		args[i-2] = L.Get(i)

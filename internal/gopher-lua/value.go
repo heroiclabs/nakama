@@ -202,7 +202,7 @@ func (ls *LState) String() string   { return fmt.Sprintf("thread: %p", ls) }
 func (ls *LState) Type() LValueType { return LTThread }
 
 type LUserData struct {
-	Value     interface{}
+	Value     any
 	Env       *LTable
 	Metatable LValue
 }

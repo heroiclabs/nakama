@@ -46,7 +46,6 @@ func TestSkiplistChaos(t *testing.T) {
 	rndMain := rand.New(rand.NewSource(seed))
 
 	for i := range iterations {
-		i := i
 		numUsers := rndMain.Intn(2000) + 100
 		numOps := rndMain.Intn(100_000) + 100
 		numLists := rndMain.Intn(47) + 3

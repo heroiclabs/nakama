@@ -45,7 +45,7 @@ func channelSelect(L *LState) int {
 	//TODO check case table size
 	cases := make([]reflect.SelectCase, L.GetTop())
 	top := L.GetTop()
-	for i := 0; i < top; i++ {
+	for i := range top {
 		cas := reflect.SelectCase{
 			Dir:  reflect.SelectSend,
 			Chan: reflect.ValueOf(nil),

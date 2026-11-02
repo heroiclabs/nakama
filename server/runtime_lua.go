@@ -1515,7 +1515,7 @@ func (rp *RuntimeProviderLua) Authenticate(ctx context.Context, name, traceID st
 	}
 	rp.Put(r)
 
-	resultMap, ok := result.(map[string]interface{})
+	resultMap, ok := result.(map[string]any)
 	if !ok {
 		msg := "Runtime authentication provider function returned invalid data - only allowed one return value of type table."
 		logger.Error(msg, zap.String("provider", name))
@@ -1547,7 +1547,7 @@ func (rp *RuntimeProviderLua) Authenticate(ctx context.Context, name, traceID st
 	}
 
 	if varsIn, found := resultMap["vars"]; found && varsIn != nil {
-		varsMap, ok := varsIn.(map[string]interface{})
+		varsMap, ok := varsIn.(map[string]any)
 		if !ok {
 			msg := "Runtime authentication provider function returned invalid vars - must be a table with string values."
 			logger.Error(msg, zap.String("provider", name))
@@ -1566,7 +1566,7 @@ func (rp *RuntimeProviderLua) Authenticate(ctx context.Context, name, traceID st
 	}
 
 	if metadataIn, found := resultMap["metadata"]; found && metadataIn != nil {
-		metadataMap, ok := metadataIn.(map[string]interface{})
+		metadataMap, ok := metadataIn.(map[string]any)
 		if !ok {
 			msg := "Runtime authentication provider function returned invalid metadata - must be a table with any values."
 			logger.Error(msg, zap.String("provider", name))
