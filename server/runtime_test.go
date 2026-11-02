@@ -29,8 +29,10 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
+	rt "github.com/heroiclabs/nakama-common/runtime"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const (
@@ -1051,6 +1053,61 @@ nk.group_delete(group.id)`,
 
 	_, _, err := runtimeWithModules(t, modules)
 	if err != nil {
+		t.Fatal(err.Error())
+	}
+}
+
+func TestRuntimeLuaRegisterIAPNotifications(t *testing.T) {
+	modules := map[string]string{
+		"test": `
+local nk = require("nakama")
+
+local function check_purchase(context, purchase, provider_payload, notification_type)
+	assert(purchase.product_id == "product", "unexpected product id")
+	assert(type(provider_payload) == "string", "provider payload is not a string")
+	assert(notification_type == "REFUNDED", "unexpected notification type")
+end
+
+local function check_subscription(context, subscription, provider_payload, notification_type)
+	assert(subscription.product_id == "product", "unexpected product id")
+	assert(type(provider_payload) == "string", "provider payload is not a string")
+	assert(notification_type == "CANCELLED", "unexpected notification type")
+end
+
+nk.register_purchase_notification_apple(check_purchase)
+nk.register_subscription_notification_apple(check_subscription)
+nk.register_purchase_notification_google(check_purchase)
+nk.register_subscription_notification_google(check_subscription)
+`,
+	}
+
+	runtime, _, err := runtimeWithModules(t, modules)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	ctx := context.Background()
+	purchase := &api.ValidatedPurchase{ProductId: "product", PurchaseTime: timestamppb.Now()}
+	subscription := &api.ValidatedSubscription{ProductId: "product", PurchaseTime: timestamppb.Now(), ExpiryTime: timestamppb.Now()}
+
+	if fn := runtime.PurchaseNotificationApple(); fn == nil {
+		t.Fatal("expected purchase notification apple function to be registered")
+	} else if err := fn(ctx, rt.IAPNotificationRefunded, purchase, &rt.AppleNotificationData{}); err != nil {
+		t.Fatal(err.Error())
+	}
+	if fn := runtime.SubscriptionNotificationApple(); fn == nil {
+		t.Fatal("expected subscription notification apple function to be registered")
+	} else if err := fn(ctx, rt.IAPNotificationCancelled, subscription, &rt.AppleNotificationData{}); err != nil {
+		t.Fatal(err.Error())
+	}
+	if fn := runtime.PurchaseNotificationGoogle(); fn == nil {
+		t.Fatal("expected purchase notification google function to be registered")
+	} else if err := fn(ctx, rt.IAPNotificationRefunded, purchase, &rt.PurchaseV2GoogleResponse{}); err != nil {
+		t.Fatal(err.Error())
+	}
+	if fn := runtime.SubscriptionNotificationGoogle(); fn == nil {
+		t.Fatal("expected subscription notification google function to be registered")
+	} else if err := fn(ctx, rt.IAPNotificationCancelled, subscription, &rt.SubscriptionV2GoogleResponse{}); err != nil {
 		t.Fatal(err.Error())
 	}
 }
