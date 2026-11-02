@@ -1529,3 +1529,112 @@ function InitModule(ctx, logger, nk, initializer) {
 		})
 	}
 }
+
+func TestLuaNestedProviderCallsFromServerHooksOnSingleVmPool(t *testing.T) {
+	testCases := []struct {
+		name     string
+		register string
+		call     func(ctx context.Context, runtime *Runtime) error
+	}{
+		{
+			name:     "matchmaker matched hook authenticates through a provider",
+			register: "register_matchmaker_matched",
+			call: func(ctx context.Context, runtime *Runtime) error {
+				_, _, err := runtime.MatchmakerMatched()(ctx, []*MatchmakerEntry{})
+				return err
+			},
+		},
+		{
+			name:     "tournament end hook authenticates through a provider",
+			register: "register_tournament_end",
+			call: func(ctx context.Context, runtime *Runtime) error {
+				return runtime.TournamentEnd()(ctx, &api.Tournament{Metadata: "{}", CreateTime: timestamppb.Now(), StartTime: timestamppb.Now()}, 0, 0)
+			},
+		},
+		{
+			name:     "tournament reset hook authenticates through a provider",
+			register: "register_tournament_reset",
+			call: func(ctx context.Context, runtime *Runtime) error {
+				return runtime.TournamentReset()(ctx, &api.Tournament{Metadata: "{}", CreateTime: timestamppb.Now(), StartTime: timestamppb.Now()}, 0, 0)
+			},
+		},
+		{
+			name:     "leaderboard reset hook authenticates through a provider",
+			register: "register_leaderboard_reset",
+			call: func(ctx context.Context, runtime *Runtime) error {
+				return runtime.LeaderboardReset()(ctx, &api.Leaderboard{Metadata: "{}", CreateTime: timestamppb.Now()}, 0)
+			},
+		},
+		{
+			name:     "shutdown hook authenticates through a provider",
+			register: "register_shutdown",
+			call: func(ctx context.Context, runtime *Runtime) error {
+				runtime.Shutdown()(ctx)
+				return nil
+			},
+		},
+		{
+			name:     "apple purchase notification hook authenticates through a provider",
+			register: "register_purchase_notification_apple",
+			call: func(ctx context.Context, runtime *Runtime) error {
+				return runtime.PurchaseNotificationApple()(ctx, rt.IAPNotificationRefunded, &api.ValidatedPurchase{ProductId: "product", PurchaseTime: timestamppb.Now()}, &rt.AppleNotificationData{})
+			},
+		},
+		{
+			name:     "apple subscription notification hook authenticates through a provider",
+			register: "register_subscription_notification_apple",
+			call: func(ctx context.Context, runtime *Runtime) error {
+				return runtime.SubscriptionNotificationApple()(ctx, rt.IAPNotificationCancelled, &api.ValidatedSubscription{ProductId: "product", PurchaseTime: timestamppb.Now(), ExpiryTime: timestamppb.Now()}, &rt.AppleNotificationData{})
+			},
+		},
+		{
+			name:     "google purchase notification hook authenticates through a provider",
+			register: "register_purchase_notification_google",
+			call: func(ctx context.Context, runtime *Runtime) error {
+				return runtime.PurchaseNotificationGoogle()(ctx, rt.IAPNotificationRefunded, &api.ValidatedPurchase{ProductId: "product", PurchaseTime: timestamppb.Now()}, &rt.PurchaseV2GoogleResponse{})
+			},
+		},
+		{
+			name:     "google subscription notification hook authenticates through a provider",
+			register: "register_subscription_notification_google",
+			call: func(ctx context.Context, runtime *Runtime) error {
+				return runtime.SubscriptionNotificationGoogle()(ctx, rt.IAPNotificationCancelled, &api.ValidatedSubscription{ProductId: "product", PurchaseTime: timestamppb.Now(), ExpiryTime: timestamppb.Now()}, &rt.SubscriptionV2GoogleResponse{})
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			modules := map[string]string{"mod": fmt.Sprintf(`
+local nk = require("nakama")
+local function provider(context, payload)
+	return {provider_user_id = payload.id}
+end
+nk.register_authenticate_provider(provider, "vmreuse_lua_hook")
+local function hook(context)
+	nk.authenticate("vmreuse_lua_hook", {id = "vm-reuse-lua-%s"})
+end
+nk.%s(hook)`, tc.register, tc.register)}
+			runtime, _, _, err := runtimeWithModulesWithData(t, modules, func(c *RuntimeConfig) {
+				c.LuaMinCount, c.LuaMaxCount = 1, 1
+			})
+			require.NoError(t, err)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			for range 2 {
+				done := make(chan error, 1)
+				go func() {
+					done <- tc.call(ctx, runtime)
+				}()
+
+				select {
+				case err = <-done:
+				case <-time.After(time.Second):
+					t.Fatal("nested provider call stalled on the single-VM pool")
+				}
+				require.NoError(t, err)
+			}
+		})
+	}
+}

@@ -16,15 +16,19 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/dop251/goja"
 	"github.com/gofrs/uuid/v5"
+	"github.com/heroiclabs/nakama-common/api"
+	rt "github.com/heroiclabs/nakama-common/runtime"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestJsObjectFreeze(t *testing.T) {
@@ -280,6 +284,116 @@ function InitModule(ctx, logger, nk, initializer) {
 				if !tc.beforeHook {
 					require.False(t, uuid.FromStringOrNil(res.payload).IsNil(), "expected a user id, got %q", res.payload)
 				}
+			}
+		})
+	}
+}
+
+func TestJsNestedProviderCallsFromServerHooksOnSingleVmPool(t *testing.T) {
+	testCases := []struct {
+		name     string
+		register string
+		call     func(ctx context.Context, runtime *Runtime) error
+	}{
+		{
+			name:     "matchmaker matched hook authenticates through a provider",
+			register: "registerMatchmakerMatched",
+			call: func(ctx context.Context, runtime *Runtime) error {
+				_, _, err := runtime.MatchmakerMatched()(ctx, []*MatchmakerEntry{})
+				return err
+			},
+		},
+		{
+			name:     "tournament end hook authenticates through a provider",
+			register: "registerTournamentEnd",
+			call: func(ctx context.Context, runtime *Runtime) error {
+				return runtime.TournamentEnd()(ctx, &api.Tournament{Metadata: "{}", CreateTime: timestamppb.Now(), StartTime: timestamppb.Now()}, 0, 0)
+			},
+		},
+		{
+			name:     "tournament reset hook authenticates through a provider",
+			register: "registerTournamentReset",
+			call: func(ctx context.Context, runtime *Runtime) error {
+				return runtime.TournamentReset()(ctx, &api.Tournament{Metadata: "{}", CreateTime: timestamppb.Now(), StartTime: timestamppb.Now()}, 0, 0)
+			},
+		},
+		{
+			name:     "leaderboard reset hook authenticates through a provider",
+			register: "registerLeaderboardReset",
+			call: func(ctx context.Context, runtime *Runtime) error {
+				return runtime.LeaderboardReset()(ctx, &api.Leaderboard{Metadata: "{}", CreateTime: timestamppb.Now()}, 0)
+			},
+		},
+		{
+			name:     "shutdown hook authenticates through a provider",
+			register: "registerShutdown",
+			call: func(ctx context.Context, runtime *Runtime) error {
+				runtime.Shutdown()(ctx)
+				return nil
+			},
+		},
+		{
+			name:     "apple purchase notification hook authenticates through a provider",
+			register: "registerPurchaseNotificationApple",
+			call: func(ctx context.Context, runtime *Runtime) error {
+				return runtime.PurchaseNotificationApple()(ctx, rt.IAPNotificationRefunded, &api.ValidatedPurchase{ProductId: "product", PurchaseTime: timestamppb.Now()}, &rt.AppleNotificationData{})
+			},
+		},
+		{
+			name:     "apple subscription notification hook authenticates through a provider",
+			register: "registerSubscriptionNotificationApple",
+			call: func(ctx context.Context, runtime *Runtime) error {
+				return runtime.SubscriptionNotificationApple()(ctx, rt.IAPNotificationCancelled, &api.ValidatedSubscription{ProductId: "product", PurchaseTime: timestamppb.Now(), ExpiryTime: timestamppb.Now()}, &rt.AppleNotificationData{})
+			},
+		},
+		{
+			name:     "google purchase notification hook authenticates through a provider",
+			register: "registerPurchaseNotificationGoogle",
+			call: func(ctx context.Context, runtime *Runtime) error {
+				return runtime.PurchaseNotificationGoogle()(ctx, rt.IAPNotificationRefunded, &api.ValidatedPurchase{ProductId: "product", PurchaseTime: timestamppb.Now()}, &rt.PurchaseV2GoogleResponse{})
+			},
+		},
+		{
+			name:     "google subscription notification hook authenticates through a provider",
+			register: "registerSubscriptionNotificationGoogle",
+			call: func(ctx context.Context, runtime *Runtime) error {
+				return runtime.SubscriptionNotificationGoogle()(ctx, rt.IAPNotificationCancelled, &api.ValidatedSubscription{ProductId: "product", PurchaseTime: timestamppb.Now(), ExpiryTime: timestamppb.Now()}, &rt.SubscriptionV2GoogleResponse{})
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			modules := map[string]string{"index.js": fmt.Sprintf(`
+function provider(ctx, logger, nk, payload) {
+	return { providerUserId: payload.id };
+}
+function hook(ctx, logger, nk) {
+	nk.authenticate("vmreuse_js_hook", { id: "vm-reuse-js-%s" });
+}
+function InitModule(ctx, logger, nk, initializer) {
+	initializer.registerAuthenticateProvider("vmreuse_js_hook", provider);
+	initializer.%s(hook);
+}`, tc.register, tc.register)}
+			runtime, _, _, err := runtimeWithModulesWithData(t, modules, func(c *RuntimeConfig) {
+				c.JsMinCount, c.JsMaxCount = 1, 1
+			})
+			require.NoError(t, err)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			for range 2 {
+				done := make(chan error, 1)
+				go func() {
+					done <- tc.call(ctx, runtime)
+				}()
+
+				select {
+				case err = <-done:
+				case <-time.After(time.Second):
+					t.Fatal("nested provider call stalled on the single-VM pool")
+				}
+				require.NoError(t, err)
 			}
 		})
 	}
