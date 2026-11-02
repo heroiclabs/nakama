@@ -4,6 +4,13 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 [Unreleased]
+### Added
+- Add Go runtime IAP providers, validated with the `ValidatePurchase` client API and `PurchaseValidate` function.
+- Add subscription validation through IAP providers with the `ValidateSubscription` client API and `SubscriptionValidate` function, and the `RegisterBeforeValidateSubscription` and `RegisterAfterValidateSubscription` hooks.
+- Add a notification endpoint for each IAP provider at `/v2/console/<Name>/notifications/<NotificationEndpointId>`, or `/v2/console/<Name>/notifications` when the provider returns no `NotificationEndpointId`.
+- Add the `RegisterIAPPurchaseNotification` and `RegisterIAPSubscriptionNotification` hooks for purchase refunds and subscription changes reported by IAP providers.
+- Add a provider filter to the console purchase and subscription lists, taking an IAP provider name or a built-in store.
+
 ### Changed
 - Directory listings on the console port now return an HTTP 404 Not Found error.
 - Change the Fleet Manager Init interface to receive the namespace of the instance being registered.
