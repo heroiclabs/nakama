@@ -3,6 +3,7 @@ package puddle
 import (
 	"context"
 	"errors"
+	"math/bits"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -513,6 +514,11 @@ func (p *Pool[T]) TryAcquire(ctx context.Context) (*Resource[T], error) {
 		}
 
 		res.value = value
+		if p.closed || res.poolResetCount != p.resetCount {
+			p.allResources.remove(res)
+			go p.destructResourceValue(value)
+			return
+		}
 		res.status = resourceStatusIdle
 		p.idleResources.Push(res)
 	}()
@@ -543,12 +549,14 @@ func (p *Pool[T]) TryAcquire(ctx context.Context) (*Resource[T], error) {
 // TODO: Replace this with acquireSem.TryAcquireAll() if it gets to
 // upstream. https://github.com/golang/sync/pull/19
 func acquireSemAll(sem *semaphore.Weighted, num int) int {
+	if num <= 0 {
+		panic("aquireSemAll: num <= 0")
+	}
 	if sem.TryAcquire(int64(num)) {
 		return num
 	}
-
 	var acquired int
-	for i := int(log2Int(num)); i >= 0; i-- {
+	for i := bits.Len64(uint64(num)) - 1; i >= 0; i-- {
 		val := 1 << i
 		if sem.TryAcquire(int64(val)) {
 			acquired += val

@@ -10,7 +10,7 @@ performance.
 
 This project was largely inspired by [otto](https://github.com/robertkrimen/otto).
 
-The minimum required Go version is 1.25.
+The minimum required Go version is 1.26.
 
 Features
 --------
@@ -221,7 +221,9 @@ See [Runtime.ToValue()](https://pkg.go.dev/github.com/dop251/goja#Runtime.ToValu
 Regular Expressions
 -------------------
 
-Goja uses the embedded Go regexp library where possible, otherwise it falls back to [regexp2](https://github.com/dlclark/regexp2).
+Goja uses [regexp2](https://github.com/dlclark/regexp2) library. There are a few known incompatibilities, but they are 
+mostly edge cases and should not affect general usage. See tc39_test.go for the list of exclusions. Any new
+incompatibilities should be reported as bugs.
 
 Exceptions
 ----------

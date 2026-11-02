@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -62,6 +63,21 @@ func (qq *QueuedQuery) Exec(fn func(ct pgconn.CommandTag) error) {
 // unnecessary network round trips. A Batch must only be sent once.
 type Batch struct {
 	QueuedQueries []*QueuedQuery
+
+	txOptions *TxOptions
+}
+
+// BeginTx queues the query that begins a transaction with txOptions as the first query of b, saving the round trip that
+// [Conn.BeginTx] spends on it. It must be called before any query is queued and panics otherwise. Like any queued query,
+// the begin query has a result: it is the first result of the batch. The transaction is available from
+// [BatchResults.Tx] once b has been sent.
+func (b *Batch) BeginTx(txOptions TxOptions) {
+	if len(b.QueuedQueries) != 0 {
+		panic("Batch.BeginTx must be called before any query is queued")
+	}
+
+	b.Queue(txOptions.beginSQL())
+	b.txOptions = &txOptions
 }
 
 // Queue queues a query to batch b. query can be an SQL query or the name of a prepared statement. The only pgx option
@@ -113,6 +129,12 @@ type BatchResults interface {
 	// Close is safe to call multiple times. If it returns an error subsequent calls will return the same error. Callback
 	// functions will not be rerun.
 	Close() error
+
+	// Tx returns the transaction begun by [Batch.BeginTx], or nil if the batch did not begin one. It is available before
+	// Close is called so that a Rollback can be deferred as usual, but the transaction must not otherwise be used until
+	// Close has been called. If the batch fails before the transaction is begun, the transaction is closed by the time
+	// Close returns, and its methods return an error where errors.Is(ErrTxClosed) is true.
+	Tx() Tx
 }
 
 type batchResults struct {
@@ -137,6 +159,8 @@ func (br *batchResults) Exec() (pgconn.CommandTag, error) {
 
 	query, arguments, _ := br.nextQueryAndArgs()
 
+	readStartTime := time.Now()
+
 	if !br.mrr.NextResult() {
 		err := br.mrr.Close()
 		if err == nil {
@@ -144,9 +168,10 @@ func (br *batchResults) Exec() (pgconn.CommandTag, error) {
 		}
 		if br.conn.batchTracer != nil {
 			br.conn.batchTracer.TraceBatchQuery(br.ctx, br.conn, TraceBatchQueryData{
-				SQL:  query,
-				Args: arguments,
-				Err:  err,
+				SQL:           query,
+				Args:          arguments,
+				Err:           err,
+				ReadStartTime: readStartTime,
 			})
 		}
 		return pgconn.CommandTag{}, err
@@ -160,10 +185,11 @@ func (br *batchResults) Exec() (pgconn.CommandTag, error) {
 
 	if br.conn.batchTracer != nil {
 		br.conn.batchTracer.TraceBatchQuery(br.ctx, br.conn, TraceBatchQueryData{
-			SQL:        query,
-			Args:       arguments,
-			CommandTag: commandTag,
-			Err:        br.err,
+			SQL:           query,
+			Args:          arguments,
+			CommandTag:    commandTag,
+			Err:           br.err,
+			ReadStartTime: readStartTime,
 		})
 	}
 
@@ -198,9 +224,10 @@ func (br *batchResults) Query() (Rows, error) {
 
 		if br.conn.batchTracer != nil {
 			br.conn.batchTracer.TraceBatchQuery(br.ctx, br.conn, TraceBatchQueryData{
-				SQL:  query,
-				Args: arguments,
-				Err:  rows.err,
+				SQL:           query,
+				Args:          arguments,
+				Err:           rows.err,
+				ReadStartTime: rows.startTime,
 			})
 		}
 
@@ -261,6 +288,10 @@ func (br *batchResults) Close() error {
 	return br.err
 }
 
+func (br *batchResults) Tx() Tx {
+	return nil
+}
+
 func (br *batchResults) earlyError() error {
 	return br.err
 }
@@ -306,9 +337,19 @@ func (br *pipelineBatchResults) Exec() (pgconn.CommandTag, error) {
 		return pgconn.CommandTag{}, err
 	}
 
+	readStartTime := time.Now()
+
 	results, err := br.pipeline.GetResults()
 	if err != nil {
 		br.err = err
+		if br.conn.batchTracer != nil {
+			br.conn.batchTracer.TraceBatchQuery(br.ctx, br.conn, TraceBatchQueryData{
+				SQL:           query,
+				Args:          arguments,
+				Err:           br.err,
+				ReadStartTime: readStartTime,
+			})
+		}
 		return pgconn.CommandTag{}, br.err
 	}
 	var commandTag pgconn.CommandTag
@@ -316,15 +357,25 @@ func (br *pipelineBatchResults) Exec() (pgconn.CommandTag, error) {
 	case *pgconn.ResultReader:
 		commandTag, br.err = results.Close()
 	default:
-		return pgconn.CommandTag{}, fmt.Errorf("unexpected pipeline result: %T", results)
+		err = fmt.Errorf("unexpected pipeline result: %T", results)
+		if br.conn.batchTracer != nil {
+			br.conn.batchTracer.TraceBatchQuery(br.ctx, br.conn, TraceBatchQueryData{
+				SQL:           query,
+				Args:          arguments,
+				Err:           err,
+				ReadStartTime: readStartTime,
+			})
+		}
+		return pgconn.CommandTag{}, err
 	}
 
 	if br.conn.batchTracer != nil {
 		br.conn.batchTracer.TraceBatchQuery(br.ctx, br.conn, TraceBatchQueryData{
-			SQL:        query,
-			Args:       arguments,
-			CommandTag: commandTag,
-			Err:        br.err,
+			SQL:           query,
+			Args:          arguments,
+			CommandTag:    commandTag,
+			Err:           br.err,
+			ReadStartTime: readStartTime,
 		})
 	}
 
@@ -364,9 +415,10 @@ func (br *pipelineBatchResults) Query() (Rows, error) {
 
 		if br.conn.batchTracer != nil {
 			br.conn.batchTracer.TraceBatchQuery(br.ctx, br.conn, TraceBatchQueryData{
-				SQL:  query,
-				Args: arguments,
-				Err:  err,
+				SQL:           query,
+				Args:          arguments,
+				Err:           err,
+				ReadStartTime: rows.startTime,
 			})
 		}
 	} else {
@@ -378,6 +430,15 @@ func (br *pipelineBatchResults) Query() (Rows, error) {
 			br.err = err
 			rows.err = err
 			rows.closed = true
+
+			if br.conn.batchTracer != nil {
+				br.conn.batchTracer.TraceBatchQuery(br.ctx, br.conn, TraceBatchQueryData{
+					SQL:           query,
+					Args:          arguments,
+					Err:           err,
+					ReadStartTime: rows.startTime,
+				})
+			}
 		}
 	}
 
@@ -432,6 +493,10 @@ func (br *pipelineBatchResults) Close() error {
 	}
 
 	return br.err
+}
+
+func (br *pipelineBatchResults) Tx() Tx {
+	return nil
 }
 
 func (br *pipelineBatchResults) earlyError() error {
@@ -489,6 +554,50 @@ func (br *emptyBatchResults) QueryRow() Row {
 func (br *emptyBatchResults) Close() error {
 	br.closed = true
 	return nil
+}
+
+func (br *emptyBatchResults) Tx() Tx {
+	return nil
+}
+
+// txBatchResults are the results of a batch that begins a transaction with [Batch.BeginTx].
+type txBatchResults struct {
+	BatchResults
+	tx     *dbTx
+	closed bool
+	err    error
+}
+
+func (br *txBatchResults) Tx() Tx {
+	return br.tx
+}
+
+// Close closes the batch and, when that leaves the connection outside a transaction because the begin query failed or
+// the batch was never sent, the transaction as well. Only the first call does this: once the transaction has been
+// committed or rolled back the connection may already be in use elsewhere and must not be touched.
+func (br *txBatchResults) Close() error {
+	if br.closed {
+		return br.err
+	}
+	br.closed = true
+
+	br.err = br.BatchResults.Close()
+	if br.tx.conn.PgConn().TxStatus() == 'I' {
+		br.tx.closed = true
+	}
+	return br.err
+}
+
+// FailedBatchResults returns [BatchResults] for b that report err from every method, as if sending b had failed before
+// anything reached the server. It is for code that wraps [Conn.SendBatch] and can fail before it has a connection to
+// send b on, such as a connection pool. If b began a transaction with [Batch.BeginTx], Tx returns a closed transaction.
+func FailedBatchResults(b *Batch, err error) BatchResults {
+	br := &batchResults{err: err}
+	if b.txOptions == nil {
+		return br
+	}
+
+	return &txBatchResults{BatchResults: br, tx: &dbTx{closed: true}, closed: true, err: err}
 }
 
 // invalidates statement and description caches on batch results error

@@ -16,6 +16,7 @@ package vellum
 
 import (
 	"bufio"
+	"encoding/binary"
 	"io"
 )
 
@@ -57,6 +58,13 @@ func (w *writer) Flush() error {
 }
 
 func (w *writer) WritePackedUintIn(v uint64, n int) error {
+	if w.w.Available() >= 8 {
+		// append straight into bufio's buffer; Write then only advances it
+		buf := binary.LittleEndian.AppendUint64(w.w.AvailableBuffer(), v)[:n]
+		nw, err := w.w.Write(buf)
+		w.counter += nw
+		return err
+	}
 	for shift := uint(0); shift < uint(n*8); shift += 8 {
 		err := w.WriteByte(byte(v >> shift))
 		if err != nil {

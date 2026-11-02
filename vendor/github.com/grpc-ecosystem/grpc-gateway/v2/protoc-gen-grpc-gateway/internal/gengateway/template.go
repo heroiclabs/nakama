@@ -23,6 +23,7 @@ type param struct {
 	AllowPatchFeature  bool
 	OmitPackageDoc     bool
 	UseOpaqueAPI       bool
+	StrictDeepWildcard bool
 }
 
 type binding struct {
@@ -174,6 +175,7 @@ type trailerParams struct {
 	UseRequestContext  bool
 	RegisterFuncSuffix string
 	UseOpaqueAPI       bool
+	StrictDeepWildcard bool
 }
 
 func applyTemplate(p param, reg *descriptor.Registry) (string, error) {
@@ -238,6 +240,7 @@ func applyTemplate(p param, reg *descriptor.Registry) (string, error) {
 		UseRequestContext:  p.UseRequestContext,
 		RegisterFuncSuffix: p.RegisterFuncSuffix,
 		UseOpaqueAPI:       p.UseOpaqueAPI,
+		StrictDeepWildcard: p.StrictDeepWildcard,
 	}
 	// Local
 	if err := localTrailerTemplate.Execute(w, tp); err != nil {
@@ -362,7 +365,16 @@ func request_{{ .Method.Service.GetName }}_{{ .Method.GetName }}_{{ .Index }}(ct
 			return p.OpaqueSetterExpr(msgExpr)
 		},
 		"toHTTPMethod": func(method string) string {
-			return httpMethods[method]
+			if m, ok := httpMethods[method]; ok {
+				return m
+			}
+			// Custom methods such as "LOCK" have no net/http constant.
+			return fmt.Sprintf("%q", method)
+		},
+		// An embedded field is named after its type without the package
+		// qualifier, e.g. *examplepb.Outer_Inner embeds a field Outer_Inner.
+		"embeddedFieldName": func(goType string) string {
+			return goType[strings.LastIndex(goType, ".")+1:]
 		},
 	}
 
@@ -477,10 +489,12 @@ var filter_{{ .Method.Service.GetName }}_{{ .Method.GetName }}_{{ .Index }} = {{
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", {{ $param | printf "%q"}}, err)
 	}
 {{- else -}}
+	{{- if not $UseOpaqueAPI }}
 	{{- $protoReq := $param.AssignableExprPrep "protoReq" $binding.Method.Service.File.GoPkg.Path -}}
 	{{- if ne "" $protoReq }}
 	{{ printf "%s" $protoReq }}
 	{{- end}}
+	{{- end }}
 	{{- if $UseOpaqueAPI }}
 	converted{{ $param.FieldPath.String | camelIdentifier }}, err := {{ $param.ConvertFuncExpr }}(val{{ if $param.IsRepeated }}, {{ $binding.Registry.GetRepeatedPathParamSeparator | printf "%c" | printf "%q" }}{{ end }})
 	if err != nil {
@@ -711,10 +725,12 @@ func local_request_{{ .Method.Service.GetName }}_{{ .Method.GetName }}_{{ .Index
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", {{ $param | printf "%q"}}, err)
 	}
 {{- else}}
+	{{- if not $UseOpaqueAPI }}
 	{{- $protoReq := $param.AssignableExprPrep "protoReq" $binding.Method.Service.File.GoPkg.Path -}}
 	{{- if ne "" $protoReq }}
 	{{ printf "%s" $protoReq }}
 	{{- end}}
+	{{- end }}
 	{{- if $UseOpaqueAPI }}
 	converted{{ $param.FieldPath.String | camelIdentifier }}, err := {{ $param.ConvertFuncExpr }}(val{{ if $param.IsRepeated }}, {{ $binding.Registry.GetRepeatedPathParamSeparator | printf "%c" | printf "%q" }}{{ end }})
 	if err != nil {
@@ -918,7 +934,7 @@ type response_{{ $svc.GetName }}_{{ $m.GetName }}_{{ $b.Index }} struct {
 }
 
 func (m response_{{ $svc.GetName }}_{{ $m.GetName }}_{{ $b.Index }}) XXX_ResponseBody() interface{} {
-	response := m.{{ $m.ResponseType.GetName }}
+	response := m.{{ $m.ResponseType.GoType $m.Service.File.GoPkg.Path | embeddedFieldName }}
 	{{- if $UseOpaqueAPI }}
 	{{- if eq "*" $b.ResponseBody.FieldPath.String }}
 	return response
@@ -936,7 +952,7 @@ func (m response_{{ $svc.GetName }}_{{ $m.GetName }}_{{ $b.Index }}) XXX_Respons
 var (
 	{{- range $m := $svc.Methods }}
 	{{- range $b := $m.Bindings }}
-	pattern_{{ $svc.GetName }}_{{ $m.GetName }}_{{ $b.Index }} = runtime.MustPattern(runtime.NewPattern({{ $b.PathTmpl.Version }}, {{ $b.PathTmpl.OpCodes | printf "%#v" }}, {{ $b.PathTmpl.Pool | printf "%#v" }}, {{ $b.PathTmpl.Verb | printf "%q" }}))
+	pattern_{{ $svc.GetName }}_{{ $m.GetName }}_{{ $b.Index }} = runtime.MustPattern(runtime.NewPattern{{ if $.StrictDeepWildcard }}WithOptions{{ end }}({{ $b.PathTmpl.Version }}, {{ $b.PathTmpl.OpCodes | printf "%#v" }}, {{ $b.PathTmpl.Pool | printf "%#v" }}, {{ $b.PathTmpl.Verb | printf "%q" }}{{ if $.StrictDeepWildcard }}, runtime.WithStrictDeepWildcard(){{ end }}))
 	{{- end }}
 	{{- end }}
 )
