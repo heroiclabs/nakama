@@ -970,6 +970,99 @@ nk.register_req_after(hook, "DemoteGroupUsers")`,
 				return fn(ctx, logger, "", "", "", nil, 0, "", "", &api.DemoteGroupUsersRequest{})
 			},
 		},
+		{
+			name: "before ImportSteamFriends",
+			module: `local nk = require("nakama")
+
+local function hook(ctx, input)
+	error("hook ran")
+end
+
+nk.register_req_before(hook, "ImportSteamFriends")`,
+			invoke: func(t *testing.T, r *Runtime) error {
+				fn := r.BeforeImportSteamFriends()
+				require.NotNil(t, fn)
+				_, err, _ := fn(ctx, logger, "", "", "", nil, 0, "", "", &api.ImportSteamFriendsRequest{})
+				return err
+			},
+		},
+		{
+			name: "after ImportSteamFriends",
+			module: `local nk = require("nakama")
+
+local function hook(ctx, out, input)
+	error("hook ran")
+end
+
+nk.register_req_after(hook, "ImportSteamFriends")`,
+			invoke: func(t *testing.T, r *Runtime) error {
+				fn := r.AfterImportSteamFriends()
+				require.NotNil(t, fn)
+				return fn(ctx, logger, "", "", "", nil, 0, "", "", &api.ImportSteamFriendsRequest{})
+			},
+		},
+		{
+			name: "before DeleteTournamentRecord",
+			module: `local nk = require("nakama")
+
+local function hook(ctx, input)
+	error("hook ran")
+end
+
+nk.register_req_before(hook, "DeleteTournamentRecord")`,
+			invoke: func(t *testing.T, r *Runtime) error {
+				fn := r.BeforeDeleteTournamentRecord()
+				require.NotNil(t, fn)
+				_, err, _ := fn(ctx, logger, "", "", "", nil, 0, "", "", &api.DeleteTournamentRecordRequest{})
+				return err
+			},
+		},
+		{
+			name: "after DeleteTournamentRecord",
+			module: `local nk = require("nakama")
+
+local function hook(ctx, out, input)
+	error("hook ran")
+end
+
+nk.register_req_after(hook, "DeleteTournamentRecord")`,
+			invoke: func(t *testing.T, r *Runtime) error {
+				fn := r.AfterDeleteTournamentRecord()
+				require.NotNil(t, fn)
+				return fn(ctx, logger, "", "", "", nil, 0, "", "", &api.DeleteTournamentRecordRequest{})
+			},
+		},
+		{
+			name: "before ListParties",
+			module: `local nk = require("nakama")
+
+local function hook(ctx, input)
+	error("hook ran")
+end
+
+nk.register_req_before(hook, "ListParties")`,
+			invoke: func(t *testing.T, r *Runtime) error {
+				fn := r.BeforeListParties()
+				require.NotNil(t, fn)
+				_, err, _ := fn(ctx, logger, "", "", "", nil, 0, "", "", &api.ListPartiesRequest{})
+				return err
+			},
+		},
+		{
+			name: "after ListParties",
+			module: `local nk = require("nakama")
+
+local function hook(ctx, out, input)
+	error("hook ran")
+end
+
+nk.register_req_after(hook, "ListParties")`,
+			invoke: func(t *testing.T, r *Runtime) error {
+				fn := r.AfterListParties()
+				require.NotNil(t, fn)
+				return fn(ctx, logger, "", "", "", nil, 0, "", "", &api.PartyList{}, &api.ListPartiesRequest{})
+			},
+		},
 	}
 
 	for _, tc := range cases {
