@@ -532,4 +532,3 @@ func TokenName(c int) string {
 	}
     return string([]byte{byte(c)})
 }
-

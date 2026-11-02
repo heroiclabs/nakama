@@ -1954,7 +1954,7 @@ func (n *RuntimeJavascriptNakamaModule) authenticate(r *goja.Runtime) func(goja.
 			panic(r.NewGoError(fmt.Errorf("error authenticating: %v", err.Error())))
 		}
 
-		return r.ToValue(map[string]interface{}{
+		return r.ToValue(map[string]any{
 			"userId":   dbUserID,
 			"username": dbUsername,
 			"created":  created,

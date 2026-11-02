@@ -101,7 +101,7 @@ local function foo ()
   ::l4:: a[#a + 1] = 4; goto l6;
   ::l5:: a[#a + 1] = 5; goto l4;
   ::l6:: assert(a[1] == 3 and a[2] == 1 and a[3] == 2 and
-    a[4] == 5 and a[5] == 4)
+              a[4] == 5 and a[5] == 4)
   if not a[6] then a[6] = true; goto l3a end   -- do it twice
 end
 
@@ -115,10 +115,10 @@ end
 local function foo ()
   local a = {}
   do
-    local i = 1
-    local k = 0
-    a[0] = function (y) k = y end
-    ::l1:: do
+  local i = 1
+  local k = 0
+  a[0] = function (y) k = y end
+  ::l1:: do
     local x
     if i > 2 then goto l2 end
     a[i] = function (y) if y then x = y else return x + k end end

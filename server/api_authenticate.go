@@ -16,6 +16,7 @@ package server
 
 import (
 	"context"
+	"maps"
 	"math/rand"
 	"regexp"
 	"strings"
@@ -754,12 +755,8 @@ func (s *ApiServer) Authenticate(ctx context.Context, in *api.AuthenticateReques
 	if len(providerVars) > 0 {
 		// The provider resolved these server-side, so they win over anything the client sent.
 		vars = make(map[string]string, len(in.Account.Vars)+len(providerVars))
-		for k, v := range in.Account.Vars {
-			vars[k] = v
-		}
-		for k, v := range providerVars {
-			vars[k] = v
-		}
+		maps.Copy(vars, in.Account.Vars)
+		maps.Copy(vars, providerVars)
 	}
 
 	uid := uuid.Must(uuid.FromString(dbUserID))
