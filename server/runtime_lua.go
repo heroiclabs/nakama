@@ -885,6 +885,8 @@ func NewRuntimeProviderLua(ctx context.Context, logger, startupLogger *zap.Logge
 						}
 						return result.(*api.Event), nil, 0
 					}
+				default:
+					startupLogger.Warn("Lua runtime request hook id matches no API, the hook will not run", zap.String("id", shortID), zap.String("mode", RuntimeExecutionModeBefore.String()))
 				}
 			}
 		case RuntimeExecutionModeAfter:
@@ -1239,6 +1241,8 @@ func NewRuntimeProviderLua(ctx context.Context, logger, startupLogger *zap.Logge
 					afterReqFunctions.afterEventFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.Event) error {
 						return runtimeProviderLua.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, nil, in)
 					}
+				default:
+					startupLogger.Warn("Lua runtime request hook id matches no API, the hook will not run", zap.String("id", shortID), zap.String("mode", RuntimeExecutionModeAfter.String()))
 				}
 			}
 		case RuntimeExecutionModeMatchmaker:

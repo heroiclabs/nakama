@@ -31,6 +31,8 @@ import (
 	"github.com/heroiclabs/nakama-common/rtapi"
 	rt "github.com/heroiclabs/nakama-common/runtime"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -1094,6 +1096,41 @@ nk.register_req_after(hook, "ValidateSubscriptionGoogle")`,
 			require.ErrorContains(t, err, "hook ran", "failed to call hook")
 		})
 	}
+}
+
+func TestRuntimeLuaRequestHookWithUnknownIdWarnsAtStartup(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "hooks.lua"), []byte(`local nk = require("nakama")
+
+local function before_hook(ctx, input)
+	return input
+end
+
+local function after_hook(ctx, out, input)
+end
+
+nk.register_req_before(before_hook, "GetAcount")
+nk.register_req_after(after_hook, "GetAccount")`), 0o644))
+
+	core, logs := observer.New(zap.WarnLevel)
+	startupLogger := zap.New(core)
+	cfg := NewConfig(logger)
+	cfg.Runtime.Path = dir
+	ctx := context.Background()
+	db := NewDB(t)
+	lbCache := NewLocalLeaderboardCache(ctx, logger, logger, db)
+	lbRankCache := NewLocalLeaderboardRankCache(ctx, logger, db, cfg.Leaderboard, lbCache)
+	lbSched := NewLocalLeaderboardScheduler(logger, db, cfg, lbCache, lbRankCache)
+	sessionRegistry := NewLocalSessionRegistry(metrics)
+	tracker := &LocalTracker{sessionRegistry: sessionRegistry}
+	statusRegistry := NewLocalStatusRegistry(logger, cfg, sessionRegistry, protojsonMarshaler)
+
+	_, _, err := NewRuntime(ctx, logger, startupLogger, db, protojsonMarshaler, protojsonUnmarshaler, cfg, "", nil, lbCache, lbRankCache, lbSched, sessionRegistry, nil, statusRegistry, nil, nil, tracker, metrics, nil, &DummyMessageRouter{}, storageIdx, nil)
+	require.NoError(t, err)
+
+	warnings := logs.FilterMessage("Lua runtime request hook id matches no API, the hook will not run").All()
+	require.Len(t, warnings, 1)
+	require.Equal(t, map[string]any{"id": "getacount", "mode": "before"}, warnings[0].ContextMap())
 }
 
 func TestRuntimeRTBeforeHook(t *testing.T) {

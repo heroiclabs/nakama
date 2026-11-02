@@ -11,6 +11,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add the `RegisterIAPPurchaseNotification` and `RegisterIAPSubscriptionNotification` hooks for purchase refunds and subscription changes reported by IAP providers.
 - Add a provider filter to the console purchase and subscription lists, taking an IAP provider name or a built-in store.
 - Build with Go 1.27.3.
+- Log a startup warning when a Lua runtime before or after request hook is registered for an unknown API name.
 
 ### Changed
 - Directory listings on the console port now return an HTTP 404 Not Found error.
