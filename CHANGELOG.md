@@ -28,6 +28,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Fix a data race when leaderboard and tournament reset schedules are evaluated concurrently, which could produce wrong reset times or a panic.
 - Fix JavaScript runtime match registration failing when handler keys are quoted.
 - Add missing Lua runtime functions to register Apple and Google In-App Purchase and Subscription notification hooks.
+- Fix Lua runtime shutdown hooks never running.
 
 ## [3.41.0] - 2026-09-18
 ### Added
