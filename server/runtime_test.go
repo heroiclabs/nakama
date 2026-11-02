@@ -1111,3 +1111,38 @@ nk.register_subscription_notification_google(check_subscription)
 		t.Fatal(err.Error())
 	}
 }
+
+func TestRuntimeLuaShutdownHookRuns(t *testing.T) {
+	key := uuid.Must(uuid.NewV4()).String()
+	modules := map[string]string{
+		"test": fmt.Sprintf(`
+local nk = require("nakama")
+
+local function shutdown(context)
+	nk.storage_write({{collection = "shutdown_hook", key = "%s", user_id = nil, value = {}}})
+end
+
+nk.register_shutdown(shutdown)`, key),
+	}
+
+	runtime, _, err := runtimeWithModules(t, modules)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	fn := runtime.Shutdown()
+	if fn == nil {
+		t.Fatal("expected shutdown function to be registered")
+	}
+
+	ctx := context.Background()
+	fn(ctx)
+
+	db := NewDB(t)
+	objects, err := StorageReadObjects(ctx, logger, db, uuid.Nil, []*api.ReadStorageObjectId{{Collection: "shutdown_hook", Key: key}})
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+	if len(objects.Objects) != 1 {
+		t.Fatalf("expected the shutdown hook to write its storage object, got %d objects", len(objects.Objects))
+	}
+}
