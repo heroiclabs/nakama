@@ -1950,8 +1950,11 @@ func (rp *RuntimeProviderLua) MatchmakerMatched(ctx context.Context, entries []*
 	// Set context value used for logging
 	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"mode": RuntimeExecutionModeMatchmaker.String()})
 	vmCtx = NewRuntimeGoContext(vmCtx, r.node, r.version, r.env, RuntimeExecutionModeMatchmaker, nil, nil, "", 0, "", "", nil, "", "", "", "")
+	lease := newLuaRuntimeLease(r)
+	vmCtx = context.WithValue(vmCtx, ctxLuaRuntimeKey{}, lease)
 	r.vm.SetContext(vmCtx)
 	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, entriesTable)
+	lease.r.Store(nil)
 	r.vm.SetContext(context.Background())
 	vmRelease()
 	if err != nil {
@@ -2040,8 +2043,11 @@ func (rp *RuntimeProviderLua) TournamentEnd(ctx context.Context, tournament *api
 	// Set context value used for logging
 	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"mode": RuntimeExecutionModeTournamentEnd.String()})
 	vmCtx = NewRuntimeGoContext(vmCtx, r.node, r.version, r.env, RuntimeExecutionModeTournamentEnd, nil, nil, "", 0, "", "", nil, "", "", "", "")
+	lease := newLuaRuntimeLease(r)
+	vmCtx = context.WithValue(vmCtx, ctxLuaRuntimeKey{}, lease)
 	r.vm.SetContext(vmCtx)
 	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, tournamentTable, lua.LNumber(end), lua.LNumber(reset))
+	lease.r.Store(nil)
 	r.vm.SetContext(context.Background())
 	vmRelease()
 	if err != nil {
@@ -2111,8 +2117,11 @@ func (rp *RuntimeProviderLua) TournamentReset(ctx context.Context, tournament *a
 	// Set context value used for logging
 	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"mode": RuntimeExecutionModeTournamentReset.String()})
 	vmCtx = NewRuntimeGoContext(vmCtx, r.node, r.version, r.env, RuntimeExecutionModeTournamentReset, nil, nil, "", 0, "", "", nil, "", "", "", "")
+	lease := newLuaRuntimeLease(r)
+	vmCtx = context.WithValue(vmCtx, ctxLuaRuntimeKey{}, lease)
 	r.vm.SetContext(vmCtx)
 	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, tournamentTable, lua.LNumber(end), lua.LNumber(reset))
+	lease.r.Store(nil)
 	r.vm.SetContext(context.Background())
 	vmRelease()
 	if err != nil {
@@ -2164,8 +2173,11 @@ func (rp *RuntimeProviderLua) LeaderboardReset(ctx context.Context, leaderboard 
 	// Set context value used for logging
 	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"mode": RuntimeExecutionModeLeaderboardReset.String()})
 	vmCtx = NewRuntimeGoContext(vmCtx, r.node, r.version, r.env, RuntimeExecutionModeLeaderboardReset, nil, nil, "", 0, "", "", nil, "", "", "", "")
+	lease := newLuaRuntimeLease(r)
+	vmCtx = context.WithValue(vmCtx, ctxLuaRuntimeKey{}, lease)
 	r.vm.SetContext(vmCtx)
 	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, leaderboardTable, lua.LNumber(reset))
+	lease.r.Store(nil)
 	r.vm.SetContext(context.Background())
 	vmRelease()
 	if err != nil {
@@ -2197,8 +2209,11 @@ func (rp *RuntimeProviderLua) Shutdown(ctx context.Context) {
 	// Set context value used for logging
 	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"mode": RuntimeExecutionModeShutdown.String()})
 	vmCtx = NewRuntimeGoContext(vmCtx, r.node, r.version, r.env, RuntimeExecutionModeShutdown, nil, nil, "", 0, "", "", nil, "", "", "", "")
+	lease := newLuaRuntimeLease(r)
+	vmCtx = context.WithValue(vmCtx, ctxLuaRuntimeKey{}, lease)
 	r.vm.SetContext(vmCtx)
 	_, err, _, _ = r.invokeFunction(r.vm, lf, luaCtx)
+	lease.r.Store(nil)
 	r.vm.SetContext(context.Background())
 	vmRelease()
 	if err != nil {
@@ -2225,8 +2240,11 @@ func (rp *RuntimeProviderLua) PurchaseNotificationApple(ctx context.Context, pur
 	// Set context value used for logging
 	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"mode": RuntimeExecutionModePurchaseNotificationApple.String()})
 	vmCtx = NewRuntimeGoContext(vmCtx, r.node, r.version, r.env, RuntimeExecutionModePurchaseNotificationApple, nil, nil, "", 0, "", "", nil, "", "", "", "")
+	lease := newLuaRuntimeLease(r)
+	vmCtx = context.WithValue(vmCtx, ctxLuaRuntimeKey{}, lease)
 	r.vm.SetContext(vmCtx)
 	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, purchaseTable, lua.LString(providerPayload), lua.LString(notificationType))
+	lease.r.Store(nil)
 	r.vm.SetContext(context.Background())
 	vmRelease()
 	if err != nil {
@@ -2259,8 +2277,11 @@ func (rp *RuntimeProviderLua) SubscriptionNotificationApple(ctx context.Context,
 	// Set context value used for logging
 	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"mode": RuntimeExecutionModeSubscriptionNotificationApple.String()})
 	vmCtx = NewRuntimeGoContext(vmCtx, r.node, r.version, r.env, RuntimeExecutionModeSubscriptionNotificationApple, nil, nil, "", 0, "", "", nil, "", "", "", "")
+	lease := newLuaRuntimeLease(r)
+	vmCtx = context.WithValue(vmCtx, ctxLuaRuntimeKey{}, lease)
 	r.vm.SetContext(vmCtx)
 	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, subscriptionTable, lua.LString(providerPayload), lua.LString(notificationType))
+	lease.r.Store(nil)
 	r.vm.SetContext(context.Background())
 	vmRelease()
 	if err != nil {
@@ -2293,8 +2314,11 @@ func (rp *RuntimeProviderLua) PurchaseNotificationGoogle(ctx context.Context, pu
 	// Set context value used for logging
 	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"mode": RuntimeExecutionModePurchaseNotificationGoogle.String()})
 	vmCtx = NewRuntimeGoContext(vmCtx, r.node, r.version, r.env, RuntimeExecutionModePurchaseNotificationGoogle, nil, nil, "", 0, "", "", nil, "", "", "", "")
+	lease := newLuaRuntimeLease(r)
+	vmCtx = context.WithValue(vmCtx, ctxLuaRuntimeKey{}, lease)
 	r.vm.SetContext(vmCtx)
 	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, purchaseTable, lua.LString(providerPayload), lua.LString(notificationType))
+	lease.r.Store(nil)
 	r.vm.SetContext(context.Background())
 	vmRelease()
 	if err != nil {
@@ -2327,8 +2351,11 @@ func (rp *RuntimeProviderLua) SubscriptionNotificationGoogle(ctx context.Context
 	// Set context value used for logging
 	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"mode": RuntimeExecutionModeSubscriptionNotificationGoogle.String()})
 	vmCtx = NewRuntimeGoContext(vmCtx, r.node, r.version, r.env, RuntimeExecutionModeSubscriptionNotificationGoogle, nil, nil, "", 0, "", "", nil, "", "", "", "")
+	lease := newLuaRuntimeLease(r)
+	vmCtx = context.WithValue(vmCtx, ctxLuaRuntimeKey{}, lease)
 	r.vm.SetContext(vmCtx)
 	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, subscriptionTable, lua.LString(providerPayload), lua.LString(notificationType))
+	lease.r.Store(nil)
 	r.vm.SetContext(context.Background())
 	vmRelease()
 	if err != nil {
