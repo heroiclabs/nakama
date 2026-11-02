@@ -286,9 +286,10 @@ func (rp *RuntimeProviderJS) Authenticate(ctx context.Context, name, traceID str
 	}
 
 	ctx = NewRuntimeGoContext(ctx, r.node, r.version, r.envMap, RuntimeExecutionModeAuthenticateProvider, nil, nil, traceID, 0, "", "", nil, "", "", "", "")
+	prevCtx := r.nakamaModule.ctx
 	r.SetContext(ctx)
 	retValue, err, code := r.InvokeFunction(RuntimeExecutionModeAuthenticateProvider, name, fn, jsLogger, nil, nil, traceID, "", "", nil, 0, "", "", "", "", payload)
-	r.SetContext(context.Background())
+	r.SetContext(prevCtx)
 	rp.Put(r)
 	if err != nil {
 		return nil, err, code
