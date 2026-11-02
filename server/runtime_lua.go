@@ -2410,9 +2410,13 @@ func (rp *RuntimeProviderLua) StorageIndexFilter(ctx context.Context, indexName 
 	// Set context value used for logging
 	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"mode": RuntimeExecutionModeStorageIndexFilter.String()})
 	vmCtx = NewRuntimeGoContext(vmCtx, r.node, r.version, r.env, RuntimeExecutionModeStorageIndexFilter, nil, nil, "", 0, "", "", nil, "", "", "", "")
+	lease := newLuaRuntimeLease(r)
+	vmCtx = context.WithValue(vmCtx, ctxLuaRuntimeKey{}, lease)
+	prevCtx := r.vm.Context()
 	r.vm.SetContext(vmCtx)
 	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, writeTable)
-	r.vm.SetContext(context.Background())
+	lease.r.Store(nil)
+	r.vm.SetContext(prevCtx)
 	rp.Put(r)
 	if err != nil {
 		return false, fmt.Errorf("Error running runtime Storage Index Filter hook for %q index: %v", indexName, err.Error())
