@@ -14,6 +14,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Changed
 - Directory listings on the console port now return an HTTP 404 Not Found error.
 - Change the Fleet Manager Init interface to receive the namespace of the instance being registered.
+- Fleet Manager registration by name is now case-insensitive.
 
 ### Fixed
 - Only apply Google Authentication token aud/azp validation if explicitly configured via google_auth.client_ids.
