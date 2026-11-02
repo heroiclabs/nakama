@@ -3894,6 +3894,8 @@ func NewRuntimeProviderGo(ctx context.Context, logger, startupLogger *zap.Logger
 	events := &RuntimeEventFunctions{}
 	if len(initializer.eventFunctions) > 0 {
 		events.eventFunction = func(ctx context.Context, evt *api.Event) {
+			// Handlers run on another goroutine while the caller may still be running on its leased VM.
+			ctx = context.WithValue(context.WithValue(ctx, ctxLuaRuntimeKey{}, nil), ctxJsRuntimeKey{}, nil)
 			eventQueue.Queue(func() {
 				for _, fn := range initializer.eventFunctions {
 					fn(ctx, initializer.logger, evt)
