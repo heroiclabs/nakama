@@ -250,6 +250,22 @@ function InitModule(ctx, logger, nk, initializer) {
 				return fn(ctx, logger, "", "", "", nil, 0, "", "", &api.PartyList{}, &api.ListPartiesRequest{})
 			},
 		},
+		{
+			name: "after ValidateSubscriptionGoogle",
+			module: `function hook(ctx, logger, nk, data, request) {
+  throw new Error("hook ran");
+}
+
+function InitModule(ctx, logger, nk, initializer) {
+  initializer.registerAfterValidateSubscriptionGoogle(hook);
+}`,
+			invoke: func(t *testing.T, r *Runtime) error {
+				require.Nil(t, r.AfterValidateSubscriptionApple())
+				fn := r.AfterValidateSubscriptionGoogle()
+				require.NotNil(t, fn)
+				return fn(ctx, logger, "", "", "", nil, 0, "", "", &api.ValidateSubscriptionResponse{}, &api.ValidateSubscriptionGoogleRequest{})
+			},
+		},
 	}
 
 	for _, tc := range cases {

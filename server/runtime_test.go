@@ -1067,6 +1067,22 @@ nk.register_req_after(hook, "ListParties")`,
 				return fn(ctx, logger, "", "", "", nil, 0, "", "", &api.PartyList{}, &api.ListPartiesRequest{})
 			},
 		},
+		{
+			name: "after ValidateSubscriptionGoogle",
+			module: `local nk = require("nakama")
+
+local function hook(ctx, out, input)
+	error("hook ran")
+end
+
+nk.register_req_after(hook, "ValidateSubscriptionGoogle")`,
+			invoke: func(t *testing.T, r *Runtime) error {
+				require.Nil(t, r.AfterValidateSubscriptionApple())
+				fn := r.AfterValidateSubscriptionGoogle()
+				require.NotNil(t, fn)
+				return fn(ctx, logger, "", "", "", nil, 0, "", "", &api.ValidateSubscriptionResponse{}, &api.ValidateSubscriptionGoogleRequest{})
+			},
+		},
 	}
 
 	for _, tc := range cases {
