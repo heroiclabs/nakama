@@ -382,6 +382,7 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	if !persist {
 		validatedPurchases := []*api.ValidatedPurchase{
 			{
+				UserId:           userID.String(),
 				ProductId:        sPurchase.productId,
 				TransactionId:    sPurchase.transactionId,
 				Store:            sPurchase.store,
@@ -533,6 +534,7 @@ func ValidatePurchaseSamsung(ctx context.Context, logger *zap.Logger, db *sql.DB
 		return &api.ValidatePurchaseResponse{
 			ValidatedPurchases: []*api.ValidatedPurchase{
 				{
+					UserId:           userID.String(),
 					ProductId:        sPurchase.productId,
 					TransactionId:    sPurchase.transactionId,
 					Store:            sPurchase.store,
