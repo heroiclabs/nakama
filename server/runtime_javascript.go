@@ -2167,8 +2167,11 @@ func (rp *RuntimeProviderJS) MatchmakerMatched(ctx context.Context, entries []*M
 	}
 
 	ctx = NewRuntimeGoContext(ctx, r.node, r.version, r.envMap, RuntimeExecutionModeMatchmaker, nil, nil, "", 0, "", "", nil, "", "", "", "")
+	lease := newJsRuntimeLease(r)
+	ctx = context.WithValue(ctx, ctxJsRuntimeKey{}, lease)
 	r.SetContext(ctx)
 	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModeMatchmaker, "matchmakerMatched", fn, jsLogger, nil, nil, "", "", "", nil, 0, "", "", "", "", r.vm.ToValue(entriesSlice))
+	lease.r.Store(nil)
 	r.SetContext(context.Background())
 	vmRelease()
 	if err != nil {
@@ -2256,8 +2259,11 @@ func (rp *RuntimeProviderJS) TournamentEnd(ctx context.Context, tournament *api.
 	}
 
 	ctx = NewRuntimeGoContext(ctx, r.node, r.version, r.envMap, RuntimeExecutionModeTournamentEnd, nil, nil, "", 0, "", "", nil, "", "", "", "")
+	lease := newJsRuntimeLease(r)
+	ctx = context.WithValue(ctx, ctxJsRuntimeKey{}, lease)
 	r.SetContext(ctx)
 	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModeTournamentEnd, "tournamentEnd", fn, jsLogger, nil, nil, "", "", "", nil, 0, "", "", "", "", tournamentObj, r.vm.ToValue(end), r.vm.ToValue(reset))
+	lease.r.Store(nil)
 	r.SetContext(context.Background())
 	vmRelease()
 	if err != nil {
@@ -2330,8 +2336,11 @@ func (rp *RuntimeProviderJS) TournamentReset(ctx context.Context, tournament *ap
 	}
 
 	ctx = NewRuntimeGoContext(ctx, r.node, r.version, r.envMap, RuntimeExecutionModeTournamentReset, nil, nil, "", 0, "", "", nil, "", "", "", "")
+	lease := newJsRuntimeLease(r)
+	ctx = context.WithValue(ctx, ctxJsRuntimeKey{}, lease)
 	r.SetContext(ctx)
 	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModeTournamentReset, "tournamentReset", fn, jsLogger, nil, nil, "", "", "", nil, 0, "", "", "", "", tournamentObj, r.vm.ToValue(end), r.vm.ToValue(reset))
+	lease.r.Store(nil)
 	r.SetContext(context.Background())
 	vmRelease()
 	if err != nil {
@@ -2389,8 +2398,11 @@ func (rp *RuntimeProviderJS) LeaderboardReset(ctx context.Context, leaderboard *
 	}
 
 	ctx = NewRuntimeGoContext(ctx, r.node, r.version, r.envMap, RuntimeExecutionModeLeaderboardReset, nil, nil, "", 0, "", "", nil, "", "", "", "")
+	lease := newJsRuntimeLease(r)
+	ctx = context.WithValue(ctx, ctxJsRuntimeKey{}, lease)
 	r.SetContext(ctx)
 	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModeLeaderboardReset, "leaderboardReset", fn, jsLogger, nil, nil, "", "", "", nil, 0, "", "", "", "", leaderboardObj, r.vm.ToValue(reset))
+	lease.r.Store(nil)
 	r.SetContext(context.Background())
 	vmRelease()
 	if err != nil {
@@ -2429,8 +2441,11 @@ func (rp *RuntimeProviderJS) Shutdown(ctx context.Context) {
 	}
 
 	ctx = NewRuntimeGoContext(ctx, r.node, r.version, r.envMap, RuntimeExecutionModeShutdown, nil, nil, "", 0, "", "", nil, "", "", "", "")
+	lease := newJsRuntimeLease(r)
+	ctx = context.WithValue(ctx, ctxJsRuntimeKey{}, lease)
 	r.SetContext(ctx)
 	_, err, _ = r.InvokeFunction(RuntimeExecutionModeShutdown, "shutdown", fn, jsLogger, nil, nil, "", "", "", nil, 0, "", "", "", "")
+	lease.r.Store(nil)
 	r.SetContext(context.Background())
 	vmRelease()
 	if err != nil {
@@ -2465,8 +2480,11 @@ func (rp *RuntimeProviderJS) PurchaseNotificationApple(ctx context.Context, purc
 	}
 
 	ctx = NewRuntimeGoContext(ctx, r.node, r.version, r.envMap, RuntimeExecutionModePurchaseNotificationApple, nil, nil, "", 0, "", "", nil, "", "", "", "")
+	lease := newJsRuntimeLease(r)
+	ctx = context.WithValue(ctx, ctxJsRuntimeKey{}, lease)
 	r.SetContext(ctx)
 	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModePurchaseNotificationApple, "purchaseNotificationApple", fn, jsLogger, nil, nil, "", "", "", nil, 0, "", "", "", "", r.vm.ToValue(purchaseMap), r.vm.ToValue(providerPayload), r.vm.ToValue(notificationType))
+	lease.r.Store(nil)
 	r.SetContext(context.Background())
 	vmRelease()
 	if err != nil {
@@ -2506,8 +2524,11 @@ func (rp *RuntimeProviderJS) SubscriptionNotificationApple(ctx context.Context, 
 	}
 
 	ctx = NewRuntimeGoContext(ctx, r.node, r.version, r.envMap, RuntimeExecutionModeSubscriptionNotificationApple, nil, nil, "", 0, "", "", nil, "", "", "", "")
+	lease := newJsRuntimeLease(r)
+	ctx = context.WithValue(ctx, ctxJsRuntimeKey{}, lease)
 	r.SetContext(ctx)
 	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModeSubscriptionNotificationApple, "subscriptionNotificationApple", fn, jsLogger, nil, nil, "", "", "", nil, 0, "", "", "", "", r.vm.ToValue(subscriptionMap), r.vm.ToValue(providerPayload), r.vm.ToValue(notificationType))
+	lease.r.Store(nil)
 	r.SetContext(context.Background())
 	vmRelease()
 	if err != nil {
@@ -2547,8 +2568,11 @@ func (rp *RuntimeProviderJS) PurchaseNotificationGoogle(ctx context.Context, pur
 	}
 
 	ctx = NewRuntimeGoContext(ctx, r.node, r.version, r.envMap, RuntimeExecutionModePurchaseNotificationGoogle, nil, nil, "", 0, "", "", nil, "", "", "", "")
+	lease := newJsRuntimeLease(r)
+	ctx = context.WithValue(ctx, ctxJsRuntimeKey{}, lease)
 	r.SetContext(ctx)
 	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModePurchaseNotificationGoogle, "purchaseNotificationGoogle", fn, jsLogger, nil, nil, "", "", "", nil, 0, "", "", "", "", r.vm.ToValue(purchaseMap), r.vm.ToValue(providerPayload), r.vm.ToValue(notificationType))
+	lease.r.Store(nil)
 	r.SetContext(context.Background())
 	vmRelease()
 	if err != nil {
@@ -2588,8 +2612,11 @@ func (rp *RuntimeProviderJS) SubscriptionNotificationGoogle(ctx context.Context,
 	}
 
 	ctx = NewRuntimeGoContext(ctx, r.node, r.version, r.envMap, RuntimeExecutionModeSubscriptionNotificationGoogle, nil, nil, "", 0, "", "", nil, "", "", "", "")
+	lease := newJsRuntimeLease(r)
+	ctx = context.WithValue(ctx, ctxJsRuntimeKey{}, lease)
 	r.SetContext(ctx)
 	retValue, err, _ := r.InvokeFunction(RuntimeExecutionModeSubscriptionNotificationGoogle, "subscriptionNotificationGoogle", fn, jsLogger, nil, nil, "", "", "", nil, 0, "", "", "", "", r.vm.ToValue(subscriptionMap), r.vm.ToValue(providerPayload), r.vm.ToValue(notificationType))
+	lease.r.Store(nil)
 	r.SetContext(context.Background())
 	vmRelease()
 	if err != nil {
