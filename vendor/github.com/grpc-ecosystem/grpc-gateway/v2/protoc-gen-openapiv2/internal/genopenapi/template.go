@@ -21,12 +21,14 @@ import (
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/internal/casing"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/internal/descriptor"
+	"github.com/grpc-ecosystem/grpc-gateway/v2/internal/httprule"
 	openapi_options "github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options"
 	"google.golang.org/genproto/googleapis/api/annotations"
 	"google.golang.org/genproto/googleapis/api/visibility"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/descriptorpb"
 	"google.golang.org/protobuf/types/known/structpb"
 )
@@ -97,13 +99,11 @@ var wktSchemas = map[string]schemaCore{
 		Type: "object",
 	},
 	".google.protobuf.Value": {},
+	// A ListValue element is any JSON value, like google.protobuf.Value, so
+	// leave the items schema unconstrained.
 	".google.protobuf.ListValue": {
-		Type: "array",
-		Items: (*openapiItemsObject)(&openapiSchemaObject{
-			schemaCore: schemaCore{
-				Type: "object",
-			},
-		}),
+		Type:  "array",
+		Items: &openapiItemsObject{},
 	},
 	".google.protobuf.NullValue": {
 		Type: "string",
@@ -181,6 +181,12 @@ func messageToQueryParameters(message *descriptor.Message, reg *descriptor.Regis
 			continue
 		}
 
+		// When a path parameter is set to a oneof field, we want to skip the other
+		// fields in the oneof group.
+		if isPathSameOneOf(pathParams, field) {
+			continue
+		}
+
 		if !isVisible(getFieldVisibilityOption(field), reg) {
 			continue
 		}
@@ -195,6 +201,37 @@ func messageToQueryParameters(message *descriptor.Message, reg *descriptor.Regis
 		params = append(params, p...)
 	}
 	return params, nil
+}
+
+// isPathSameOneOf returns true if the given field is a member of a oneof group of
+// which another member is already bound to a path parameter. Only one member of a
+// oneof group can be set at a time, so the remaining members can never be
+// populated through the query string.
+func isPathSameOneOf(pathParams []descriptor.Parameter, field *descriptor.Field) bool {
+	if field.OneofIndex == nil {
+		return false
+	}
+
+	for _, pathParam := range pathParams {
+		if len(pathParam.FieldPath) == 0 {
+			continue
+		}
+
+		// Only the first component of the path parameter is a field of the same
+		// message as field, so that is the only level at which the oneof indices
+		// are comparable. Oneof indices are only unique within their containing
+		// message.
+		target := pathParam.FieldPath[0].Target
+		if target == nil || target == field || target.OneofIndex == nil {
+			continue
+		}
+
+		if *target.OneofIndex == *field.OneofIndex {
+			return true
+		}
+	}
+
+	return false
 }
 
 func isBodySameOneOf(body *descriptor.Body, field *descriptor.Field) bool {
@@ -302,6 +339,12 @@ func nestedQueryParams(message *descriptor.Message, field *descriptor.Field, pre
 
 	isEnum := field.GetType() == descriptorpb.FieldDescriptorProto_TYPE_ENUM
 	items := schema.Items
+	// mapKeySuffix spells out the key of a map field in the parameter name, as in
+	// "filters[string]". It is appended to the parameter name rather than to the
+	// field name so that it is emitted whichever naming the parameter uses, and so
+	// that the field descriptor, which is shared with the rest of the generated
+	// document, is left alone.
+	var mapKeySuffix string
 	if schema.Type != "" || isEnum {
 		if schema.Type == "object" {
 			location := ""
@@ -315,11 +358,33 @@ func nestedQueryParams(message *descriptor.Message, field *descriptor.Field, pre
 					if err != nil {
 						return nil, err
 					}
+					v := m.GetField()[1]
+					switch {
+					case v.GetType() == descriptorpb.FieldDescriptorProto_TYPE_ENUM:
+						schema.Type = "string"
+						if reg.GetEnumsAsInts() {
+							schema.Type = "integer"
+						}
+					case schema.AdditionalProperties != nil:
+						if mapValueSchema, ok := schema.AdditionalProperties.(*openapiSchemaObject); ok {
+							schema.Type = mapValueSchema.Type
+						}
+					}
+					if schema.Type == "" || schema.Type == "object" {
+						// The map value has no primitive representation, so there is no
+						// way to spell it in a query parameter.
+						return nil, nil
+					}
 					// This will generate a query in the format map_name[key_type]
-					fName := fmt.Sprintf("%s[%s]", *field.Name, kType)
-					field.Name = proto.String(fName)
-					schema.Type = schema.AdditionalProperties.schemaCore.Type
+					mapKeySuffix = "[" + kType + "]"
 				}
+			}
+			if _, ok := wktSchemas[fieldType]; ok && schema.Type == "object" {
+				// Empty and Struct are rendered as "object", which is not a valid type
+				// for a parameter that is not in the body. Both are read from the query
+				// string as text: Struct as its JSON encoding, Empty as an empty value
+				// or as "{}".
+				schema.Type = "string"
 			}
 		}
 		if items != nil && (items.Type == "" || items.Type == "object") && !isEnum {
@@ -368,9 +433,17 @@ func nestedQueryParams(message *descriptor.Message, field *descriptor.Field, pre
 		}
 		if param.Type == "array" {
 			param.CollectionFormat = "multi"
+			if schema.MinItems > 0 {
+				minItems := int(schema.MinItems)
+				param.MinItems = &minItems
+			}
+			if schema.MaxItems > 0 {
+				maxItems := int(schema.MaxItems)
+				param.MaxItems = &maxItems
+			}
 		}
 
-		param.Name = prefix + reg.FieldName(field)
+		param.Name = prefix + reg.FieldName(field) + mapKeySuffix
 
 		if isEnum {
 			enum, err := reg.LookupEnum("", fieldType)
@@ -525,8 +598,11 @@ func findNestedMessagesAndEnumerations(message *descriptor.Message, reg *descrip
 // FQMNs/FQENs that will be referenced, WITHOUT using the naming cache.
 // This allows us to build the cache with the correct filtered names BEFORE
 // any code tries to use it.
-func collectReferencedNamesForCache(services []*descriptor.Service, messages []*descriptor.Message, reg *descriptor.Registry) map[string]bool {
+func collectReferencedNamesForCache(file *descriptor.File, services []*descriptor.Service, messages []*descriptor.Message, reg *descriptor.Registry) map[string]bool {
 	refs := make(map[string]bool)
+	// Custom refs are collected separately and traversed last, so they do not
+	// short-circuit collectNestedTypeFQNs' visited check.
+	customRefs := make(map[string]bool)
 
 	// Scan services FIRST so collectNestedTypeFQNs fully traverses
 	// message graphs without being short-circuited by pre-populated entries.
@@ -537,6 +613,9 @@ func collectReferencedNamesForCache(services []*descriptor.Service, messages []*
 		for _, meth := range svc.Methods {
 			if !isVisible(getMethodVisibilityOption(meth), reg) {
 				continue
+			}
+			if opts, err := getMethodOpenAPIOption(reg, meth); err == nil && opts != nil {
+				collectCustomRefs(opts.ProtoReflect(), customRefs)
 			}
 			if len(meth.Bindings) == 0 {
 				continue
@@ -566,6 +645,27 @@ func collectReferencedNamesForCache(services []*descriptor.Service, messages []*
 	for _, msg := range messages {
 		refs[msg.FQMN()] = true
 		collectNestedTypeFQNs(msg, reg, refs)
+		if opts, err := getMessageOpenAPIOption(reg, msg); err == nil && opts != nil {
+			collectCustomRefs(opts.ProtoReflect(), customRefs)
+		}
+		for _, field := range msg.Fields {
+			if opts, err := getFieldOpenAPIOption(reg, field); err == nil && opts != nil {
+				collectCustomRefs(opts.ProtoReflect(), customRefs)
+			}
+		}
+	}
+	if opts, err := getFileOpenAPIOption(reg, file); err == nil && opts != nil {
+		collectCustomRefs(opts.ProtoReflect(), customRefs)
+	}
+
+	for ref := range customRefs {
+		if refs[ref] {
+			continue
+		}
+		refs[ref] = true
+		if msg, err := reg.LookupMsg("", ref); err == nil {
+			collectNestedTypeFQNs(msg, reg, refs)
+		}
 	}
 
 	// Add google.rpc.Status if default errors enabled
@@ -578,6 +678,34 @@ func collectReferencedNamesForCache(services []*descriptor.Service, messages []*
 	}
 
 	return refs
+}
+
+// collectCustomRefs adds every JSONSchema "ref" found in an OpenAPI option
+// message to refs, so that types referenced only through options are kept in
+// the naming cache.
+func collectCustomRefs(m protoreflect.Message, refs map[string]bool) {
+	if schema, ok := m.Interface().(*openapi_options.JSONSchema); ok && schema.GetRef() != "" {
+		refs[schema.GetRef()] = true
+	}
+	m.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
+		switch {
+		case fd.IsMap():
+			if fd.MapValue().Message() != nil {
+				v.Map().Range(func(_ protoreflect.MapKey, mv protoreflect.Value) bool {
+					collectCustomRefs(mv.Message(), refs)
+					return true
+				})
+			}
+		case fd.Message() == nil:
+		case fd.IsList():
+			for i := 0; i < v.List().Len(); i++ {
+				collectCustomRefs(v.List().Get(i).Message(), refs)
+			}
+		default:
+			collectCustomRefs(v.Message(), refs)
+		}
+		return true
+	})
 }
 
 // collectNestedTypeFQNs recursively collects FQMNs/FQENs for all nested types
@@ -845,7 +973,7 @@ func transformAnyForJSON(schema *openapiSchemaObject, useJSONNames bool) {
 
 	for _, property := range *schema.Properties {
 		if property.Key == typeFieldName {
-			schema.AdditionalProperties = &openapiSchemaObject{}
+			schema.AdditionalProperties = openapiAdditionalPropertiesAllowed(true)
 			schema.Properties = &openapiSchemaObjectProperties{keyVal{
 				Key:   "@type",
 				Value: property.Value,
@@ -1220,6 +1348,8 @@ func resolveFullyQualifiedNameToOpenAPINames(messages []string, namingStrategy s
 var canRegexp = regexp.MustCompile("{([a-zA-Z][a-zA-Z0-9_.-]*)([^}]*)}")
 
 // templateToParts splits a URL template into path segments for use by `partsToOpenAPIPath` and `partsToRegexpMap`.
+// The template is parsed with the same parser that protoc-gen-grpc-gateway uses, so both generators agree on
+// how a template is split into segments and verb.
 //
 // Parameters:
 //   - path:	The URL template as defined by https://github.com/googleapis/googleapis/blob/master/google/api/http.proto
@@ -1229,103 +1359,42 @@ var canRegexp = regexp.MustCompile("{([a-zA-Z][a-zA-Z0-9_.-]*)([^}]*)}")
 //
 // Returns:
 //
-//	The path segments of the URL template.
+//	The path segments of the URL template. The first part is always empty (the leading "/"), and if the
+//	template has a verb, the last part is the verb prefixed with ":".
 func templateToParts(path string, reg *descriptor.Registry, fields []*descriptor.Field, msgs []*descriptor.Message) []string {
-	// It seems like the right thing to do here is to just use
-	// strings.Split(path, "/") but that breaks badly when you hit a url like
-	// /{my_field=prefix/*}/ and end up with 2 sections representing my_field.
-	// Instead do the right thing and write a small pushdown (counter) automata
-	// for it.
-	var parts []string
-	depth := 0
-	buffer := ""
-	for i, char := range path {
-		switch char {
-		case '{':
-			// Push on the stack
-			depth++
-			buffer += string(char)
-		case '}':
-			if depth == 0 {
-				panic("Encountered } without matching { before it.")
-			}
-			// Pop from the stack
-			depth--
-			if !reg.GetUseJSONNamesForFields() {
-				buffer += string(char)
-				continue
-			}
-			paramNameProto := strings.SplitN(buffer[1:], "=", 2)[0]
-			paramNameCamelCase := lowerCamelCase(paramNameProto, fields, msgs)
-			buffer = strings.Join([]string{"{", paramNameCamelCase, buffer[len(paramNameProto)+1:], "}"}, "")
-		case '/':
-			if depth == 0 {
-				parts = append(parts, buffer)
-				buffer = ""
-				// Since the stack was empty when we hit the '/' we are done with this
-				// section.
-				continue
-			}
-			buffer += string(char)
-		case ':':
-			if depth == 0 {
-				// Only treat this as a verb if we're at the end of the path or
-				// if there are no more path segments (only more literals after the colon)
-				remainingPath := path[i:]
-				if !strings.Contains(remainingPath, "/") {
-					parts = append(parts, buffer)
-					verbSegment := remainingPath
-					if reg.GetUseJSONNamesForFields() {
-						verbSegment = processParametersInSegment(verbSegment, fields, msgs)
-					}
-					parts = append(parts, verbSegment)
-					return parts
-				}
-			}
-			buffer += string(char)
-		default:
-			buffer += string(char)
-		}
+	segments, verb, err := httprule.SplitTemplate(path)
+	if err != nil {
+		// Path templates have already been validated with the same parser
+		// when the descriptor registry was loaded.
+		panic(fmt.Sprintf("invalid path template %q: %v", path, err))
 	}
 
-	// Now append the last element to parts
-	parts = append(parts, buffer)
-
+	parts := []string{""}
+	if len(segments) == 0 {
+		// The root path "/".
+		parts = append(parts, "")
+	}
+	for _, segment := range segments {
+		if segment.FieldPath == "" {
+			parts = append(parts, segment.Value)
+			continue
+		}
+		name := segment.FieldPath
+		if reg.GetUseJSONNamesForFields() {
+			name = lowerCamelCase(name, fields, msgs)
+		}
+		if segment.Value == "*" {
+			// "{name}" is equivalent to "{name=*}".
+			parts = append(parts, "{"+name+"}")
+			continue
+		}
+		parts = append(parts, "{"+name+"="+segment.Value+"}")
+	}
+	// A trailing ":" is parsed as an empty verb; keep it in the path.
+	if verb != "" || strings.HasSuffix(path, ":") {
+		parts = append(parts, ":"+verb)
+	}
 	return parts
-}
-
-// processParametersInSegment processes a path segment (like ":verb/{param}") to convert
-// parameter names to camelCase while preserving the overall structure
-func processParametersInSegment(segment string, fields []*descriptor.Field, msgs []*descriptor.Message) string {
-	result := segment
-	depth := 0
-	var paramStart int
-	for i, char := range segment {
-		switch char {
-		case '{':
-			if depth == 0 {
-				paramStart = i
-			}
-			depth++
-		case '}':
-			depth--
-			if depth == 0 {
-				paramContent := segment[paramStart+1 : i]
-				paramNameProto := strings.SplitN(paramContent, "=", 2)[0]
-				paramNameCamelCase := lowerCamelCase(paramNameProto, fields, msgs)
-
-				oldParam := "{" + paramContent + "}"
-				newParam := "{" + paramNameCamelCase
-				if strings.Contains(paramContent, "=") {
-					newParam += paramContent[len(paramNameProto):]
-				}
-				newParam += "}"
-
-				result = strings.Replace(result, oldParam, newParam, 1)
-			}
-		}
-	}
-	return result
 }
 
 // partsToOpenAPIPath converts each path part of the form /path/{string_value=strprefix/*} which is defined in
@@ -2265,7 +2334,7 @@ func applyTemplate(p param) (*openapiSwaggerObject, error) {
 	//
 	// Pre-scan to collect referenced names WITHOUT using the naming cache.
 	// This allows us to build the cache with the correct filtered names upfront.
-	referencedNames := collectReferencedNamesForCache(p.Services, p.Messages, p.reg)
+	referencedNames := collectReferencedNamesForCache(p.File, p.Services, p.Messages, p.reg)
 
 	// Get all names from the registry
 	allFQMNs := p.reg.GetAllFQMNs()
@@ -2523,6 +2592,12 @@ func applyTemplate(p param) (*openapiSwaggerObject, error) {
 				}
 				if verbs.PathItemObject.Patch != nil {
 					maps = append(maps, verbs.PathItemObject.Patch.Responses)
+				}
+				if verbs.PathItemObject.Head != nil {
+					maps = append(maps, verbs.PathItemObject.Head.Responses)
+				}
+				if verbs.PathItemObject.Options != nil {
+					maps = append(maps, verbs.PathItemObject.Options.Responses)
 				}
 
 				for k, v := range spb.Responses {
@@ -3003,7 +3078,9 @@ func protoComments(reg *descriptor.Registry, file *descriptor.File, outers []str
 		}
 		comments := ""
 		if loc.LeadingComments != nil {
-			comments = strings.TrimRight(*loc.LeadingComments, "\n")
+			// Comments from a proto file with CRLF line endings keep the \r.
+			comments = strings.ReplaceAll(*loc.LeadingComments, "\r\n", "\n")
+			comments = strings.TrimRight(comments, "\n")
 			comments = strings.TrimSpace(comments)
 			// TODO(ivucica): this is a hack to fix "// " being interpreted as "//".
 			// perhaps we should:
@@ -3015,7 +3092,7 @@ func protoComments(reg *descriptor.Registry, file *descriptor.File, outers []str
 			comments = removeInternalComments(comments)
 		}
 		if loc.TrailingComments != nil {
-			trailing := strings.TrimSpace(*loc.TrailingComments)
+			trailing := strings.TrimSpace(strings.ReplaceAll(*loc.TrailingComments, "\r\n", "\n"))
 			if comments == "" {
 				comments = trailing
 			} else {
@@ -3430,7 +3507,7 @@ func protoJSONSchemaToOpenAPISchemaCore(j *openapi_options.JSONSchema, reg *desc
 			ret.Ref += j.GetRef()
 		}
 	} else {
-		f, t := protoJSONSchemaTypeToFormat(j.GetType())
+		t, f := protoJSONSchemaTypeToFormat(j.GetType())
 		ret.Format = f
 		ret.Type = t
 	}
@@ -3452,7 +3529,6 @@ func updateswaggerObjectFromJSONSchema(s *openapiSchemaObject, j *openapi_option
 		s.Items.Default = j.GetDefault()
 		s.Items.MaxProperties = j.GetMaxProperties()
 		s.Items.MinProperties = j.GetMinProperties()
-		s.Items.Required = j.GetRequired()
 		s.Items.Minimum = j.GetMinimum()
 		s.Items.Maximum = j.GetMaximum()
 		s.Items.ReadOnly = j.GetReadOnly()
@@ -3477,7 +3553,6 @@ func updateswaggerObjectFromJSONSchema(s *openapiSchemaObject, j *openapi_option
 		s.Default = j.GetDefault()
 		s.MaxProperties = j.GetMaxProperties()
 		s.MinProperties = j.GetMinProperties()
-		s.Required = j.GetRequired()
 		s.Minimum = j.GetMinimum()
 		s.Maximum = j.GetMaximum()
 		s.ReadOnly = j.GetReadOnly()
@@ -3496,6 +3571,11 @@ func updateswaggerObjectFromJSONSchema(s *openapiSchemaObject, j *openapi_option
 			s.Format = j.GetFormat()
 		}
 	}
+	// Required is not a constraint on the values, so for repeated fields it is
+	// kept on the field's schema rather than its items. That is where it is
+	// read from to mark the field as required in the parent message and as a
+	// query parameter.
+	s.Required = j.GetRequired()
 	s.UniqueItems = j.GetUniqueItems()
 	s.MaxItems = j.GetMaxItems()
 	s.MinItems = j.GetMinItems()

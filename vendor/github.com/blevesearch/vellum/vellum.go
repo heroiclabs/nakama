@@ -52,6 +52,10 @@ var ErrIteratorDone = errors.New("iterator-done")
 
 // BuilderOpts is a structure to let advanced users customize the behavior
 // of the builder and some aspects of the generated FST.
+//
+// RegistryTableSize 0 turns off suffix sharing: the FST is still valid and
+// readable by every reader, just not minimal. This trades a few percent of
+// size for a much faster build.
 type BuilderOpts struct {
 	Encoder           int
 	RegistryTableSize int

@@ -3,6 +3,7 @@ package murmur3
 import (
 	"hash"
 	"math/bits"
+	"unsafe"
 )
 
 const (
@@ -15,7 +16,6 @@ var (
 	_ hash.Hash   = new(digest128)
 	_ hash.Cloner = new(digest128)
 	_ Hash128     = new(digest128)
-	_ bmixer      = new(digest128)
 )
 
 // Hash128 provides an interface for a streaming 128 bit hash.
@@ -24,7 +24,7 @@ type Hash128 interface {
 	Sum128() (uint64, uint64)
 }
 
-// digest128 represents a partial evaluation of a 128 bites hash.
+// digest128 represents a partial evaluation of a 128 bit hash.
 type digest128 struct {
 	digest
 	seed1 uint64
@@ -36,13 +36,10 @@ type digest128 struct {
 // SeedNew128 returns a Hash128 for streaming 128 bit sums with its internal
 // digests initialized to seed1 and seed2.
 //
-// The canonical implementation allows one only uint32 seed; to imitate that
+// The canonical implementation allows only one uint32 seed; to imitate that
 // behavior, use the same, uint32-max seed for seed1 and seed2.
 func SeedNew128(seed1, seed2 uint64) Hash128 {
-	d := &digest128{seed1: seed1, seed2: seed2}
-	d.bmixer = d
-	d.Reset()
-	return d
+	return &digest128{seed1: seed1, seed2: seed2, h1: seed1, h2: seed2}
 }
 
 // New128 returns a Hash128 for streaming 128 bit sums.
@@ -52,7 +49,28 @@ func New128() Hash128 {
 
 func (d *digest128) Size() int { return 16 }
 
-func (d *digest128) reset() { d.h1, d.h2 = d.seed1, d.seed2 }
+func (d *digest128) Reset() { d.clen, d.ntail, d.h1, d.h2 = 0, 0, d.seed1, d.seed2 }
+
+func (d *digest128) Write(p []byte) (n int, err error) {
+	n = len(p)
+	d.clen += n
+
+	if d.ntail > 0 {
+		// Stick back pending bytes.
+		m := copy(d.buf[d.ntail:16], p)
+		d.ntail += m
+		if d.ntail < 16 {
+			return n, nil
+		}
+		// One full block was formed.
+		p = p[m:]
+		_ = d.bmix(d.buf[:16]) // No tail.
+	}
+
+	// Keep own copy of the 0 to Size()-1 pending bytes.
+	d.ntail = copy(d.buf[:], d.bmix(p))
+	return n, nil
+}
 
 func (d *digest128) Sum(b []byte) []byte {
 	h1, h2 := d.Sum128()
@@ -68,6 +86,13 @@ func (d *digest128) Sum(b []byte) []byte {
 func (d *digest128) bmix(p []byte) (tail []byte) {
 	h1, h2 := d.h1, d.h2
 	i := 0
+	for end := len(p) - 64; i <= end; i += 64 {
+		b := p[i : i+64]
+		h1, h2 = mix128(h1, h2, load64(b), load64(b[8:]))
+		h1, h2 = mix128(h1, h2, load64(b[16:]), load64(b[24:]))
+		h1, h2 = mix128(h1, h2, load64(b[32:]), load64(b[40:]))
+		h1, h2 = mix128(h1, h2, load64(b[48:]), load64(b[56:]))
+	}
 	for end := len(p) - 16; i <= end; i += 16 {
 		b := p[i : i+16]
 		h1, h2 = mix128(h1, h2, load64(b), load64(b[8:]))
@@ -77,14 +102,13 @@ func (d *digest128) bmix(p []byte) (tail []byte) {
 }
 
 func (d *digest128) Sum128() (h1, h2 uint64) {
-	return sum128(d.h1, d.h2, d.tail, d.clen)
+	return sum128(d.h1, d.h2, unsafe.String(&d.buf[0], d.ntail), d.clen)
 }
 
 // Clone returns a copy of the hash. Writes to either copy do not affect the
 // other. The returned hash is a Hash128.
 func (d *digest128) Clone() (hash.Cloner, error) {
 	c := *d
-	c.reseat(&c)
 	return &c, nil
 }
 
@@ -95,7 +119,7 @@ func (d *digest128) Clone() (hash.Cloner, error) {
 //	hasher.Write(data)
 //	return hasher.Sum128()
 func Sum128(data []byte) (h1 uint64, h2 uint64) {
-	return sum128(0, 0, data, len(data))
+	return sum128(0, 0, unsafe.String(unsafe.SliceData(data), len(data)), len(data))
 }
 
 // SeedSum128 returns the murmur3 sum of data with digests initialized to seed1
@@ -107,7 +131,7 @@ func Sum128(data []byte) (h1 uint64, h2 uint64) {
 // This reads and processes the data in chunks of little endian uint64s;
 // thus, the returned hashes are portable across architectures.
 func SeedSum128(seed1, seed2 uint64, data []byte) (h1 uint64, h2 uint64) {
-	return sum128(seed1, seed2, data, len(data))
+	return sum128(seed1, seed2, unsafe.String(unsafe.SliceData(data), len(data)), len(data))
 }
 
 // StringSum128 is the string version of Sum128.
@@ -123,7 +147,7 @@ func SeedStringSum128(seed1, seed2 uint64, data string) (h1 uint64, h2 uint64) {
 // sum128 mixes all of data into the running h1 and h2 and then finalizes
 // with clen, the total number of bytes hashed. The one shot sums pass all
 // of their input; the streaming digest passes its leftover tail.
-func sum128[T bytestring](h1, h2 uint64, data T, clen int) (uint64, uint64) {
+func sum128(h1, h2 uint64, data string, clen int) (uint64, uint64) {
 	if len(data) >= 16 {
 		// With a full block present, the last 16 bytes are always in
 		// bounds and the tail is whatever of them the loop will not

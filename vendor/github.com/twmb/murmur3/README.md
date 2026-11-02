@@ -26,12 +26,12 @@ does mean that hashing is a bit slower on big endian architectures.
 Safety
 ======
 
-This library uses no `unsafe`. Bytes are read with plain indexing, which the
-compiler turns into single word sized loads on architectures that allow
-unaligned access, and the loops are shaped so that the compiler proves every
-index in bounds. Strings are hashed through one implementation generic over
-`string | []byte`, so hashing a string does not copy it and does not
-allocate.
+Bytes are read with plain indexing, which the compiler turns into single word
+sized loads on architectures that allow unaligned access, and the loops are
+shaped so that the compiler proves every index in bounds. The `[]byte` sums
+use `unsafe.String` to hash their input as a string without copying it; the
+sums never write to their input. Hashing a string or a slice does not copy it
+and does not allocate.
 
 Assembly
 ========
