@@ -15,10 +15,14 @@
 package server
 
 import (
+	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/dop251/goja"
+	"github.com/gofrs/uuid/v5"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 )
@@ -111,4 +115,172 @@ m.get('a');
 			t.Errorf("expected returned value to be '1'")
 		}
 	})
+}
+
+func TestJsNestedProviderCallsOnSingleVmPool(t *testing.T) {
+	testCases := []struct {
+		name       string
+		modules    map[string]string
+		beforeHook bool
+	}{
+		{
+			name: "rpc authenticates through a provider",
+			modules: map[string]string{"index.js": `
+function provider(ctx, logger, nk, payload) {
+	return { providerUserId: payload.id };
+}
+function rpc(ctx, logger, nk, payload) {
+	return nk.authenticate("vmreuse_js_rpc", { id: "vm-reuse-js-rpc" }).userId;
+}
+function InitModule(ctx, logger, nk, initializer) {
+	initializer.registerAuthenticateProvider("vmreuse_js_rpc", provider);
+	initializer.registerRpc("authenticate", rpc);
+}`},
+		},
+		{
+			name: "before hook authenticates through a provider",
+			modules: map[string]string{"index.js": `
+function provider(ctx, logger, nk, payload) {
+	return { providerUserId: payload.id };
+}
+function before(ctx, logger, nk) {
+	nk.authenticate("vmreuse_js_before", { id: "vm-reuse-js-before" });
+}
+function InitModule(ctx, logger, nk, initializer) {
+	initializer.registerAuthenticateProvider("vmreuse_js_before", provider);
+	initializer.registerBeforeGetAccount(before);
+}`},
+			beforeHook: true,
+		},
+		{
+			name: "rpc authenticates through a provider twice",
+			modules: map[string]string{"index.js": `
+function provider(ctx, logger, nk, payload) {
+	return { providerUserId: payload.id };
+}
+function rpc(ctx, logger, nk, payload) {
+	nk.authenticate("vmreuse_js_twice", { id: "vm-reuse-js-twice-1" });
+	return nk.authenticate("vmreuse_js_twice", { id: "vm-reuse-js-twice-2" }).userId;
+}
+function InitModule(ctx, logger, nk, initializer) {
+	initializer.registerAuthenticateProvider("vmreuse_js_twice", provider);
+	initializer.registerRpc("authenticate", rpc);
+}`},
+		},
+		{
+			name: "provider authenticates through another provider",
+			modules: map[string]string{"index.js": `
+function inner(ctx, logger, nk, payload) {
+	return { providerUserId: payload.id };
+}
+function outer(ctx, logger, nk, payload) {
+	nk.authenticate("vmreuse_js_depth_inner", { id: payload.id + "-inner" });
+	return { providerUserId: payload.id };
+}
+function rpc(ctx, logger, nk, payload) {
+	return nk.authenticate("vmreuse_js_depth_outer", { id: "vm-reuse-js-depth" }).userId;
+}
+function InitModule(ctx, logger, nk, initializer) {
+	initializer.registerAuthenticateProvider("vmreuse_js_depth_inner", inner);
+	initializer.registerAuthenticateProvider("vmreuse_js_depth_outer", outer);
+	initializer.registerRpc("authenticate", rpc);
+}`},
+		},
+		{
+			name: "provider recovers from a failing nested provider and authenticates again",
+			modules: map[string]string{"index.js": `
+function failing(ctx, logger, nk, payload) {
+	throw new Error("vm-reuse-js-failing-provider");
+}
+function inner(ctx, logger, nk, payload) {
+	return { providerUserId: payload.id };
+}
+function outer(ctx, logger, nk, payload) {
+	let failed = false;
+	try {
+		nk.authenticate("vmreuse_js_error_failing", { id: payload.id + "-failing" });
+	} catch (e) {
+		failed = true;
+	}
+	if (!failed) {
+		throw new Error("expected the failing provider to throw");
+	}
+	nk.authenticate("vmreuse_js_error_inner", { id: payload.id + "-inner" });
+	return { providerUserId: payload.id };
+}
+function rpc(ctx, logger, nk, payload) {
+	return nk.authenticate("vmreuse_js_error_outer", { id: "vm-reuse-js-error" }).userId;
+}
+function InitModule(ctx, logger, nk, initializer) {
+	initializer.registerAuthenticateProvider("vmreuse_js_error_failing", failing);
+	initializer.registerAuthenticateProvider("vmreuse_js_error_inner", inner);
+	initializer.registerAuthenticateProvider("vmreuse_js_error_outer", outer);
+	initializer.registerRpc("authenticate", rpc);
+}`},
+		},
+		{
+			name: "provider called from a Lua rpc authenticates through another provider",
+			modules: map[string]string{
+				"mod": `
+local nk = require("nakama")
+local function rpc(context, payload)
+	local user_id = nk.authenticate("vmreuse_js_cross_outer", {id = "vm-reuse-js-cross"})
+	return user_id
+end
+nk.register_rpc(rpc, "authenticate")`,
+				"index.js": `
+function inner(ctx, logger, nk, payload) {
+	return { providerUserId: payload.id };
+}
+function outer(ctx, logger, nk, payload) {
+	nk.authenticate("vmreuse_js_cross_inner", { id: payload.id + "-inner" });
+	return { providerUserId: payload.id };
+}
+function InitModule(ctx, logger, nk, initializer) {
+	initializer.registerAuthenticateProvider("vmreuse_js_cross_inner", inner);
+	initializer.registerAuthenticateProvider("vmreuse_js_cross_outer", outer);
+}`,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			runtime, _, _, err := runtimeWithModulesWithData(t, tc.modules, func(c *RuntimeConfig) {
+				c.LuaMinCount, c.LuaMaxCount = 1, 1
+				c.JsMinCount, c.JsMaxCount = 1, 1
+			})
+			require.NoError(t, err)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			type result struct {
+				payload string
+				err     error
+			}
+			for range 2 {
+				done := make(chan result, 1)
+				go func() {
+					if tc.beforeHook {
+						err, _ := runtime.BeforeGetAccount()(ctx, logger, "", "", "", nil, 0, "", "")
+						done <- result{err: err}
+						return
+					}
+					payload, err, _ := runtime.Rpc("authenticate")(ctx, nil, nil, "", "", "", nil, 0, "", "", "", "", "")
+					done <- result{payload: payload, err: err}
+				}()
+
+				var res result
+				select {
+				case res = <-done:
+				case <-time.After(time.Second):
+					t.Fatal("nested provider call stalled on the single-VM pool")
+				}
+				require.NoError(t, res.err)
+				if !tc.beforeHook {
+					require.False(t, uuid.FromStringOrNil(res.payload).IsNil(), "expected a user id, got %q", res.payload)
+				}
+			}
+		})
+	}
 }

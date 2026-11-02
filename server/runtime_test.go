@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
@@ -77,7 +78,7 @@ func runtimeWithModules(t *testing.T, modules map[string]string) (*Runtime, *Run
 	return rt, info, err
 }
 
-func runtimeWithModulesWithData(t *testing.T, modules map[string]string) (*Runtime, *RuntimeInfo, *testRuntimeData, error) {
+func runtimeWithModulesWithData(t *testing.T, modules map[string]string, configure ...func(*RuntimeConfig)) (*Runtime, *RuntimeInfo, *testRuntimeData, error) {
 	dir, err := os.MkdirTemp("", fmt.Sprintf("nakama_runtime_lua_test_%v", uuid.Must(uuid.NewV4()).String()))
 	if err != nil {
 		t.Fatalf("Failed initializing runtime modules tempdir: %s", err.Error())
@@ -96,9 +97,13 @@ func runtimeWithModulesWithData(t *testing.T, modules map[string]string) (*Runti
 
 	cfg := NewConfig(logger)
 	cfg.Runtime.Path = dir
+	for _, fn := range configure {
+		fn(cfg.Runtime)
+	}
 
 	ctx := context.Background()
 	db := NewDB(t)
+	t.Cleanup(func() { _ = db.Close() })
 	lbCache := NewLocalLeaderboardCache(ctx, logger, logger, db)
 	lbRankCache := NewLocalLeaderboardRankCache(
 		ctx, logger, db, cfg.Leaderboard, lbCache)
@@ -1362,5 +1367,165 @@ nk.register_shutdown(shutdown)`, key),
 	}
 	if len(objects.Objects) != 1 {
 		t.Fatalf("expected the shutdown hook to write its storage object, got %d objects", len(objects.Objects))
+	}
+}
+
+func TestLuaNestedProviderCallsOnSingleVmPool(t *testing.T) {
+	testCases := []struct {
+		name       string
+		modules    map[string]string
+		beforeHook bool
+	}{
+		{
+			name: "rpc authenticates through a provider",
+			modules: map[string]string{"mod": `
+local nk = require("nakama")
+local function provider(context, payload)
+	return {provider_user_id = payload.id}
+end
+nk.register_authenticate_provider(provider, "vmreuse_lua_rpc")
+local function rpc(context, payload)
+	local user_id = nk.authenticate("vmreuse_lua_rpc", {id = "vm-reuse-lua-rpc"})
+	return user_id
+end
+nk.register_rpc(rpc, "authenticate")`},
+		},
+		{
+			name: "before hook authenticates through a provider",
+			modules: map[string]string{"mod": `
+local nk = require("nakama")
+local function provider(context, payload)
+	return {provider_user_id = payload.id}
+end
+nk.register_authenticate_provider(provider, "vmreuse_lua_before")
+local function before(context, payload)
+	nk.authenticate("vmreuse_lua_before", {id = "vm-reuse-lua-before"})
+	return payload
+end
+nk.register_req_before(before, "GetAccount")`},
+			beforeHook: true,
+		},
+		{
+			name: "rpc authenticates through a provider twice",
+			modules: map[string]string{"mod": `
+local nk = require("nakama")
+local function provider(context, payload)
+	return {provider_user_id = payload.id}
+end
+nk.register_authenticate_provider(provider, "vmreuse_lua_twice")
+local function rpc(context, payload)
+	nk.authenticate("vmreuse_lua_twice", {id = "vm-reuse-lua-twice-1"})
+	local user_id = nk.authenticate("vmreuse_lua_twice", {id = "vm-reuse-lua-twice-2"})
+	return user_id
+end
+nk.register_rpc(rpc, "authenticate")`},
+		},
+		{
+			name: "provider authenticates through another provider",
+			modules: map[string]string{"mod": `
+local nk = require("nakama")
+local function inner(context, payload)
+	return {provider_user_id = payload.id}
+end
+nk.register_authenticate_provider(inner, "vmreuse_lua_depth_inner")
+local function outer(context, payload)
+	nk.authenticate("vmreuse_lua_depth_inner", {id = payload.id .. "-inner"})
+	return {provider_user_id = payload.id}
+end
+nk.register_authenticate_provider(outer, "vmreuse_lua_depth_outer")
+local function rpc(context, payload)
+	local user_id = nk.authenticate("vmreuse_lua_depth_outer", {id = "vm-reuse-lua-depth"})
+	return user_id
+end
+nk.register_rpc(rpc, "authenticate")`},
+		},
+		{
+			name: "provider recovers from a failing nested provider and authenticates again",
+			modules: map[string]string{"mod": `
+local nk = require("nakama")
+local function failing(context, payload)
+	error("vm-reuse-lua-failing-provider")
+end
+nk.register_authenticate_provider(failing, "vmreuse_lua_error_failing")
+local function inner(context, payload)
+	return {provider_user_id = payload.id}
+end
+nk.register_authenticate_provider(inner, "vmreuse_lua_error_inner")
+local function outer(context, payload)
+	local ok = pcall(nk.authenticate, "vmreuse_lua_error_failing", {id = payload.id .. "-failing"})
+	assert(not ok, "expected the failing provider to raise")
+	nk.authenticate("vmreuse_lua_error_inner", {id = payload.id .. "-inner"})
+	return {provider_user_id = payload.id}
+end
+nk.register_authenticate_provider(outer, "vmreuse_lua_error_outer")
+local function rpc(context, payload)
+	local user_id = nk.authenticate("vmreuse_lua_error_outer", {id = "vm-reuse-lua-error"})
+	return user_id
+end
+nk.register_rpc(rpc, "authenticate")`},
+		},
+		{
+			name: "provider called from a JavaScript rpc authenticates through another provider",
+			modules: map[string]string{
+				"mod": `
+local nk = require("nakama")
+local function inner(context, payload)
+	return {provider_user_id = payload.id}
+end
+nk.register_authenticate_provider(inner, "vmreuse_lua_cross_inner")
+local function outer(context, payload)
+	nk.authenticate("vmreuse_lua_cross_inner", {id = payload.id .. "-inner"})
+	return {provider_user_id = payload.id}
+end
+nk.register_authenticate_provider(outer, "vmreuse_lua_cross_outer")`,
+				"index.js": `
+function rpc(ctx, logger, nk, payload) {
+	return nk.authenticate("vmreuse_lua_cross_outer", { id: "vm-reuse-lua-cross" }).userId;
+}
+function InitModule(ctx, logger, nk, initializer) {
+	initializer.registerRpc("authenticate", rpc);
+}`,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			runtime, _, _, err := runtimeWithModulesWithData(t, tc.modules, func(c *RuntimeConfig) {
+				c.LuaMinCount, c.LuaMaxCount = 1, 1
+				c.JsMinCount, c.JsMaxCount = 1, 1
+			})
+			require.NoError(t, err)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			type result struct {
+				payload string
+				err     error
+			}
+			for range 2 {
+				done := make(chan result, 1)
+				go func() {
+					if tc.beforeHook {
+						err, _ := runtime.BeforeGetAccount()(ctx, logger, "", "", "", nil, 0, "", "")
+						done <- result{err: err}
+						return
+					}
+					payload, err, _ := runtime.Rpc("authenticate")(ctx, nil, nil, "", "", "", nil, 0, "", "", "", "", "")
+					done <- result{payload: payload, err: err}
+				}()
+
+				var res result
+				select {
+				case res = <-done:
+				case <-time.After(time.Second):
+					t.Fatal("nested provider call stalled on the single-VM pool")
+				}
+				require.NoError(t, res.err)
+				if !tc.beforeHook {
+					require.False(t, uuid.FromStringOrNil(res.payload).IsNil(), "expected a user id, got %q", res.payload)
+				}
+			}
+		})
 	}
 }
