@@ -71,6 +71,7 @@ type RuntimeJS struct {
 	vm           *goja.Runtime
 	nakamaModule *RuntimeJavascriptNakamaModule
 	callbacks    *RuntimeJavascriptCallbacks
+	nested       atomic.Int32
 }
 
 func (r *RuntimeJS) SetContext(ctx context.Context) {
@@ -746,6 +747,13 @@ func (r *RuntimeJS) invokeFunction(execMode RuntimeExecutionMode, id string, fn 
 }
 
 func (rp *RuntimeProviderJS) Get(ctx context.Context) (*RuntimeJS, error) {
+	if lease, ok := ctx.Value(ctxJsRuntimeKey{}).(*jsRuntimeLease); ok {
+		if r := lease.r.Load(); r != nil {
+			// A call nested inside one already running on r reuses it rather than wait on a pool its caller holds.
+			r.nested.Inc()
+			return r, nil
+		}
+	}
 	select {
 	case <-ctx.Done():
 		// Context cancelled
@@ -781,6 +789,12 @@ func (rp *RuntimeProviderJS) Get(ctx context.Context) (*RuntimeJS, error) {
 }
 
 func (rp *RuntimeProviderJS) Put(r *RuntimeJS) {
+	for n := r.nested.Load(); n > 0; n = r.nested.Load() {
+		// Only the call that leased r from the pool returns it.
+		if r.nested.CompareAndSwap(n, n-1) {
+			return
+		}
+	}
 	select {
 	case rp.poolCh <- r:
 		// Runtime is successfully returned to the pool.
