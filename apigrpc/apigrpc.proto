@@ -409,10 +409,10 @@ service Nakama {
   }
 
   // Add an Apple ID to the social profiles on the current user's account.
-  rpc LinkApple (api.AccountApple) returns (google.protobuf.Empty) {
+  rpc LinkApple (api.LinkAppleRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       post: "/v2/account/link/apple",
-      body: "*"
+      body: "account"
     };
   }
 
@@ -473,10 +473,10 @@ service Nakama {
   }
 
   // Add Google to the social profiles on the current user's account.
-  rpc LinkGoogle (api.AccountGoogle) returns (google.protobuf.Empty) {
+  rpc LinkGoogle (api.LinkGoogleRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       post: "/v2/account/link/google",
-      body: "*"
+      body: "account"
     };
   }
 
