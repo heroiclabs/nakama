@@ -1480,13 +1480,13 @@ func openLuaModules(logger *zap.Logger, rootPath string, paths []string) (*Runti
 }
 
 func (rp *RuntimeProviderLua) Rpc(ctx context.Context, id string, headers, queryParams map[string][]string, traceID, userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, lang, payload string) (string, error, codes.Code) {
-	r, err := rp.Get(ctx)
+	r, vmRelease, err := rp.Get(ctx)
 	if err != nil {
 		return "", err, codes.Internal
 	}
+	defer vmRelease()
 	lf := r.GetCallback(RuntimeExecutionModeRPC, id)
 	if lf == nil {
-		rp.Put(r)
 		return "", ErrRuntimeRPCNotFound, codes.NotFound
 	}
 
@@ -1515,10 +1515,9 @@ func (rp *RuntimeProviderLua) Rpc(ctx context.Context, id string, headers, query
 		}
 
 		err = clearFnError(fnErr, rp, lf)
-		rp.Put(r) // don't return VM until error originated in that VM is processed
 		return "", err, code
 	}
-	rp.Put(r)
+	vmRelease()
 
 	if result == nil {
 		return "", nil, 0
@@ -1533,16 +1532,16 @@ func (rp *RuntimeProviderLua) Rpc(ctx context.Context, id string, headers, query
 }
 
 func (rp *RuntimeProviderLua) Authenticate(ctx context.Context, name, traceID string, payload map[string]any) (runtime.AuthenticateProviderResult, error, codes.Code) {
-	r, err := rp.Get(ctx)
+	r, vmRelease, err := rp.Get(ctx)
 	if err != nil {
 		return nil, err, codes.Internal
 	}
+	defer vmRelease()
 
 	logger, _ := LoggerWithTraceId(ctx, rp.logger)
 
 	lf := r.GetCallback(RuntimeExecutionModeAuthenticateProvider, name)
 	if lf == nil {
-		rp.Put(r)
 		logger.Error("Lua runtime authentication provider function not found.", zap.String("provider", name))
 		return nil, errors.New("Could not run authentication provider function."), codes.Internal
 	}
@@ -1571,10 +1570,9 @@ func (rp *RuntimeProviderLua) Authenticate(ctx context.Context, name, traceID st
 		}
 
 		err = clearFnError(fnErr, rp, lf)
-		rp.Put(r) // don't return VM until error originated in that VM is processed
 		return nil, err, code
 	}
-	rp.Put(r)
+	vmRelease()
 
 	resultMap, ok := result.(map[string]any)
 	if !ok {
@@ -1641,25 +1639,23 @@ func (rp *RuntimeProviderLua) Authenticate(ctx context.Context, name, traceID st
 }
 
 func (rp *RuntimeProviderLua) BeforeRt(ctx context.Context, id string, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, lang string, envelope *rtapi.Envelope) (*rtapi.Envelope, error) {
-	r, err := rp.Get(ctx)
+	r, vmRelease, err := rp.Get(ctx)
 	if err != nil {
 		return nil, err
 	}
+	defer vmRelease()
 	lf := r.GetCallback(RuntimeExecutionModeBefore, id)
 	if lf == nil {
-		rp.Put(r)
 		return nil, errors.New("Runtime Before function not found.")
 	}
 
 	envelopeJSON, err := rp.protojsonMarshaler.Marshal(envelope)
 	if err != nil {
-		rp.Put(r)
 		logger.Error("Could not marshall envelope to JSON", zap.Any("envelope", envelope), zap.Error(err))
 		return nil, errors.New("Could not run runtime Before function.")
 	}
 	var envelopeMap map[string]any
 	if err := json.Unmarshal([]byte(envelopeJSON), &envelopeMap); err != nil {
-		rp.Put(r)
 		logger.Error("Could not unmarshall envelope to interface{}", zap.Any("envelope_json", envelopeJSON), zap.Error(err))
 		return nil, errors.New("Could not run runtime Before function.")
 	}
@@ -1682,10 +1678,9 @@ func (rp *RuntimeProviderLua) BeforeRt(ctx context.Context, id string, logger *z
 		}
 
 		err = clearFnError(fnErr, rp, lf)
-		rp.Put(r) // don't return VM until error originated in that VM is processed
 		return nil, err
 	}
-	rp.Put(r)
+	vmRelease()
 
 	if result == nil {
 		return nil, nil
@@ -1706,13 +1701,13 @@ func (rp *RuntimeProviderLua) BeforeRt(ctx context.Context, id string, logger *z
 }
 
 func (rp *RuntimeProviderLua) AfterRt(ctx context.Context, id string, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, sessionID, clientIP, clientPort, lang string, out, in *rtapi.Envelope) error {
-	r, err := rp.Get(ctx)
+	r, vmRelease, err := rp.Get(ctx)
 	if err != nil {
 		return err
 	}
+	defer vmRelease()
 	lf := r.GetCallback(RuntimeExecutionModeAfter, id)
 	if lf == nil {
-		rp.Put(r)
 		return errors.New("Runtime After function not found.")
 	}
 
@@ -1720,12 +1715,10 @@ func (rp *RuntimeProviderLua) AfterRt(ctx context.Context, id string, logger *za
 	if out != nil {
 		outJSON, err := rp.protojsonMarshaler.Marshal(out)
 		if err != nil {
-			rp.Put(r)
 			logger.Error("Could not marshall envelope to JSON", zap.Any("out", out), zap.Error(err))
 			return errors.New("Could not run runtime After function.")
 		}
 		if err := json.Unmarshal([]byte(outJSON), &outMap); err != nil {
-			rp.Put(r)
 			logger.Error("Could not unmarshall envelope to interface{}", zap.Any("out_json", outJSON), zap.Error(err))
 			return errors.New("Could not run runtime After function.")
 		}
@@ -1733,13 +1726,11 @@ func (rp *RuntimeProviderLua) AfterRt(ctx context.Context, id string, logger *za
 
 	inJSON, err := rp.protojsonMarshaler.Marshal(in)
 	if err != nil {
-		rp.Put(r)
 		logger.Error("Could not marshall envelope to JSON", zap.Any("in", in), zap.Error(err))
 		return errors.New("Could not run runtime After function.")
 	}
 	var inMap map[string]any
 	if err := json.Unmarshal([]byte(inJSON), &inMap); err != nil {
-		rp.Put(r)
 		logger.Error("Could not unmarshall envelope to interface{}", zap.Any("in_json", inJSON), zap.Error(err))
 		return errors.New("Could not run runtime After function.")
 	}
@@ -1762,22 +1753,20 @@ func (rp *RuntimeProviderLua) AfterRt(ctx context.Context, id string, logger *za
 		}
 
 		err = clearFnError(fnErr, rp, lf)
-		rp.Put(r) // don't return VM until error originated in that VM is processed
 		return err
 	}
-	rp.Put(r)
 
 	return nil
 }
 
 func (rp *RuntimeProviderLua) BeforeReq(ctx context.Context, id string, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, req any) (any, error, codes.Code) {
-	r, err := rp.Get(ctx)
+	r, vmRelease, err := rp.Get(ctx)
 	if err != nil {
 		return nil, err, codes.Internal
 	}
+	defer vmRelease()
 	lf := r.GetCallback(RuntimeExecutionModeBefore, id)
 	if lf == nil {
-		rp.Put(r)
 		return nil, errors.New("Runtime Before function not found."), codes.NotFound
 	}
 
@@ -1788,18 +1777,15 @@ func (rp *RuntimeProviderLua) BeforeReq(ctx context.Context, id string, logger *
 		var ok bool
 		reqProto, ok = req.(proto.Message)
 		if !ok {
-			rp.Put(r)
 			logger.Error("Could not cast request to message", zap.Any("request", req))
 			return nil, errors.New("Could not run runtime Before function."), codes.Internal
 		}
 		reqJSON, err := rp.protojsonMarshaler.Marshal(reqProto)
 		if err != nil {
-			rp.Put(r)
 			logger.Error("Could not marshall request to JSON", zap.Any("request", reqProto), zap.Error(err))
 			return nil, errors.New("Could not run runtime Before function."), codes.Internal
 		}
 		if err := json.Unmarshal([]byte(reqJSON), &reqMap); err != nil {
-			rp.Put(r)
 			logger.Error("Could not unmarshall request to interface{}", zap.Any("request_json", reqJSON), zap.Error(err))
 			return nil, errors.New("Could not run runtime Before function."), codes.Internal
 		}
@@ -1823,10 +1809,9 @@ func (rp *RuntimeProviderLua) BeforeReq(ctx context.Context, id string, logger *
 		}
 
 		err = clearFnError(fnErr, rp, lf)
-		rp.Put(r) // don't return VM until error originated in that VM is processed
 		return nil, err, code
 	}
-	rp.Put(r)
+	vmRelease()
 
 	if result == nil || reqMap == nil {
 		// There was no return value, or a return value was not expected (no input to override).
@@ -1848,13 +1833,13 @@ func (rp *RuntimeProviderLua) BeforeReq(ctx context.Context, id string, logger *
 }
 
 func (rp *RuntimeProviderLua) AfterReq(ctx context.Context, id string, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, res any, req any) error {
-	r, err := rp.Get(ctx)
+	r, vmRelease, err := rp.Get(ctx)
 	if err != nil {
 		return err
 	}
+	defer vmRelease()
 	lf := r.GetCallback(RuntimeExecutionModeAfter, id)
 	if lf == nil {
-		rp.Put(r)
 		return errors.New("Runtime After function not found.")
 	}
 
@@ -1863,19 +1848,16 @@ func (rp *RuntimeProviderLua) AfterReq(ctx context.Context, id string, logger *z
 		// Res may be nil if there is no response body.
 		resProto, ok := res.(proto.Message)
 		if !ok {
-			rp.Put(r)
 			logger.Error("Could not cast response to message", zap.Any("response", res))
 			return errors.New("Could not run runtime After function.")
 		}
 		resJSON, err := rp.protojsonMarshaler.Marshal(resProto)
 		if err != nil {
-			rp.Put(r)
 			logger.Error("Could not marshall response to JSON", zap.Any("response", resProto), zap.Error(err))
 			return errors.New("Could not run runtime After function.")
 		}
 
 		if err := json.Unmarshal([]byte(resJSON), &resMap); err != nil {
-			rp.Put(r)
 			logger.Error("Could not unmarshall response to interface{}", zap.Any("response_json", resJSON), zap.Error(err))
 			return errors.New("Could not run runtime After function.")
 		}
@@ -1886,19 +1868,16 @@ func (rp *RuntimeProviderLua) AfterReq(ctx context.Context, id string, logger *z
 		// Req may be nil if there is no request body.
 		reqProto, ok := req.(proto.Message)
 		if !ok {
-			rp.Put(r)
 			logger.Error("Could not cast request to message", zap.Any("request", req))
 			return errors.New("Could not run runtime After function.")
 		}
 		reqJSON, err := rp.protojsonMarshaler.Marshal(reqProto)
 		if err != nil {
-			rp.Put(r)
 			logger.Error("Could not marshall request to JSON", zap.Any("request", reqProto), zap.Error(err))
 			return errors.New("Could not run runtime After function.")
 		}
 
 		if err := json.Unmarshal([]byte(reqJSON), &reqMap); err != nil {
-			rp.Put(r)
 			logger.Error("Could not unmarshall request to interface{}", zap.Any("request_json", reqJSON), zap.Error(err))
 			return errors.New("Could not run runtime After function.")
 		}
@@ -1922,22 +1901,20 @@ func (rp *RuntimeProviderLua) AfterReq(ctx context.Context, id string, logger *z
 		}
 
 		err = clearFnError(fnErr, rp, lf)
-		rp.Put(r) // don't return VM until error originated in that VM is processed
 		return err
 	}
-	rp.Put(r)
 
 	return nil
 }
 
 func (rp *RuntimeProviderLua) MatchmakerMatched(ctx context.Context, entries []*MatchmakerEntry) (string, bool, error) {
-	r, err := rp.Get(ctx)
+	r, vmRelease, err := rp.Get(ctx)
 	if err != nil {
 		return "", false, err
 	}
+	defer vmRelease()
 	lf := r.GetCallback(RuntimeExecutionModeMatchmaker, "")
 	if lf == nil {
-		rp.Put(r)
 		return "", false, errors.New("Runtime Matchmaker Matched function not found.")
 	}
 
@@ -1976,7 +1953,7 @@ func (rp *RuntimeProviderLua) MatchmakerMatched(ctx context.Context, entries []*
 	r.vm.SetContext(vmCtx)
 	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, entriesTable)
 	r.vm.SetContext(context.Background())
-	rp.Put(r)
+	vmRelease()
 	if err != nil {
 		return "", false, fmt.Errorf("Error running runtime Matchmaker Matched hook: %v", err.Error())
 	}
@@ -2007,13 +1984,13 @@ func (rp *RuntimeProviderLua) MatchmakerMatched(ctx context.Context, entries []*
 }
 
 func (rp *RuntimeProviderLua) TournamentEnd(ctx context.Context, tournament *api.Tournament, end, reset int64) error {
-	r, err := rp.Get(ctx)
+	r, vmRelease, err := rp.Get(ctx)
 	if err != nil {
 		return err
 	}
+	defer vmRelease()
 	lf := r.GetCallback(RuntimeExecutionModeTournamentEnd, "")
 	if lf == nil {
-		rp.Put(r)
 		return errors.New("Runtime Tournament End function not found.")
 	}
 
@@ -2047,7 +2024,6 @@ func (rp *RuntimeProviderLua) TournamentEnd(ctx context.Context, tournament *api
 	metadataMap := make(map[string]any)
 	err = json.Unmarshal([]byte(tournament.Metadata), &metadataMap)
 	if err != nil {
-		rp.Put(r)
 		return fmt.Errorf("failed to convert metadata to json: %s", err.Error())
 	}
 	metadataTable := RuntimeLuaConvertMap(r.vm, metadataMap)
@@ -2067,7 +2043,7 @@ func (rp *RuntimeProviderLua) TournamentEnd(ctx context.Context, tournament *api
 	r.vm.SetContext(vmCtx)
 	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, tournamentTable, lua.LNumber(end), lua.LNumber(reset))
 	r.vm.SetContext(context.Background())
-	rp.Put(r)
+	vmRelease()
 	if err != nil {
 		return fmt.Errorf("Error running runtime Tournament End hook: %v", err.Error())
 	}
@@ -2081,13 +2057,13 @@ func (rp *RuntimeProviderLua) TournamentEnd(ctx context.Context, tournament *api
 }
 
 func (rp *RuntimeProviderLua) TournamentReset(ctx context.Context, tournament *api.Tournament, end, reset int64) error {
-	r, err := rp.Get(ctx)
+	r, vmRelease, err := rp.Get(ctx)
 	if err != nil {
 		return err
 	}
+	defer vmRelease()
 	lf := r.GetCallback(RuntimeExecutionModeTournamentReset, "")
 	if lf == nil {
-		rp.Put(r)
 		return errors.New("Runtime Tournament Reset function not found.")
 	}
 
@@ -2119,7 +2095,6 @@ func (rp *RuntimeProviderLua) TournamentReset(ctx context.Context, tournament *a
 	metadataMap := make(map[string]any)
 	err = json.Unmarshal([]byte(tournament.Metadata), &metadataMap)
 	if err != nil {
-		rp.Put(r)
 		return fmt.Errorf("failed to convert metadata to json: %s", err.Error())
 	}
 	metadataTable := RuntimeLuaConvertMap(r.vm, metadataMap)
@@ -2139,7 +2114,7 @@ func (rp *RuntimeProviderLua) TournamentReset(ctx context.Context, tournament *a
 	r.vm.SetContext(vmCtx)
 	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, tournamentTable, lua.LNumber(end), lua.LNumber(reset))
 	r.vm.SetContext(context.Background())
-	rp.Put(r)
+	vmRelease()
 	if err != nil {
 		return fmt.Errorf("Error running runtime Tournament Reset hook: %v", err.Error())
 	}
@@ -2153,13 +2128,13 @@ func (rp *RuntimeProviderLua) TournamentReset(ctx context.Context, tournament *a
 }
 
 func (rp *RuntimeProviderLua) LeaderboardReset(ctx context.Context, leaderboard *api.Leaderboard, reset int64) error {
-	r, err := rp.Get(ctx)
+	r, vmRelease, err := rp.Get(ctx)
 	if err != nil {
 		return err
 	}
+	defer vmRelease()
 	lf := r.GetCallback(RuntimeExecutionModeLeaderboardReset, "")
 	if lf == nil {
-		rp.Put(r)
 		return errors.New("Runtime Leaderboard Reset function not found.")
 	}
 
@@ -2180,7 +2155,6 @@ func (rp *RuntimeProviderLua) LeaderboardReset(ctx context.Context, leaderboard 
 	metadataMap := make(map[string]any)
 	err = json.Unmarshal([]byte(leaderboard.Metadata), &metadataMap)
 	if err != nil {
-		rp.Put(r)
 		return fmt.Errorf("failed to convert metadata to json: %s", err.Error())
 	}
 	metadataTable := RuntimeLuaConvertMap(r.vm, metadataMap)
@@ -2193,7 +2167,7 @@ func (rp *RuntimeProviderLua) LeaderboardReset(ctx context.Context, leaderboard 
 	r.vm.SetContext(vmCtx)
 	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, leaderboardTable, lua.LNumber(reset))
 	r.vm.SetContext(context.Background())
-	rp.Put(r)
+	vmRelease()
 	if err != nil {
 		return fmt.Errorf("Error running runtime Leaderboard Reset hook: %v", err.Error())
 	}
@@ -2207,13 +2181,13 @@ func (rp *RuntimeProviderLua) LeaderboardReset(ctx context.Context, leaderboard 
 }
 
 func (rp *RuntimeProviderLua) Shutdown(ctx context.Context) {
-	r, err := rp.Get(ctx)
+	r, vmRelease, err := rp.Get(ctx)
 	if err != nil {
 		return
 	}
+	defer vmRelease()
 	lf := r.GetCallback(RuntimeExecutionModeShutdown, "")
 	if lf == nil {
-		rp.Put(r)
 		rp.logger.Error("Runtime Shutdown function not found.")
 		return
 	}
@@ -2226,7 +2200,7 @@ func (rp *RuntimeProviderLua) Shutdown(ctx context.Context) {
 	r.vm.SetContext(vmCtx)
 	_, err, _, _ = r.invokeFunction(r.vm, lf, luaCtx)
 	r.vm.SetContext(context.Background())
-	rp.Put(r)
+	vmRelease()
 	if err != nil {
 		rp.logger.Error(fmt.Sprintf("Error running runtime Shutdown hook: %v", err.Error()))
 		return
@@ -2234,13 +2208,13 @@ func (rp *RuntimeProviderLua) Shutdown(ctx context.Context) {
 }
 
 func (rp *RuntimeProviderLua) PurchaseNotificationApple(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload, notificationType string) error {
-	r, err := rp.Get(ctx)
+	r, vmRelease, err := rp.Get(ctx)
 	if err != nil {
 		return err
 	}
+	defer vmRelease()
 	lf := r.GetCallback(RuntimeExecutionModePurchaseNotificationApple, "")
 	if lf == nil {
-		rp.Put(r)
 		return errors.New("Runtime Purchase Notification Apple function not found.")
 	}
 
@@ -2254,7 +2228,7 @@ func (rp *RuntimeProviderLua) PurchaseNotificationApple(ctx context.Context, pur
 	r.vm.SetContext(vmCtx)
 	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, purchaseTable, lua.LString(providerPayload), lua.LString(notificationType))
 	r.vm.SetContext(context.Background())
-	rp.Put(r)
+	vmRelease()
 	if err != nil {
 		return errors.New("Could not run Purchase Notification Apple hook.")
 	}
@@ -2268,13 +2242,13 @@ func (rp *RuntimeProviderLua) PurchaseNotificationApple(ctx context.Context, pur
 }
 
 func (rp *RuntimeProviderLua) SubscriptionNotificationApple(ctx context.Context, subscription *api.ValidatedSubscription, providerPayload, notificationType string) error {
-	r, err := rp.Get(ctx)
+	r, vmRelease, err := rp.Get(ctx)
 	if err != nil {
 		return err
 	}
+	defer vmRelease()
 	lf := r.GetCallback(RuntimeExecutionModeSubscriptionNotificationApple, "")
 	if lf == nil {
-		rp.Put(r)
 		return errors.New("Runtime Subscription Notification Apple function not found.")
 	}
 
@@ -2288,7 +2262,7 @@ func (rp *RuntimeProviderLua) SubscriptionNotificationApple(ctx context.Context,
 	r.vm.SetContext(vmCtx)
 	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, subscriptionTable, lua.LString(providerPayload), lua.LString(notificationType))
 	r.vm.SetContext(context.Background())
-	rp.Put(r)
+	vmRelease()
 	if err != nil {
 		return errors.New("Could not run Subscription Notification Apple hook.")
 	}
@@ -2302,13 +2276,13 @@ func (rp *RuntimeProviderLua) SubscriptionNotificationApple(ctx context.Context,
 }
 
 func (rp *RuntimeProviderLua) PurchaseNotificationGoogle(ctx context.Context, purchase *api.ValidatedPurchase, providerPayload, notificationType string) error {
-	r, err := rp.Get(ctx)
+	r, vmRelease, err := rp.Get(ctx)
 	if err != nil {
 		return err
 	}
+	defer vmRelease()
 	lf := r.GetCallback(RuntimeExecutionModePurchaseNotificationGoogle, "")
 	if lf == nil {
-		rp.Put(r)
 		return errors.New("Runtime Purchase Notification Google function not found.")
 	}
 
@@ -2322,7 +2296,7 @@ func (rp *RuntimeProviderLua) PurchaseNotificationGoogle(ctx context.Context, pu
 	r.vm.SetContext(vmCtx)
 	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, purchaseTable, lua.LString(providerPayload), lua.LString(notificationType))
 	r.vm.SetContext(context.Background())
-	rp.Put(r)
+	vmRelease()
 	if err != nil {
 		return errors.New("Could not run Purchase Notification Google hook.")
 	}
@@ -2336,13 +2310,13 @@ func (rp *RuntimeProviderLua) PurchaseNotificationGoogle(ctx context.Context, pu
 }
 
 func (rp *RuntimeProviderLua) SubscriptionNotificationGoogle(ctx context.Context, subscription *api.ValidatedSubscription, providerPayload, notificationType string) error {
-	r, err := rp.Get(ctx)
+	r, vmRelease, err := rp.Get(ctx)
 	if err != nil {
 		return err
 	}
+	defer vmRelease()
 	lf := r.GetCallback(RuntimeExecutionModeSubscriptionNotificationGoogle, "")
 	if lf == nil {
-		rp.Put(r)
 		return errors.New("Runtime Subscription Notification Google function not found.")
 	}
 
@@ -2356,7 +2330,7 @@ func (rp *RuntimeProviderLua) SubscriptionNotificationGoogle(ctx context.Context
 	r.vm.SetContext(vmCtx)
 	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, subscriptionTable, lua.LString(providerPayload), lua.LString(notificationType))
 	r.vm.SetContext(context.Background())
-	rp.Put(r)
+	vmRelease()
 	if err != nil {
 		return errors.New("Could not run Subscription Notification Google hook.")
 	}
@@ -2370,13 +2344,13 @@ func (rp *RuntimeProviderLua) SubscriptionNotificationGoogle(ctx context.Context
 }
 
 func (rp *RuntimeProviderLua) StorageIndexFilter(ctx context.Context, indexName string, write *StorageOpWrite) (bool, error) {
-	r, err := rp.Get(ctx)
+	r, vmRelease, err := rp.Get(ctx)
 	if err != nil {
 		return false, err
 	}
+	defer vmRelease()
 	lf := r.GetCallback(RuntimeExecutionModeStorageIndexFilter, indexName)
 	if lf == nil {
-		rp.Put(r)
 		return false, fmt.Errorf("Runtime Storage Index function not found for index: %q.", indexName)
 	}
 
@@ -2402,7 +2376,6 @@ func (rp *RuntimeProviderLua) StorageIndexFilter(ctx context.Context, indexName 
 	valueMap := make(map[string]any)
 	err = json.Unmarshal([]byte(write.Object.Value), &valueMap)
 	if err != nil {
-		rp.Put(r)
 		return false, fmt.Errorf("failed to convert value to json: %s", err.Error())
 	}
 	valueTable := RuntimeLuaConvertMap(r.vm, valueMap)
@@ -2418,7 +2391,7 @@ func (rp *RuntimeProviderLua) StorageIndexFilter(ctx context.Context, indexName 
 	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, writeTable)
 	lease.r.Store(nil)
 	r.vm.SetContext(prevCtx)
-	rp.Put(r)
+	vmRelease()
 	if err != nil {
 		return false, fmt.Errorf("Error running runtime Storage Index Filter hook for %q index: %v", indexName, err.Error())
 	}
@@ -2434,46 +2407,48 @@ func (rp *RuntimeProviderLua) StorageIndexFilter(ctx context.Context, indexName 
 	return lua.LVAsBool(retValue), nil
 }
 
-func (rp *RuntimeProviderLua) Get(ctx context.Context) (*RuntimeLua, error) {
+func (rp *RuntimeProviderLua) Get(ctx context.Context) (*RuntimeLua, func(), error) {
+	var r *RuntimeLua
 	if lease, ok := ctx.Value(ctxLuaRuntimeKey{}).(*luaRuntimeLease); ok {
-		if r := lease.r.Load(); r != nil {
+		if r = lease.r.Load(); r != nil {
 			// A call nested inside one already running on r reuses it rather than wait on a pool its caller holds.
 			r.nested.Inc()
-			return r, nil
 		}
 	}
-	select {
-	case <-ctx.Done():
-		// Context cancelled
-		return nil, ctx.Err()
-	case r := <-rp.poolCh:
-		// Ideally use an available idle runtime.
-		return r, nil
-	default:
-		// If there was no idle runtime, see if we can allocate a new one.
-		if rp.currentCount.Load() >= rp.maxCount {
-			// No further runtime allocations allowed.
-			break
+	if r == nil {
+		select {
+		case <-ctx.Done():
+			// Context cancelled
+			return nil, nil, ctx.Err()
+		case r = <-rp.poolCh:
+			// Ideally use an available idle runtime.
+		default:
+			// If there was no idle runtime, see if we can allocate a new one.
+			if rp.currentCount.Load() >= rp.maxCount {
+				// No further runtime allocations allowed.
+				break
+			}
+			currentCount := rp.currentCount.Inc()
+			if currentCount > rp.maxCount {
+				// When we've incremented see if we can still allocate or a concurrent operation has already done so up to the limit.
+				// The current count value may go above max count value, but we will never over-allocate runtimes.
+				// This discrepancy is allowed as it avoids a full mutex locking scenario.
+				break
+			}
+			rp.metrics.GaugeLuaRuntimes(float64(currentCount))
+			r = rp.newFn()
 		}
-		currentCount := rp.currentCount.Inc()
-		if currentCount > rp.maxCount {
-			// When we've incremented see if we can still allocate or a concurrent operation has already done so up to the limit.
-			// The current count value may go above max count value, but we will never over-allocate runtimes.
-			// This discrepancy is allowed as it avoids a full mutex locking scenario.
-			break
+	}
+	if r == nil {
+		// If we reach here then we were unable to find an available idle runtime, and allocation was not allowed.
+		// Wait as needed.
+		select {
+		case <-ctx.Done():
+			return nil, nil, ctx.Err()
+		case r = <-rp.poolCh:
 		}
-		rp.metrics.GaugeLuaRuntimes(float64(currentCount))
-		return rp.newFn(), nil
 	}
-
-	// If we reach here then we were unable to find an available idle runtime, and allocation was not allowed.
-	// Wait as needed.
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case r := <-rp.poolCh:
-		return r, nil
-	}
+	return r, sync.OnceFunc(func() { rp.Put(r) }), nil
 }
 
 func (rp *RuntimeProviderLua) Put(r *RuntimeLua) {
