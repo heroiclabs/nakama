@@ -991,6 +991,14 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 						}
 						return result.(*api.ListFriendsRequest), nil, 0
 					}
+				case "listfriendsoffriends":
+					beforeReqFunctions.beforeListFriendsOfFriendsFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ListFriendsOfFriendsRequest) (*api.ListFriendsOfFriendsRequest, error, codes.Code) {
+						result, err, code := runtimeProviderJS.BeforeReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, in)
+						if result == nil || err != nil {
+							return nil, err, code
+						}
+						return result.(*api.ListFriendsOfFriendsRequest), nil, 0
+					}
 				case "addfriends":
 					beforeReqFunctions.beforeAddFriendsFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AddFriendsRequest) (*api.AddFriendsRequest, error, codes.Code) {
 						result, err, code := runtimeProviderJS.BeforeReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, in)
@@ -1022,6 +1030,14 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 							return nil, err, code
 						}
 						return result.(*api.ImportFacebookFriendsRequest), nil, 0
+					}
+				case "importsteamfriends":
+					beforeReqFunctions.beforeImportSteamFriendsFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ImportSteamFriendsRequest) (*api.ImportSteamFriendsRequest, error, codes.Code) {
+						result, err, code := runtimeProviderJS.BeforeReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, in)
+						if result == nil || err != nil {
+							return nil, err, code
+						}
+						return result.(*api.ImportSteamFriendsRequest), nil, 0
 					}
 				case "creategroup":
 					beforeReqFunctions.beforeCreateGroupFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.CreateGroupRequest) (*api.CreateGroupRequest, error, codes.Code) {
@@ -1134,6 +1150,14 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 							return nil, err, code
 						}
 						return result.(*api.DeleteLeaderboardRecordRequest), nil, 0
+					}
+				case "deletetournamentrecord":
+					beforeReqFunctions.beforeDeleteTournamentRecordFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.DeleteTournamentRecordRequest) (*api.DeleteTournamentRecordRequest, error, codes.Code) {
+						result, err, code := runtimeProviderJS.BeforeReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, in)
+						if result == nil || err != nil {
+							return nil, err, code
+						}
+						return result.(*api.DeleteTournamentRecordRequest), nil, 0
 					}
 				case "listleaderboardrecords":
 					beforeReqFunctions.beforeListLeaderboardRecordsFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ListLeaderboardRecordsRequest) (*api.ListLeaderboardRecordsRequest, error, codes.Code) {
@@ -1487,6 +1511,22 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 						}
 						return result.(*api.GetSubscriptionRequest), nil, 0
 					}
+				case "getmatchmakerstats":
+					beforeReqFunctions.beforeGetMatchmakerStatsFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string) (error, codes.Code) {
+						_, err, code := runtimeProviderJS.BeforeReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, nil)
+						if err != nil {
+							return err, code
+						}
+						return nil, 0
+					}
+				case "listparties":
+					beforeReqFunctions.beforeListPartiesFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ListPartiesRequest) (*api.ListPartiesRequest, error, codes.Code) {
+						result, err, code := runtimeProviderJS.BeforeReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, in)
+						if result == nil || err != nil {
+							return nil, err, code
+						}
+						return result.(*api.ListPartiesRequest), nil, 0
+					}
 				case "listsubscriptions":
 					beforeReqFunctions.beforeListSubscriptionsFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ListSubscriptionsRequest) (*api.ListSubscriptionsRequest, error, codes.Code) {
 						result, err, code := runtimeProviderJS.BeforeReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, in)
@@ -1581,6 +1621,10 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 					afterReqFunctions.afterListFriendsFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.FriendList) error {
 						return runtimeProviderJS.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, out, nil)
 					}
+				case "listfriendsoffriends":
+					afterReqFunctions.afterListFriendsOfFriendsFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.FriendsOfFriendsList) error {
+						return runtimeProviderJS.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, out, nil)
+					}
 				case "addfriends":
 					afterReqFunctions.afterAddFriendsFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.AddFriendsRequest) error {
 						return runtimeProviderJS.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, nil, in)
@@ -1595,6 +1639,10 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 					}
 				case "importfacebookfriends":
 					afterReqFunctions.afterImportFacebookFriendsFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ImportFacebookFriendsRequest) error {
+						return runtimeProviderJS.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, nil, in)
+					}
+				case "importsteamfriends":
+					afterReqFunctions.afterImportSteamFriendsFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.ImportSteamFriendsRequest) error {
 						return runtimeProviderJS.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, nil, in)
 					}
 				case "creategroup":
@@ -1651,6 +1699,10 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 					}
 				case "deleteleaderboardrecord":
 					afterReqFunctions.afterDeleteLeaderboardRecordFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.DeleteLeaderboardRecordRequest) error {
+						return runtimeProviderJS.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, nil, in)
+					}
+				case "deletetournamentrecord":
+					afterReqFunctions.afterDeleteTournamentRecordFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, in *api.DeleteTournamentRecordRequest) error {
 						return runtimeProviderJS.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, nil, in)
 					}
 				case "listleaderboardrecords":
@@ -1828,6 +1880,10 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 				case "getsubscription":
 					afterReqFunctions.afterGetSubscriptionFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.ValidatedSubscription, in *api.GetSubscriptionRequest) error {
 						return runtimeProviderJS.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, out, in)
+					}
+				case "getmatchmakerstats":
+					afterReqFunctions.afterGetMatchmakerStatsFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.MatchmakerStats) error {
+						return runtimeProviderJS.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, out, nil)
 					}
 				case "listsubscriptions":
 					afterReqFunctions.afterListSubscriptionsFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.SubscriptionList, in *api.ListSubscriptionsRequest) error {
