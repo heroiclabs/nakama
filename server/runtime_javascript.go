@@ -1885,6 +1885,10 @@ func NewRuntimeProviderJS(ctx context.Context, logger, startupLogger *zap.Logger
 					afterReqFunctions.afterGetMatchmakerStatsFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.MatchmakerStats) error {
 						return runtimeProviderJS.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, out, nil)
 					}
+				case "listparties":
+					afterReqFunctions.afterListPartiesFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.PartyList, in *api.ListPartiesRequest) error {
+						return runtimeProviderJS.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, out, in)
+					}
 				case "listsubscriptions":
 					afterReqFunctions.afterListSubscriptionsFunction = func(ctx context.Context, logger *zap.Logger, traceID, userID, username string, vars map[string]string, expiry int64, clientIP, clientPort string, out *api.SubscriptionList, in *api.ListSubscriptionsRequest) error {
 						return runtimeProviderJS.AfterReq(ctx, id, logger, traceID, userID, username, vars, expiry, clientIP, clientPort, out, in)

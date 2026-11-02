@@ -1233,7 +1233,7 @@ func (im *RuntimeJavascriptInitModule) registerBeforeListParties(r *goja.Runtime
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterListParties(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterGetSubscription", "listparties")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterListParties", "listparties")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeEvent(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
