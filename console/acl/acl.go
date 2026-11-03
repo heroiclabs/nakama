@@ -418,10 +418,17 @@ func New(acl map[string]*console.Permissions) Permission {
 // Create Permission from raw bitmap bytes.
 // Do not use for JSON deserialization. Use NewFromJson instead.
 func NewFromBytes(b []byte) Permission {
-	if len(b) != byteCount {
+	if len(b) == 0 || len(b) > byteCount {
 		return None()
 	}
-	return Permission{bitmap: b}
+	// Tokens issued before resources were appended carry a shorter bitmap: zero-extend it so new
+	// resources start without access, except admin (every bit set), which must stay admin.
+	if (Permission{bitmap: b}).IsAdmin() {
+		return Admin()
+	}
+	bitmap := make([]byte, byteCount)
+	copy(bitmap, b)
+	return Permission{bitmap: bitmap}
 }
 
 func (p Permission) ACL() map[string]*console.Permissions {

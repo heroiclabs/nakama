@@ -43,3 +43,43 @@ func Test_Permission(t *testing.T) {
 	assert.False(t, acl[console.AclResources_ACCOUNT_EXPORT.String()].Write)
 	assert.True(t, acl[console.AclResources_ACCOUNT_EXPORT.String()].Delete)
 }
+
+func Test_AclUpgrades(t *testing.T) {
+	limited := NewPermission(console.AclResources_ACCOUNT, PermissionRead).
+		Compose(NewPermission(console.AclResources_USER, PermissionWrite))
+
+	lastResource := ConsoleResource(len(console.AclResources_value) - 1)
+	allButLastResourceDelete := None()
+	for i := range len(console.AclResources_value) {
+		for _, level := range []PermissionLevel{PermissionRead, PermissionWrite, PermissionDelete} {
+			if ConsoleResource(i) == lastResource && level == PermissionDelete {
+				continue
+			}
+			allButLastResourceDelete = allButLastResourceDelete.Compose(NewPermission(ConsoleResource(i), level))
+		}
+	}
+
+	allButLastBit := Admin()
+	allButLastBit.bitmap[byteCount-1] = 0xFE
+
+	tests := []struct {
+		name string
+		in   []byte
+		want Permission
+	}{
+		{name: "current length limited user is kept", in: limited.bitmap, want: limited},
+		{name: "current length admin is kept", in: Admin().bitmap, want: Admin()},
+		{name: "current length missing last resource delete is not promoted to admin", in: allButLastResourceDelete.bitmap, want: allButLastResourceDelete},
+		{name: "current length missing last bit is not promoted to admin", in: allButLastBit.bitmap, want: allButLastBit},
+		{name: "older shorter limited user is zero-extended", in: limited.bitmap[:byteCount-1], want: limited},
+		{name: "older shorter admin stays admin", in: Admin().bitmap[:byteCount-1], want: Admin()},
+		{name: "empty bitmap has no access", in: nil, want: None()},
+		{name: "longer bitmap has no access", in: append(Admin().bitmap, 0xFF), want: None()},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want.bitmap, NewFromBytes(tt.in).bitmap)
+		})
+	}
+}
