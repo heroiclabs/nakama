@@ -12,6 +12,7 @@
 package acl
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/heroiclabs/nakama/v3/console"
@@ -59,6 +60,13 @@ func Test_AclUpgrades(t *testing.T) {
 		}
 	}
 
+	// A newer version's token: the same user plus permissions on resources this version does not
+	// know, which sit in this version's trailing padding bits and in an extra byte.
+	newerLimited := append(bytes.Clone(limited.bitmap), 0xE0)
+	// Padding is the unused low bits of the last byte; 1<<n - 1 sets exactly those n bits.
+	paddingBits := byteCount*8 - len(console.AclResources_value)*3
+	newerLimited[byteCount-1] |= byte(1<<paddingBits - 1)
+
 	allButLastBit := Admin()
 	allButLastBit.bitmap[byteCount-1] = 0xFE
 
@@ -74,7 +82,8 @@ func Test_AclUpgrades(t *testing.T) {
 		{name: "older shorter limited user is zero-extended", in: limited.bitmap[:byteCount-1], want: limited},
 		{name: "older shorter admin stays admin", in: Admin().bitmap[:byteCount-1], want: Admin()},
 		{name: "empty bitmap has no access", in: nil, want: None()},
-		{name: "longer bitmap has no access", in: append(Admin().bitmap, 0xFF), want: None()},
+		{name: "newer longer limited user is truncated", in: newerLimited, want: limited},
+		{name: "newer longer admin stays admin", in: append(Admin().bitmap, 0xFF), want: Admin()},
 	}
 
 	for _, tt := range tests {
