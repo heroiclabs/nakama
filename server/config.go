@@ -1244,18 +1244,19 @@ func NewTrackerConfig() *TrackerConfig {
 
 // ConsoleConfig is configuration relevant to the embedded console.
 type ConsoleConfig struct {
-	Port                     int        `yaml:"port" json:"port" usage:"The port for accepting connections for the embedded console, listening on all interfaces."`
-	Address                  string     `yaml:"address" json:"address" usage:"The IP address of the interface to listen for console traffic on. Default listen on all available addresses/interfaces."`
-	MaxMessageSizeBytes      int64      `yaml:"max_message_size_bytes" json:"max_message_size_bytes" usage:"Maximum amount of data in bytes allowed to be read from the client socket per message."`
-	ReadTimeoutMs            int        `yaml:"read_timeout_ms" json:"read_timeout_ms" usage:"Maximum duration in milliseconds for reading the entire request."`
-	WriteTimeoutMs           int        `yaml:"write_timeout_ms" json:"write_timeout_ms" usage:"Maximum duration in milliseconds before timing out writes of the response."`
-	IdleTimeoutMs            int        `yaml:"idle_timeout_ms" json:"idle_timeout_ms" usage:"Maximum amount of time in milliseconds to wait for the next request when keep-alives are enabled."`
-	Username                 string     `yaml:"username" json:"username" usage:"Username for the embedded console. Default username is 'admin'."`
-	Password                 string     `yaml:"password" json:"password" usage:"Password for the embedded console. Default password is 'password'."`
-	TokenExpirySec           int64      `yaml:"token_expiry_sec" json:"token_expiry_sec" usage:"Token expiry in seconds. Default 86400."`
-	SigningKey               string     `yaml:"signing_key" json:"signing_key" usage:"Key used to sign console session tokens."`
-	MFA                      *MFAConfig `yaml:"mfa" json:"mfa" usage:"MFA settings."`
-	DisableDisplayNameSearch bool       `yaml:"disable_display_name_search" json:"disable_display_name_search" usage:"When enabled, console account searches no longer match by display name. Disables the display name lookup entirely. Default false."`
+	Port                     int                `yaml:"port" json:"port" usage:"The port for accepting connections for the embedded console, listening on all interfaces."`
+	Address                  string             `yaml:"address" json:"address" usage:"The IP address of the interface to listen for console traffic on. Default listen on all available addresses/interfaces."`
+	MaxMessageSizeBytes      int64              `yaml:"max_message_size_bytes" json:"max_message_size_bytes" usage:"Maximum amount of data in bytes allowed to be read from the client socket per message."`
+	ReadTimeoutMs            int                `yaml:"read_timeout_ms" json:"read_timeout_ms" usage:"Maximum duration in milliseconds for reading the entire request."`
+	WriteTimeoutMs           int                `yaml:"write_timeout_ms" json:"write_timeout_ms" usage:"Maximum duration in milliseconds before timing out writes of the response."`
+	IdleTimeoutMs            int                `yaml:"idle_timeout_ms" json:"idle_timeout_ms" usage:"Maximum amount of time in milliseconds to wait for the next request when keep-alives are enabled."`
+	Username                 string             `yaml:"username" json:"username" usage:"Username for the embedded console. Default username is 'admin'."`
+	Password                 string             `yaml:"password" json:"password" usage:"Password for the embedded console. Default password is 'password'."`
+	TokenExpirySec           int64              `yaml:"token_expiry_sec" json:"token_expiry_sec" usage:"Token expiry in seconds. Default 86400."`
+	SigningKey               string             `yaml:"signing_key" json:"signing_key" usage:"Key used to sign console session tokens."`
+	MFA                      *MFAConfig         `yaml:"mfa" json:"mfa" usage:"MFA settings."`
+	DisableDisplayNameSearch bool               `yaml:"disable_display_name_search" json:"disable_display_name_search" usage:"When enabled, console account searches no longer match by display name. Disables the display name lookup entirely. Default false."`
+	HeroicCloud              *HeroicCloudConfig `yaml:"heroic_cloud" json:"heroic_cloud" usage:"Heroic Cloud sign-in settings."`
 }
 
 func (cfg *ConsoleConfig) Clone() *ConsoleConfig {
@@ -1268,6 +1269,11 @@ func (cfg *ConsoleConfig) Clone() *ConsoleConfig {
 	if cfg.MFA != nil {
 		c := *(cfg.MFA)
 		cfgCopy.MFA = &c
+	}
+
+	if cfg.HeroicCloud != nil {
+		c := *(cfg.HeroicCloud)
+		cfgCopy.HeroicCloud = &c
 	}
 
 	return &cfgCopy
@@ -1285,6 +1291,9 @@ func NewConsoleConfig() *ConsoleConfig {
 		TokenExpirySec:      86400,
 		SigningKey:          "defaultsigningkey",
 		MFA:                 NewMFAConfig(),
+		HeroicCloud: &HeroicCloudConfig{
+			Address: "https://cloud.heroiclabs.com",
+		},
 	}
 }
 
@@ -1637,6 +1646,20 @@ func (cfg *StorageConfig) Clone() *StorageConfig {
 
 func NewStorageConfig() *StorageConfig {
 	return &StorageConfig{}
+}
+
+type HeroicCloudConfig struct {
+	Address  string `yaml:"address" json:"address" usage:"Heroic Cloud dashboard address."`
+	Instance string `yaml:"instance" json:"instance" usage:"Instance namespace."`
+}
+
+func (cfg *HeroicCloudConfig) Clone() *HeroicCloudConfig {
+	if cfg == nil {
+		return nil
+	}
+
+	cfgCopy := *cfg
+	return &cfgCopy
 }
 
 type MFAConfig struct {

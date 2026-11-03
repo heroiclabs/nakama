@@ -389,7 +389,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		handlerWithMaxBody.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxTraceId{}, uuid.Must(uuid.NewV4()).String())))
 	})
 
-	if err := registerDashboardHandlers(logger, grpcGatewayRouter); err != nil {
+	if err := registerDashboardHandlers(logger, grpcGatewayRouter, config); err != nil {
 		startupLogger.Fatal("Console dashboard registration failed", zap.Error(err))
 	}
 
@@ -480,7 +480,7 @@ SELECT collection FROM t WHERE collection IS NOT NULL`
 	return s
 }
 
-func registerDashboardHandlers(logger *zap.Logger, router *mux.Router) error {
+func registerDashboardHandlers(logger *zap.Logger, router *mux.Router, config Config) error {
 	indexFile, err := console.UIFS.Open("index.html")
 	if err != nil {
 		logger.Error("Failed to open index file.", zap.Error(err))
@@ -495,6 +495,8 @@ func registerDashboardHandlers(logger *zap.Logger, router *mux.Router) error {
 	_ = indexFile.Close()
 	indexHTMLStr := string(indexBytes)
 	indexHTMLStr = strings.ReplaceAll(indexHTMLStr, "{{nt}}", strconv.FormatBool(console.UIFS.Nt))
+	indexHTMLStr = strings.ReplaceAll(indexHTMLStr, "{{hc_address}}", config.GetConsole().HeroicCloud.Address)
+	indexHTMLStr = strings.ReplaceAll(indexHTMLStr, "{{hc_instance}}", config.GetConsole().HeroicCloud.Instance)
 	indexBytes = []byte(indexHTMLStr)
 
 	indexFn := func(w http.ResponseWriter, r *http.Request) {
