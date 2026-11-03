@@ -604,14 +604,19 @@ func (im *RuntimeJavascriptInitModule) getIAPProviderFnIdentifier(r *goja.Runtim
 							continue
 						}
 						if providerNameArg, ok := callExp.ArgumentList[0].(*ast.Identifier); ok {
-							id := providerNameArg.Name.String()
-							if r.Get(id).String() != providerName {
+							v := r.Get(providerNameArg.Name.String())
+							if v == nil {
+								return "", errors.New("provider name must be a string literal or a global variable")
+							}
+							if v.String() != providerName {
 								continue
 							}
 						} else if providerNameArg, ok := callExp.ArgumentList[0].(*ast.StringLiteral); ok {
 							if providerNameArg.Value.String() != providerName {
 								continue
 							}
+						} else {
+							return "", errors.New("provider name must be a string literal or a global variable")
 						}
 
 						var obj *ast.ObjectLiteral

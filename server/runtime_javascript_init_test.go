@@ -435,3 +435,80 @@ function hn(ctx, logger, nk, body, headers, query) {}
 	require.Equal(t, "vs", callbacks.IAPSubscriptionProvider["custom"])
 	require.Equal(t, "hn", callbacks.IAPProviderNotification["custom"])
 }
+
+func TestJavascriptModuleRejectsIapProviderNamedByUnsupportedExpression(t *testing.T) {
+	cases := []struct {
+		name   string
+		module string
+	}{
+		{
+			name: "local variable",
+			module: `
+function InitModule(ctx, logger, nk, initializer) {
+  var name = 'custom';
+  initializer.registerIapProvider(name, { validatePurchase: vp, validateSubscription: vs }, 100);
+}
+
+function vp(ctx, logger, nk, payload, overrides) { return {}; }
+function vs(ctx, logger, nk, payload, overrides) { return {}; }
+`,
+		},
+		{
+			name: "computed names",
+			module: `
+var prefix = 'custom_';
+
+function InitModule(ctx, logger, nk, initializer) {
+  initializer.registerIapProvider(prefix + 'a', { validatePurchase: vpA, validateSubscription: vsA }, 100);
+  initializer.registerIapProvider(prefix + 'b', { validatePurchase: vpB, validateSubscription: vsB }, 101);
+}
+
+function vpA(ctx, logger, nk, payload, overrides) { return {}; }
+function vsA(ctx, logger, nk, payload, overrides) { return {}; }
+function vpB(ctx, logger, nk, payload, overrides) { return {}; }
+function vsB(ctx, logger, nk, payload, overrides) { return {}; }
+`,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "index.js"), []byte(tc.module), 0o644))
+
+			config := NewConfig(zap.NewNop())
+			modCache, err := cacheJavascriptModules(zap.NewNop(), dir, "")
+			require.NoError(t, err)
+			matchHandlers := &RuntimeJavascriptMatchHandlers{mapping: make(map[string]*jsMatchHandlers)}
+
+			_, err = evalRuntimeModules(&RuntimeProviderJS{logger: zap.NewNop(), config: config}, modCache, matchHandlers, nil, nil, nil, nil, func(RuntimeExecutionMode, string) {}, false)
+
+			require.ErrorContains(t, err, "provider name must be a string literal or a global variable")
+		})
+	}
+}
+
+func TestJavascriptModuleRegistersIapProviderNamedByGlobalVariable(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.js"), []byte(`
+var name = 'custom';
+
+function InitModule(ctx, logger, nk, initializer) {
+  initializer.registerIapProvider(name, { validatePurchase: vp, validateSubscription: vs }, 100);
+}
+
+function vp(ctx, logger, nk, payload, overrides) { return {}; }
+function vs(ctx, logger, nk, payload, overrides) { return {}; }
+`), 0o644))
+
+	config := NewConfig(zap.NewNop())
+	modCache, err := cacheJavascriptModules(zap.NewNop(), dir, "")
+	require.NoError(t, err)
+	matchHandlers := &RuntimeJavascriptMatchHandlers{mapping: make(map[string]*jsMatchHandlers)}
+
+	callbacks, err := evalRuntimeModules(&RuntimeProviderJS{logger: zap.NewNop(), config: config}, modCache, matchHandlers, nil, nil, nil, nil, func(RuntimeExecutionMode, string) {}, false)
+
+	require.NoError(t, err)
+	require.Equal(t, "vp", callbacks.IAPProvider["custom"])
+	require.Equal(t, "vs", callbacks.IAPSubscriptionProvider["custom"])
+}

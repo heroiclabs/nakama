@@ -9,6 +9,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ### Fixed
 - Fix JavaScript IAP provider callbacks declared inside `InitModule` registering but failing on every call.
+- Fix JavaScript IAP provider names built from expressions picking another provider's handlers or crashing startup.
 
 ## [3.42.0] - 2026-11-03
 ### Added
