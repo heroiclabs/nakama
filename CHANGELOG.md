@@ -7,6 +7,9 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Added
 - Add IAP providers to the Lua and JavaScript runtimes, with their notification hooks and purchase and subscription validation functions.
 
+### Fixed
+- Fix JavaScript IAP provider callbacks declared inside `InitModule` registering but failing on every call.
+
 ## [3.42.0] - 2026-11-03
 ### Added
 - Add Hiro Streaks support to the console, with its own ACL resource and audit logging.

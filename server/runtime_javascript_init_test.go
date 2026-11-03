@@ -348,3 +348,90 @@ function hn(ctx, logger, nk, body, headers, query) {}
 		})
 	}
 }
+
+func TestJavascriptModuleRejectsIapProviderCallbacksDeclaredInsideInitModule(t *testing.T) {
+	cases := []struct {
+		name        string
+		module      string
+		expectedErr string
+	}{
+		{
+			name: "validatePurchase declared inside InitModule",
+			module: `
+function InitModule(ctx, logger, nk, initializer) {
+  function vp(ctx, logger, nk, payload, overrides) { return {}; }
+  initializer.registerIapProvider('custom', { validatePurchase: vp, validateSubscription: vs }, 100);
+}
+
+function vs(ctx, logger, nk, payload, overrides) { return {}; }
+`,
+			expectedErr: `function "vp" not registered in the global object scope`,
+		},
+		{
+			name: "validateSubscription declared inside InitModule",
+			module: `
+function InitModule(ctx, logger, nk, initializer) {
+  var vs = function(ctx, logger, nk, payload, overrides) { return {}; };
+  initializer.registerIapProvider('custom', { validatePurchase: vp, validateSubscription: vs }, 100);
+}
+
+function vp(ctx, logger, nk, payload, overrides) { return {}; }
+`,
+			expectedErr: `function "vs" not registered in the global object scope`,
+		},
+		{
+			name: "handleNotification declared inside InitModule",
+			module: `
+function InitModule(ctx, logger, nk, initializer) {
+  function hn(ctx, logger, nk, body, headers, query) {}
+  initializer.registerIapProvider('custom', { validatePurchase: vp, validateSubscription: vs, handleNotification: hn }, 100);
+}
+
+function vp(ctx, logger, nk, payload, overrides) { return {}; }
+function vs(ctx, logger, nk, payload, overrides) { return {}; }
+`,
+			expectedErr: `function "hn" not registered in the global object scope`,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(dir, "index.js"), []byte(tc.module), 0o644))
+
+			config := NewConfig(zap.NewNop())
+			modCache, err := cacheJavascriptModules(zap.NewNop(), dir, "")
+			require.NoError(t, err)
+			matchHandlers := &RuntimeJavascriptMatchHandlers{mapping: make(map[string]*jsMatchHandlers)}
+
+			_, err = evalRuntimeModules(&RuntimeProviderJS{logger: zap.NewNop(), config: config}, modCache, matchHandlers, nil, nil, nil, nil, func(RuntimeExecutionMode, string) {}, false)
+
+			require.ErrorContains(t, err, tc.expectedErr)
+		})
+	}
+}
+
+func TestJavascriptModuleRegistersIapProviderWithGlobalCallbacks(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.js"), []byte(`
+function InitModule(ctx, logger, nk, initializer) {
+  initializer.registerIapProvider('custom', { validatePurchase: vp, validateSubscription: vs, handleNotification: hn }, 100);
+}
+
+function vp(ctx, logger, nk, payload, overrides) { return {}; }
+function vs(ctx, logger, nk, payload, overrides) { return {}; }
+function hn(ctx, logger, nk, body, headers, query) {}
+`), 0o644))
+
+	config := NewConfig(zap.NewNop())
+	modCache, err := cacheJavascriptModules(zap.NewNop(), dir, "")
+	require.NoError(t, err)
+	matchHandlers := &RuntimeJavascriptMatchHandlers{mapping: make(map[string]*jsMatchHandlers)}
+
+	callbacks, err := evalRuntimeModules(&RuntimeProviderJS{logger: zap.NewNop(), config: config}, modCache, matchHandlers, nil, nil, nil, nil, func(RuntimeExecutionMode, string) {}, false)
+
+	require.NoError(t, err)
+	require.Equal(t, "vp", callbacks.IAPProvider["custom"])
+	require.Equal(t, "vs", callbacks.IAPSubscriptionProvider["custom"])
+	require.Equal(t, "hn", callbacks.IAPProviderNotification["custom"])
+}

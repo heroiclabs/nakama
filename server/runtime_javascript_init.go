@@ -527,6 +527,9 @@ func (im *RuntimeJavascriptInitModule) registerIAPProvider(r *goja.Runtime) func
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("js %s validatePurchase function key could not be extracted: %s", key, err.Error())))
 		}
+		if err = im.checkFnScope(r, validatePurchaseKey); err != nil {
+			panic(r.NewGoError(err))
+		}
 
 		fnValue, ok = funcMap["validateSubscription"]
 		if !ok {
@@ -539,6 +542,9 @@ func (im *RuntimeJavascriptInitModule) registerIAPProvider(r *goja.Runtime) func
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("js %s validateSubscription function key could not be extracted: %s", key, err.Error())))
 		}
+		if err = im.checkFnScope(r, validateSubscriptionKey); err != nil {
+			panic(r.NewGoError(err))
+		}
 
 		var handleNotificationKey string
 		if fnValue, ok := funcMap["handleNotification"]; ok && fnValue != nil {
@@ -548,6 +554,9 @@ func (im *RuntimeJavascriptInitModule) registerIAPProvider(r *goja.Runtime) func
 			handleNotificationKey, err = im.getIAPProviderFnIdentifier(r, bs, initFnVarName, key, "handleNotification")
 			if err != nil {
 				panic(r.NewGoError(fmt.Errorf("js %s handleNotification function key could not be extracted: %s", key, err.Error())))
+			}
+			if err = im.checkFnScope(r, handleNotificationKey); err != nil {
+				panic(r.NewGoError(err))
 			}
 		}
 
