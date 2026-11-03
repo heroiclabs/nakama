@@ -3,6 +3,7 @@ package murmur3
 import (
 	"hash"
 	"math/bits"
+	"unsafe"
 )
 
 // Make sure interfaces are correctly implemented.
@@ -17,7 +18,7 @@ const (
 	c2_32 uint32 = 0x1b873593
 )
 
-// digest32 represents a partial evaluation of a 32 bites hash.
+// digest32 represents a partial evaluation of a 32 bit hash.
 type digest32 struct {
 	digest
 	seed uint32
@@ -30,10 +31,7 @@ type digest32 struct {
 // This reads and processes the data in chunks of little endian uint32s;
 // thus, the returned hash is portable across architectures.
 func SeedNew32(seed uint32) hash.Hash32 {
-	d := &digest32{seed: seed}
-	d.bmixer = d
-	d.Reset()
-	return d
+	return &digest32{seed: seed, h1: seed}
 }
 
 // New32 returns a hash.Hash32 for streaming 32 bit sums.
@@ -43,7 +41,28 @@ func New32() hash.Hash32 {
 
 func (d *digest32) Size() int { return 4 }
 
-func (d *digest32) reset() { d.h1 = d.seed }
+func (d *digest32) Reset() { d.clen, d.ntail, d.h1 = 0, 0, d.seed }
+
+func (d *digest32) Write(p []byte) (n int, err error) {
+	n = len(p)
+	d.clen += n
+
+	if d.ntail > 0 {
+		// Stick back pending bytes.
+		m := copy(d.buf[d.ntail:4], p)
+		d.ntail += m
+		if d.ntail < 4 {
+			return n, nil
+		}
+		// One full block was formed.
+		p = p[m:]
+		_ = d.bmix(d.buf[:4]) // No tail.
+	}
+
+	// Keep own copy of the 0 to Size()-1 pending bytes.
+	d.ntail = copy(d.buf[:], d.bmix(p))
+	return n, nil
+}
 
 func (d *digest32) Sum(b []byte) []byte {
 	h := d.Sum32()
@@ -62,14 +81,13 @@ func (d *digest32) bmix(p []byte) (tail []byte) {
 }
 
 func (d *digest32) Sum32() (h1 uint32) {
-	return sum32(d.h1, d.tail, d.clen)
+	return sum32(d.h1, unsafe.String(&d.buf[0], d.ntail), d.clen)
 }
 
 // Clone returns a copy of the hash. Writes to either copy do not affect the
 // other. The returned hash is a hash.Hash32.
 func (d *digest32) Clone() (hash.Cloner, error) {
 	c := *d
-	c.reseat(&c)
 	return &c, nil
 }
 
@@ -80,7 +98,7 @@ func (d *digest32) Clone() (hash.Cloner, error) {
 //	hasher.Write(data)
 //	return hasher.Sum32()
 func Sum32(data []byte) uint32 {
-	return sum32(0, data, len(data))
+	return sum32(0, unsafe.String(unsafe.SliceData(data), len(data)), len(data))
 }
 
 // SeedSum32 returns the murmur3 sum of data with the digest initialized to
@@ -89,7 +107,7 @@ func Sum32(data []byte) uint32 {
 // This reads and processes the data in chunks of little endian uint32s;
 // thus, the returned hash is portable across architectures.
 func SeedSum32(seed uint32, data []byte) (h1 uint32) {
-	return sum32(seed, data, len(data))
+	return sum32(seed, unsafe.String(unsafe.SliceData(data), len(data)), len(data))
 }
 
 // StringSum32 is the string version of Sum32.
@@ -105,7 +123,7 @@ func SeedStringSum32(seed uint32, data string) (h1 uint32) {
 // sum32 mixes all of data into the running h1 and then finalizes with clen,
 // the total number of bytes hashed. The one shot sums pass all of their
 // input; the streaming digest passes its leftover tail.
-func sum32[T bytestring](h1 uint32, data T, clen int) uint32 {
+func sum32(h1 uint32, data string, clen int) uint32 {
 	if len(data) >= 4 {
 		// See sum128: the last four bytes are in bounds, so shift the tail
 		// out of them before the loop rather than branch on its length

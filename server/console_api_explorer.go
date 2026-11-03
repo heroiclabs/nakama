@@ -188,7 +188,6 @@ func (s *ConsoleServer) initRpcMethodCache() error {
 	endpoints := make(map[MethodName]*methodReflection)
 	apiType := reflect.TypeOf(s.api)
 	for method := range apiType.Methods() {
-		method := method
 		if method.Type.NumIn() != 3 || method.Type.NumOut() != 2 {
 			continue
 		}

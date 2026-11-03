@@ -1233,7 +1233,7 @@ func (im *RuntimeJavascriptInitModule) registerBeforeListParties(r *goja.Runtime
 }
 
 func (im *RuntimeJavascriptInitModule) registerAfterListParties(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
-	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterGetSubscription", "listparties")
+	return im.registerHook(r, RuntimeExecutionModeAfter, "registerAfterListParties", "listparties")
 }
 
 func (im *RuntimeJavascriptInitModule) registerBeforeEvent(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -1366,9 +1366,11 @@ func (im *RuntimeJavascriptInitModule) getInitModuleFn() (*ast.BlockStatement, s
 			fl = funDecl.Function
 			break
 		} else if varStat, ok := dec.(*ast.VariableStatement); ok {
-			if id, ok := varStat.List[0].Target.(*ast.Identifier); ok && id.Name == INIT_MODULE_FN_NAME {
-				if fnLit, ok := varStat.List[0].Initializer.(*ast.FunctionLiteral); ok {
-					fl = fnLit
+			for _, binding := range varStat.List {
+				if id, ok := binding.Target.(*ast.Identifier); ok && id.Name == INIT_MODULE_FN_NAME {
+					if fnLit, ok := binding.Initializer.(*ast.FunctionLiteral); ok {
+						fl = fnLit
+					}
 				}
 			}
 		}
@@ -1951,10 +1953,12 @@ func (im *RuntimeJavascriptInitModule) getMatchHookFnIdentifier(r *goja.Runtime,
 							// We know the obj is an identifier, we need to lookup it's definition in the AST
 							matchHandlerIdStr := matchHandlerId.Name.String()
 							for _, mhDec := range im.ast.DeclarationList {
-								if mhDecId, ok := mhDec.List[0].Target.(*ast.Identifier); ok && mhDecId.Name.String() == matchHandlerIdStr {
-									objLiteral, ok := mhDec.List[0].Initializer.(*ast.ObjectLiteral)
-									if ok {
-										obj = objLiteral
+								for _, binding := range mhDec.List {
+									if mhDecId, ok := binding.Target.(*ast.Identifier); ok && mhDecId.Name.String() == matchHandlerIdStr {
+										objLiteral, ok := binding.Initializer.(*ast.ObjectLiteral)
+										if ok {
+											obj = objLiteral
+										}
 									}
 								}
 							}
@@ -1965,9 +1969,9 @@ func (im *RuntimeJavascriptInitModule) getMatchHookFnIdentifier(r *goja.Runtime,
 						for _, prop := range obj.Value {
 							if propKeyed, ok := prop.(*ast.PropertyKeyed); ok {
 								if key, ok := propKeyed.Key.(*ast.StringLiteral); ok {
-									if key.Literal == string(matchfnId) {
+									if key.Value.String() == string(matchfnId) {
 										if sl, ok := propKeyed.Value.(*ast.StringLiteral); ok {
-											return sl.Literal, nil
+											return sl.Value.String(), nil
 										} else if id, ok := propKeyed.Value.(*ast.Identifier); ok {
 											return id.Name.String(), nil
 										} else {

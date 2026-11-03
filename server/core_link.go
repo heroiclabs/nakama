@@ -31,7 +31,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func LinkApple(ctx context.Context, logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, userID uuid.UUID, token string) error {
+func LinkApple(ctx context.Context, logger *zap.Logger, db *sql.DB, config Config, socialClient *social.Client, userID uuid.UUID, token string, importEmail bool) error {
 	if config.GetSocial().Apple.BundleId == "" {
 		return status.Error(codes.FailedPrecondition, "Apple authentication is not configured.")
 	}
@@ -64,16 +64,15 @@ AND (NOT EXISTS
 		return status.Error(codes.AlreadyExists, "Apple ID is already in use.")
 	}
 
-	// Import email address, if it exists.
-	if profile.Email != "" {
-		_, err = db.ExecContext(ctx, "UPDATE users SET email = $1 WHERE id = $2", profile.Email, userID)
+	// Import email address, if it exists and importEmail is true.
+	if profile.Email != "" && importEmail {
+		_, err = db.ExecContext(ctx, "UPDATE users SET email = $1 WHERE id = $2 AND NULLIF(email, '') IS NULL", profile.Email, userID)
 		if err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_email_key") {
 				logger.Warn("Skipping apple account email import as it is already set in another user.", zap.Error(err), zap.String("appleID", profile.ID), zap.String("user_id", userID.String()))
 			} else {
 				logger.Error("Failed to import apple account email.", zap.Error(err), zap.String("appleID", profile.ID), zap.String("user_id", userID.String()))
-				return status.Error(codes.Internal, "Error importing apple account email.")
 			}
 		}
 	}
@@ -271,7 +270,7 @@ AND (NOT EXISTS
 	return nil
 }
 
-func LinkFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, socialClient *social.Client, tracker Tracker, router MessageRouter, userID uuid.UUID, username, appId, token string, sync bool) error {
+func LinkFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, socialClient *social.Client, tracker Tracker, router MessageRouter, userID uuid.UUID, username, appId, token string, sync, importEmail bool) error {
 	if token == "" {
 		return status.Error(codes.InvalidArgument, "Facebook access token is required.")
 	}
@@ -308,16 +307,15 @@ AND (NOT EXISTS
 		return status.Error(codes.AlreadyExists, "Facebook ID is already in use.")
 	}
 
-	// Import email address, if it exists.
-	if facebookProfile.Email != "" {
-		_, err = db.ExecContext(ctx, "UPDATE users SET email = $1 WHERE id = $2", facebookProfile.Email, userID)
+	// Import email address, if it exists and importEmail is true.
+	if facebookProfile.Email != "" && importEmail {
+		_, err = db.ExecContext(ctx, "UPDATE users SET email = $1 WHERE id = $2 AND NULLIF(email, '') IS NULL", facebookProfile.Email, userID)
 		if err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_email_key") {
 				logger.Warn("Skipping facebook account email import as it is already set in another user.", zap.Error(err), zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.String("user_id", userID.String()))
 			} else {
 				logger.Error("Failed to import facebook account email.", zap.Error(err), zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.String("user_id", userID.String()))
-				return status.Error(codes.Internal, "Error importing facebook account email.")
 			}
 		}
 	}
@@ -402,7 +400,7 @@ AND (NOT EXISTS
 	return nil
 }
 
-func LinkGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, socialClient *social.Client, userID uuid.UUID, idToken string) error {
+func LinkGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, socialClient *social.Client, userID uuid.UUID, idToken string, importEmail bool) error {
 	if idToken == "" {
 		return status.Error(codes.InvalidArgument, "Google access token is required.")
 	}
@@ -452,8 +450,8 @@ AND (NOT EXISTS
 		return status.Error(codes.AlreadyExists, "Google ID is already in use.")
 	}
 
-	// Import email address, if it exists.
-	if googleProfile.GetEmail() != "" {
+	// Import email address, if it exists and importEmail is true.
+	if googleProfile.GetEmail() != "" && importEmail {
 		_, err = db.ExecContext(ctx, "UPDATE users SET email = $1 WHERE id = $2 AND NULLIF(email, '') IS NULL", googleProfile.GetEmail(), userID)
 		if err != nil {
 			var pgErr *pgconn.PgError

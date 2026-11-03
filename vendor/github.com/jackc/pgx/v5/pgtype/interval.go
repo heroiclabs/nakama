@@ -126,31 +126,31 @@ func (encodePlanIntervalCodecText) Encode(value any, buf []byte) (newBuf []byte,
 	}
 
 	if interval.Months != 0 {
-		buf = append(buf, strconv.FormatInt(int64(interval.Months), 10)...)
+		buf = strconv.AppendInt(buf, int64(interval.Months), 10)
 		buf = append(buf, " mon "...)
 	}
 
 	if interval.Days != 0 {
-		buf = append(buf, strconv.FormatInt(int64(interval.Days), 10)...)
+		buf = strconv.AppendInt(buf, int64(interval.Days), 10)
 		buf = append(buf, " day "...)
 	}
 
-	absMicroseconds := interval.Microseconds
-	if absMicroseconds < 0 {
+	absMicroseconds := uint64(interval.Microseconds)
+	if interval.Microseconds < 0 {
 		absMicroseconds = -absMicroseconds
 		buf = append(buf, '-')
 	}
 
-	hours := absMicroseconds / microsecondsPerHour
-	minutes := (absMicroseconds % microsecondsPerHour) / microsecondsPerMinute
-	seconds := (absMicroseconds % microsecondsPerMinute) / microsecondsPerSecond
+	hours := int64(absMicroseconds / microsecondsPerHour)
+	minutes := int64((absMicroseconds % microsecondsPerHour) / microsecondsPerMinute)
+	seconds := int64((absMicroseconds % microsecondsPerMinute) / microsecondsPerSecond)
 
-	timeStr := fmt.Sprintf("%02d:%02d:%02d", hours, minutes, seconds)
-	buf = append(buf, timeStr...)
+	buf = appendTimeText(buf, hours, minutes, seconds)
 
-	microseconds := absMicroseconds % microsecondsPerSecond
+	microseconds := int64(absMicroseconds % microsecondsPerSecond)
 	if microseconds != 0 {
-		buf = append(buf, fmt.Sprintf(".%06d", microseconds)...)
+		buf = append(buf, '.')
+		buf = appendZeroPaddedInt64(buf, microseconds, 6)
 	}
 
 	return buf, nil
@@ -257,14 +257,21 @@ func (scanPlanTextAnyToIntervalScanner) Scan(src []byte, dst any) error {
 
 		var uSeconds int64
 		if secFracFound {
-			uSeconds, err = strconv.ParseInt(secFrac, 10, 64)
+			if secFrac == "" {
+				return fmt.Errorf("bad interval decimal format: %s", secFrac)
+			}
+			for i := 0; i < len(secFrac); i++ {
+				if !isDigit(secFrac[i]) {
+					return fmt.Errorf("bad interval decimal format: %s", secFrac)
+				}
+			}
+			// Digits past the microsecond were left unscaled, so 1.0000001
+			// seconds became 1.000001 seconds. Same rounding as timestamps.
+			usec, err := roundFractionToMicroseconds([]byte(secFrac))
 			if err != nil {
 				return fmt.Errorf("bad interval decimal format: %s", secFrac)
 			}
-
-			for i := 0; i < 6-len(secFrac); i++ {
-				uSeconds *= 10
-			}
+			uSeconds = int64(usec)
 		}
 
 		microseconds = hours * microsecondsPerHour

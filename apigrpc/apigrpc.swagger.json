@@ -2505,6 +2505,46 @@
         ]
       }
     },
+    "/v2/iap/purchase/{provider}": {
+      "post": {
+        "summary": "Validate a purchase with a registered IAP provider",
+        "operationId": "Nakama_ValidatePurchase",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiValidateIAPPurchaseResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "provider",
+            "description": "The name the provider was registered under during runtime initialization.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/NakamaValidatePurchaseBody"
+            }
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
     "/v2/iap/subscription": {
       "post": {
         "summary": "List user's subscriptions.",
@@ -2630,6 +2670,46 @@
             "in": "path",
             "required": true,
             "type": "string"
+          }
+        ],
+        "tags": [
+          "Nakama"
+        ]
+      }
+    },
+    "/v2/iap/subscription/{provider}": {
+      "post": {
+        "summary": "Validate a subscription with a registered IAP provider",
+        "operationId": "Nakama_ValidateSubscription",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/apiValidateIAPSubscriptionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "provider",
+            "description": "The name the provider was registered under during runtime initialization.",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/NakamaValidateSubscriptionBody"
+            }
           }
         ],
         "tags": [
@@ -3916,6 +3996,34 @@
         }
       },
       "description": "Update fields in a given group."
+    },
+    "NakamaValidatePurchaseBody": {
+      "type": "object",
+      "properties": {
+        "payload": {
+          "type": "object",
+          "description": "Opaque JSON passed through to the registered provider."
+        },
+        "persist": {
+          "type": "boolean",
+          "description": "Persist the purchase so that seenBefore can be computed to protect against replay attacks."
+        }
+      },
+      "description": "Validate a purchase with a runtime-registered IAP provider."
+    },
+    "NakamaValidateSubscriptionBody": {
+      "type": "object",
+      "properties": {
+        "payload": {
+          "type": "object",
+          "description": "Opaque JSON passed through to the registered provider."
+        },
+        "persist": {
+          "type": "boolean",
+          "description": "Persist the subscription."
+        }
+      },
+      "description": "Validate a subscription with a runtime-registered IAP provider."
     },
     "UserGroupListUserGroup": {
       "type": "object",
@@ -5434,6 +5542,29 @@
       },
       "description": "A collection of zero or more users."
     },
+    "apiValidateIAPPurchaseResponse": {
+      "type": "object",
+      "properties": {
+        "purchase": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/apiValidatedPurchase"
+          },
+          "description": "Validated purchases."
+        }
+      },
+      "description": "Purchases validated by a runtime-registered IAP provider."
+    },
+    "apiValidateIAPSubscriptionResponse": {
+      "type": "object",
+      "properties": {
+        "subscription": {
+          "$ref": "#/definitions/apiValidatedSubscription"
+        }
+      },
+      "description": "Subscription validated by a runtime-registered IAP provider."
+    },
     "apiValidatePurchaseAppleRequest": {
       "type": "object",
       "properties": {
@@ -5609,6 +5740,10 @@
         "seenBefore": {
           "type": "boolean",
           "description": "Whether the purchase had already been validated by Nakama before."
+        },
+        "provider": {
+          "type": "string",
+          "description": "Name of the IAP provider that validated the purchase, empty for a built-in store. For IAP providers, store holds the provider's code."
         }
       },
       "description": "Validated Purchase stored by Nakama."
@@ -5672,6 +5807,10 @@
         "active": {
           "type": "boolean",
           "description": "Whether the subscription is currently active or not."
+        },
+        "provider": {
+          "type": "string",
+          "description": "Name of the IAP provider that validated the subscription, empty for a built-in store. For IAP providers, store holds the provider's code."
         }
       }
     },

@@ -63,6 +63,7 @@ type RuntimeGoNakamaModule struct {
 	router               MessageRouter
 	eventFn              RuntimeEventCustomFunction
 	authProviderRegistry *RuntimeAuthenticateProviderRegistry
+	iapProviderRegistry  *RuntimeIAPProviderRegistry
 	node                 string
 	matchCreateFn        RuntimeMatchCreateFunction
 	satori               runtime.Satori
@@ -70,11 +71,12 @@ type RuntimeGoNakamaModule struct {
 	storageIndex         StorageIndex
 }
 
-func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, storageIndex StorageIndex, satoriClient runtime.Satori, authProviderRegistry *RuntimeAuthenticateProviderRegistry) *RuntimeGoNakamaModule {
+func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, storageIndex StorageIndex, satoriClient runtime.Satori, authProviderRegistry *RuntimeAuthenticateProviderRegistry, iapProviderRegistry *RuntimeIAPProviderRegistry) *RuntimeGoNakamaModule {
 	return &RuntimeGoNakamaModule{
 		logger:               logger,
 		db:                   db,
 		authProviderRegistry: authProviderRegistry,
+		iapProviderRegistry:  iapProviderRegistry,
 		protojsonMarshaler:   protojsonMarshaler,
 		config:               config,
 		socialClient:         socialClient,
@@ -106,11 +108,12 @@ func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler
 // @param token(type=string) Apple sign in token.
 // @param username(type=string) The user's username. If left empty, one is generated.
 // @param create(type=bool) Create user if one didn't exist previously.
+// @param importEmail(type=bool) Whether to import the email from the Apple account, if available and if the account has no email set.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return create(bool) Value indicating if this account was just created or already existed.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) AuthenticateApple(ctx context.Context, token, username string, create bool) (string, string, bool, error) {
+func (n *RuntimeGoNakamaModule) AuthenticateApple(ctx context.Context, token, username string, create bool, importEmail bool) (string, string, bool, error) {
 	if n.config.GetSocial().Apple.BundleId == "" {
 		return "", "", false, errors.New("Apple authentication is not configured")
 	}
@@ -127,7 +130,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateApple(ctx context.Context, token, us
 		return "", "", false, errors.New("expects id to be valid, must be 1-128 bytes")
 	}
 
-	return AuthenticateApple(ctx, n.logger, n.db, n.socialClient, n.config.GetSocial().Apple.BundleId, token, username, create)
+	return AuthenticateApple(ctx, n.logger, n.db, n.socialClient, n.config.GetSocial().Apple.BundleId, token, username, create, importEmail)
 }
 
 // @group authenticate
@@ -248,11 +251,12 @@ func (n *RuntimeGoNakamaModule) AuthenticateEmail(ctx context.Context, email, pa
 // @param importFriends(type=bool) Whether to automatically import Facebook friends after authentication.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
 // @param create(type=bool) Create user if one didn't exist previously.
+// @param importEmail(type=bool) Whether to import the email from the Facebook account, if available and if the account has no email set.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return create(bool) Value indicating if this account was just created or already existed.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) AuthenticateFacebook(ctx context.Context, token string, importFriends bool, username string, create bool) (string, string, bool, error) {
+func (n *RuntimeGoNakamaModule) AuthenticateFacebook(ctx context.Context, token string, importFriends bool, username string, create, importEmail bool) (string, string, bool, error) {
 	if token == "" {
 		return "", "", false, errors.New("expects access token string")
 	}
@@ -265,7 +269,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateFacebook(ctx context.Context, token 
 		return "", "", false, errors.New("expects id to be valid, must be 1-128 bytes")
 	}
 
-	dbUserID, dbUsername, created, err := AuthenticateFacebook(ctx, n.logger, n.db, n.socialClient, n.config.GetSocial().FacebookLimitedLogin.AppId, token, username, create)
+	dbUserID, dbUsername, created, err := AuthenticateFacebook(ctx, n.logger, n.db, n.socialClient, n.config.GetSocial().FacebookLimitedLogin.AppId, token, username, create, importEmail)
 	if err == nil && importFriends {
 		// Errors are logged before this point and failure here does not invalidate the whole operation.
 		_ = importFacebookFriends(ctx, n.logger, n.db, n.tracker, n.router, n.socialClient, uuid.FromStringOrNil(dbUserID), dbUsername, token, false)
@@ -352,11 +356,12 @@ func (n *RuntimeGoNakamaModule) AuthenticateGameCenter(ctx context.Context, play
 // @param token(type=string) Google OAuth access token.
 // @param username(type=string) The user's username. If left empty, one is generated.
 // @param create(type=bool) Create user if one didn't exist previously.
+// @param importEmail(type=bool) Whether to import the email from the Google account, if available and if the account has no email set.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return create(bool) Value indicating if this account was just created or already existed.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) AuthenticateGoogle(ctx context.Context, token, username string, create bool) (string, string, bool, error) {
+func (n *RuntimeGoNakamaModule) AuthenticateGoogle(ctx context.Context, token, username string, create, importEmail bool) (string, string, bool, error) {
 	if token == "" {
 		return "", "", false, errors.New("expects ID token string")
 	}
@@ -369,7 +374,7 @@ func (n *RuntimeGoNakamaModule) AuthenticateGoogle(ctx context.Context, token, u
 		return "", "", false, errors.New("expects id to be valid, must be 1-128 bytes")
 	}
 
-	return AuthenticateGoogle(ctx, n.logger, n.db, n.socialClient, token, username, create)
+	return AuthenticateGoogle(ctx, n.logger, n.db, n.socialClient, token, username, create, importEmail)
 }
 
 // @group authenticate
@@ -794,14 +799,15 @@ func (n *RuntimeGoNakamaModule) UsersUnbanId(ctx context.Context, userIDs []stri
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param userID(type=string) The user ID to be linked.
 // @param token(type=string) Apple sign in token.
+// @param importEmail(type=bool) Whether to import the email from the Apple account, if available and if the account has no email set.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) LinkApple(ctx context.Context, userID, token string) error {
+func (n *RuntimeGoNakamaModule) LinkApple(ctx context.Context, userID, token string, importEmail bool) error {
 	id, err := uuid.FromString(userID)
 	if err != nil {
 		return errors.New("user ID must be a valid identifier")
 	}
 
-	return LinkApple(ctx, n.logger, n.db, n.config, n.socialClient, id, token)
+	return LinkApple(ctx, n.logger, n.db, n.config, n.socialClient, id, token, importEmail)
 }
 
 // @group authenticate
@@ -874,14 +880,15 @@ func (n *RuntimeGoNakamaModule) LinkEmail(ctx context.Context, userID, email, pa
 // @param username(type=string, optional=true) If left empty, one is generated.
 // @param token(type=string) Facebook OAuth or Limited Login (JWT) access token.
 // @param importFriends(type=bool) Whether to automatically import Facebook friends after authentication.
+// @param importEmail(type=bool) Whether to import the email from the Facebook account, if available and if the account has no email set.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) LinkFacebook(ctx context.Context, userID, username, token string, importFriends bool) error {
+func (n *RuntimeGoNakamaModule) LinkFacebook(ctx context.Context, userID, username, token string, importFriends, importEmail bool) error {
 	id, err := uuid.FromString(userID)
 	if err != nil {
 		return errors.New("user ID must be a valid identifier")
 	}
 
-	return LinkFacebook(ctx, n.logger, n.db, n.socialClient, n.tracker, n.router, id, username, n.config.GetSocial().FacebookLimitedLogin.AppId, token, importFriends)
+	return LinkFacebook(ctx, n.logger, n.db, n.socialClient, n.tracker, n.router, id, username, n.config.GetSocial().FacebookLimitedLogin.AppId, token, importFriends, importEmail)
 }
 
 // @group authenticate
@@ -924,14 +931,15 @@ func (n *RuntimeGoNakamaModule) LinkGameCenter(ctx context.Context, userID, play
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param userID(type=string) The user ID to be linked.
 // @param token(type=string) Google OAuth access token.
+// @param importEmail(type=bool) Whether to import the email from the Google account, if available and if the account has no email set.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) LinkGoogle(ctx context.Context, userID, token string) error {
+func (n *RuntimeGoNakamaModule) LinkGoogle(ctx context.Context, userID, token string, importEmail bool) error {
 	id, err := uuid.FromString(userID)
 	if err != nil {
 		return errors.New("user ID must be a valid identifier")
 	}
 
-	return LinkGoogle(ctx, n.logger, n.db, n.socialClient, id, token)
+	return LinkGoogle(ctx, n.logger, n.db, n.socialClient, id, token, importEmail)
 }
 
 // @group authenticate
@@ -3299,9 +3307,6 @@ func (n *RuntimeGoNakamaModule) TournamentRecordsHaystack(ctx context.Context, i
 // @return validation(*api.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) PurchaseValidateApple(ctx context.Context, userID, receipt string, persist bool, passwordOverride ...string) (*api.ValidatePurchaseResponse, error) {
-	if n.config.GetIAP().Apple.SharedPassword == "" && len(passwordOverride) == 0 {
-		return nil, errors.New("apple IAP is not configured")
-	}
 	password := n.config.GetIAP().Apple.SharedPassword
 	if len(passwordOverride) > 1 {
 		return nil, errors.New("expects a single password override parameter")
@@ -3491,7 +3496,7 @@ func (n *RuntimeGoNakamaModule) PurchasesList(ctx context.Context, userID string
 		return nil, errors.New("limit must be a positive value <= 100")
 	}
 
-	return ListPurchases(ctx, n.logger, n.db, userID, limit, cursor, time.Time{}, time.Time{})
+	return ListPurchases(ctx, n.logger, n.db, n.iapProviderRegistry, userID, limit, cursor, time.Time{}, time.Time{}, nil)
 }
 
 // @group purchases
@@ -3505,7 +3510,12 @@ func (n *RuntimeGoNakamaModule) PurchaseGetByTransactionId(ctx context.Context, 
 		return nil, errors.New("expects a transaction id string.")
 	}
 
-	return GetPurchaseByTransactionId(ctx, n.logger, n.db, transactionID)
+	purchase, err := GetPurchaseByTransactionId(ctx, n.logger, n.db, n.iapProviderRegistry, transactionID)
+	if err != nil {
+		return nil, err
+	}
+
+	return purchase, nil
 }
 
 // @group subscriptions
@@ -3518,9 +3528,6 @@ func (n *RuntimeGoNakamaModule) PurchaseGetByTransactionId(ctx context.Context, 
 // @return validation(*api.ValidateSubscriptionResponse) The resulting successfully validated subscription purchase.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) SubscriptionValidateApple(ctx context.Context, userID, receipt string, persist bool, passwordOverride ...string) (*api.ValidateSubscriptionResponse, error) {
-	if n.config.GetIAP().Apple.SharedPassword == "" && len(passwordOverride) == 0 {
-		return nil, errors.New("apple IAP is not configured")
-	}
 	password := n.config.GetIAP().Apple.SharedPassword
 	if len(passwordOverride) > 1 {
 		return nil, errors.New("expects a single password override parameter")
@@ -3617,7 +3624,7 @@ func (n *RuntimeGoNakamaModule) SubscriptionsList(ctx context.Context, userID st
 		return nil, errors.New("limit must be a positive value <= 100")
 	}
 
-	return ListSubscriptions(ctx, n.logger, n.db, userID, limit, cursor, time.Time{}, time.Time{})
+	return ListSubscriptions(ctx, n.logger, n.db, n.iapProviderRegistry, userID, limit, cursor, time.Time{}, time.Time{}, nil)
 }
 
 // @group subscriptions
@@ -3636,7 +3643,7 @@ func (n *RuntimeGoNakamaModule) SubscriptionGetByProductId(ctx context.Context, 
 		return nil, errors.New("expects a product id string.")
 	}
 
-	return GetSubscriptionByProductId(ctx, n.logger, n.db, userID, productID)
+	return GetSubscriptionByProductId(ctx, n.logger, n.db, n.iapProviderRegistry, userID, productID)
 }
 
 // @group groups
@@ -4674,5 +4681,65 @@ func (n *RuntimeGoNakamaModule) GetFleetManager() runtime.FleetManager {
 // @param name(type=string) The name the Fleet Manager was registered under. The empty name is the default.
 // @return fleetManager(runtime.FleetManager) The Fleet Manager client, or nil if none is registered under that name.
 func (n *RuntimeGoNakamaModule) GetFleetManagerByName(name string) runtime.FleetManager {
-	return n.fleetManagers[name]
+	return n.fleetManagers[strings.ToLower(name)]
+}
+
+// @group purchases
+// @summary Validates and stores a purchase with a registered IAP provider.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param provider(type=string) The name the IAP provider was registered under.
+// @param userID(type=string) The user ID of the owner of the purchase.
+// @param payload(type=map[string]any) The opaque payload passed through to the provider.
+// @param persist(type=bool) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
+// @param overrides(type=map[string]any, optional=true) Optional credential overrides passed through to the provider.
+// @return validation(*api.ValidateIAPPurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) PurchaseValidate(ctx context.Context, provider, userID string, payload map[string]any, persist bool, overrides ...map[string]any) (*api.ValidateIAPPurchaseResponse, error) {
+	uid, err := uuid.FromString(userID)
+	if err != nil {
+		return nil, errors.New("user ID must be a valid id string")
+	}
+
+	if len(provider) < 1 {
+		return nil, errors.New("provider cannot be empty string")
+	}
+
+	var providerOverrides map[string]any
+	if len(overrides) > 1 {
+		return nil, errors.New("expects a single overrides parameter")
+	} else if len(overrides) == 1 {
+		providerOverrides = overrides[0]
+	}
+
+	return ValidatePurchase(ctx, n.logger, n.db, n.iapProviderRegistry, uid, "", provider, payload, providerOverrides, persist)
+}
+
+// @group subscriptions
+// @summary Validates and stores a subscription with a registered IAP provider.
+// @param ctx(type=context.Context) The context object represents information about the server and requester.
+// @param provider(type=string) The name the IAP provider was registered under.
+// @param userID(type=string) The user ID of the owner of the subscription.
+// @param payload(type=map[string]any) The opaque payload passed through to the provider.
+// @param persist(type=bool) Persist the subscription.
+// @param overrides(type=map[string]any, optional=true) Optional credential overrides passed through to the provider.
+// @return validation(*api.ValidateIAPSubscriptionResponse) The resulting successfully validated subscription.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeGoNakamaModule) SubscriptionValidate(ctx context.Context, provider, userID string, payload map[string]any, persist bool, overrides ...map[string]any) (*api.ValidateIAPSubscriptionResponse, error) {
+	uid, err := uuid.FromString(userID)
+	if err != nil {
+		return nil, errors.New("user ID must be a valid id string")
+	}
+
+	if len(provider) < 1 {
+		return nil, errors.New("provider cannot be empty string")
+	}
+
+	var providerOverrides map[string]any
+	if len(overrides) > 1 {
+		return nil, errors.New("expects a single overrides parameter")
+	} else if len(overrides) == 1 {
+		providerOverrides = overrides[0]
+	}
+
+	return ValidateSubscription(ctx, n.logger, n.db, n.iapProviderRegistry, uid, "", provider, payload, providerOverrides, persist)
 }

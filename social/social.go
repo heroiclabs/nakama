@@ -221,16 +221,13 @@ type SteamProfileWrapper struct {
 // NewClient creates a new Social Client.
 func NewClient(logger *zap.Logger, timeout time.Duration, googleCnf *oauth2.Config, googleClientIDs ...string) *Client {
 	clientIDs := make(map[string]struct{}, len(googleClientIDs)+1)
-	if googleCnf != nil && googleCnf.ClientID != "" {
-		clientIDs[googleCnf.ClientID] = struct{}{}
-	}
 	for _, clientID := range googleClientIDs {
 		if clientID = strings.TrimSpace(clientID); clientID != "" {
 			clientIDs[clientID] = struct{}{}
 		}
 	}
 	if len(clientIDs) == 0 {
-		logger.Warn("Google auth config missing client ID config, so aud and azp token claims check skipped. Configure google_auth.client_ids or google_auth.credentials_json to restrict which Google OAuth clients are accepted.")
+		logger.Warn("Google auth config missing client ID config, so aud and azp token claims check skipped. Configure google_auth.client_ids to restrict which Google OAuth clients are accepted.")
 	}
 
 	return &Client{

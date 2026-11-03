@@ -409,10 +409,10 @@ service Nakama {
   }
 
   // Add an Apple ID to the social profiles on the current user's account.
-  rpc LinkApple (api.AccountApple) returns (google.protobuf.Empty) {
+  rpc LinkApple (api.LinkAppleRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       post: "/v2/account/link/apple",
-      body: "*"
+      body: "account"
     };
   }
 
@@ -473,10 +473,10 @@ service Nakama {
   }
 
   // Add Google to the social profiles on the current user's account.
-  rpc LinkGoogle (api.AccountGoogle) returns (google.protobuf.Empty) {
+  rpc LinkGoogle (api.LinkGoogleRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       post: "/v2/account/link/google",
-      body: "*"
+      body: "account"
     };
   }
 
@@ -710,6 +710,22 @@ service Nakama {
   rpc UpdateGroup (api.UpdateGroupRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {
       put: "/v2/group/{group_id}",
+      body: "*"
+    };
+  }
+
+  // Validate a purchase with a registered IAP provider
+  rpc ValidatePurchase (api.ValidateIAPPurchaseRequest) returns (api.ValidateIAPPurchaseResponse) {
+    option (google.api.http) = {
+      post: "/v2/iap/purchase/{provider}",
+      body: "*"
+    };
+  }
+
+  // Validate a subscription with a registered IAP provider
+  rpc ValidateSubscription (api.ValidateIAPSubscriptionRequest) returns (api.ValidateIAPSubscriptionResponse) {
+    option (google.api.http) = {
+      post: "/v2/iap/subscription/{provider}",
       body: "*"
     };
   }

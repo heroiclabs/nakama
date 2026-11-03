@@ -151,13 +151,18 @@ func dbTagKey(sf reflect.StructField) (key string, ok bool, err error) {
 
 type namedArg string
 
+// utf8.RuneError is returned both for a decoding failure and for a literal U+FFFD, which is a valid
+// character in a query. Only the former ends the input.
+const replacementcharacterwidth = 3
+
 type sqlLexer struct {
-	src     string
-	start   int
-	pos     int
-	nested  int // multiline comment nesting level.
-	stateFn stateFn
-	parts   []any
+	src       string
+	start     int
+	pos       int
+	nested    int    // multiline comment nesting level.
+	dollarTag string // active dollar-quote delimiter, including both '$' characters.
+	stateFn   stateFn
+	parts     []any
 
 	nameToOrdinal map[namedArg]int
 }
@@ -222,6 +227,12 @@ func rawState(l *sqlLexer) stateFn {
 			return singleQuoteState
 		case '"':
 			return doubleQuoteState
+		case '$':
+			if tagLen, ok := scanDollarQuoteTag(l.src[l.pos:]); ok {
+				l.dollarTag = l.src[l.pos-1 : l.pos+tagLen+1]
+				l.pos += tagLen + 1
+				return dollarQuoteState
+			}
 		case '@':
 			nextRune, _ := utf8.DecodeRuneInString(l.src[l.pos:])
 			if isLetter(nextRune) || nextRune == '_' {
@@ -244,13 +255,68 @@ func rawState(l *sqlLexer) stateFn {
 				return multilineCommentState
 			}
 		case utf8.RuneError:
-			if l.pos-l.start > 0 {
-				l.parts = append(l.parts, l.src[l.start:l.pos])
-				l.start = l.pos
+			if width != replacementcharacterwidth {
+				if l.pos-l.start > 0 {
+					l.parts = append(l.parts, l.src[l.start:l.pos])
+					l.start = l.pos
+				}
+				return nil
 			}
-			return nil
+		}
+
+		// A dollar sign within an unquoted identifier does not start a
+		// dollar-quoted string. Consume identifiers as a single token.
+		if isSQLIdentifierStart(r) {
+			for l.pos < len(l.src) {
+				next, width := utf8.DecodeRuneInString(l.src[l.pos:])
+				if next == utf8.RuneError && width != replacementcharacterwidth {
+					break
+				}
+				if !(isSQLIdentifierStart(next) || next >= '0' && next <= '9' || next == '$') {
+					break
+				}
+				l.pos += width
+			}
 		}
 	}
+}
+
+func isSQLIdentifierStart(r rune) bool {
+	return isLetter(r) || r == '_' || r >= 0x80
+}
+
+// scanDollarQuoteTag scans an optional tag and its terminating '$', starting
+// just after the opening '$'. Tags follow PostgreSQL's unquoted identifier
+// rules except that they cannot contain '$'.
+func scanDollarQuoteTag(src string) (int, bool) {
+	for i := 0; i < len(src); {
+		r, width := utf8.DecodeRuneInString(src[i:])
+		if r == '$' {
+			return i, true
+		}
+		if r == utf8.RuneError && width != replacementcharacterwidth {
+			return 0, false
+		}
+		if !(isSQLIdentifierStart(r) || i > 0 && r >= '0' && r <= '9') {
+			return 0, false
+		}
+		i += width
+	}
+	return 0, false
+}
+
+func dollarQuoteState(l *sqlLexer) stateFn {
+	idx := strings.Index(l.src[l.pos:], l.dollarTag)
+	if idx < 0 {
+		// Preserve unterminated literals, leaving syntax validation to PostgreSQL.
+		l.parts = append(l.parts, l.src[l.start:])
+		l.pos = len(l.src)
+		l.start = l.pos
+		return nil
+	}
+	l.pos += idx + len(l.dollarTag)
+	l.dollarTag = ""
+	return rawState
 }
 
 func isLetter(r rune) bool {
@@ -262,7 +328,7 @@ func namedArgState(l *sqlLexer) stateFn {
 		r, width := utf8.DecodeRuneInString(l.src[l.pos:])
 		l.pos += width
 
-		if r == utf8.RuneError {
+		if r == utf8.RuneError && width != replacementcharacterwidth {
 			if l.pos-l.start > 0 {
 				na := namedArg(l.src[l.start:l.pos])
 				if _, found := l.nameToOrdinal[na]; !found {
@@ -298,11 +364,13 @@ func singleQuoteState(l *sqlLexer) stateFn {
 			}
 			l.pos += width
 		case utf8.RuneError:
-			if l.pos-l.start > 0 {
-				l.parts = append(l.parts, l.src[l.start:l.pos])
-				l.start = l.pos
+			if width != replacementcharacterwidth {
+				if l.pos-l.start > 0 {
+					l.parts = append(l.parts, l.src[l.start:l.pos])
+					l.start = l.pos
+				}
+				return nil
 			}
-			return nil
 		}
 	}
 }
@@ -320,11 +388,13 @@ func doubleQuoteState(l *sqlLexer) stateFn {
 			}
 			l.pos += width
 		case utf8.RuneError:
-			if l.pos-l.start > 0 {
-				l.parts = append(l.parts, l.src[l.start:l.pos])
-				l.start = l.pos
+			if width != replacementcharacterwidth {
+				if l.pos-l.start > 0 {
+					l.parts = append(l.parts, l.src[l.start:l.pos])
+					l.start = l.pos
+				}
+				return nil
 			}
-			return nil
 		}
 	}
 }
@@ -345,11 +415,13 @@ func escapeStringState(l *sqlLexer) stateFn {
 			}
 			l.pos += width
 		case utf8.RuneError:
-			if l.pos-l.start > 0 {
-				l.parts = append(l.parts, l.src[l.start:l.pos])
-				l.start = l.pos
+			if width != replacementcharacterwidth {
+				if l.pos-l.start > 0 {
+					l.parts = append(l.parts, l.src[l.start:l.pos])
+					l.start = l.pos
+				}
+				return nil
 			}
-			return nil
 		}
 	}
 }
@@ -360,17 +432,16 @@ func oneLineCommentState(l *sqlLexer) stateFn {
 		l.pos += width
 
 		switch r {
-		case '\\':
-			_, width = utf8.DecodeRuneInString(l.src[l.pos:])
-			l.pos += width
 		case '\n', '\r':
 			return rawState
 		case utf8.RuneError:
-			if l.pos-l.start > 0 {
-				l.parts = append(l.parts, l.src[l.start:l.pos])
-				l.start = l.pos
+			if width != replacementcharacterwidth {
+				if l.pos-l.start > 0 {
+					l.parts = append(l.parts, l.src[l.start:l.pos])
+					l.start = l.pos
+				}
+				return nil
 			}
-			return nil
 		}
 	}
 }
@@ -400,11 +471,13 @@ func multilineCommentState(l *sqlLexer) stateFn {
 			l.nested--
 
 		case utf8.RuneError:
-			if l.pos-l.start > 0 {
-				l.parts = append(l.parts, l.src[l.start:l.pos])
-				l.start = l.pos
+			if width != replacementcharacterwidth {
+				if l.pos-l.start > 0 {
+					l.parts = append(l.parts, l.src[l.start:l.pos])
+					l.start = l.pos
+				}
+				return nil
 			}
-			return nil
 		}
 	}
 }

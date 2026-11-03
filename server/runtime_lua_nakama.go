@@ -93,11 +93,12 @@ type RuntimeLuaNakamaModule struct {
 	matchCreateFn        RuntimeMatchCreateFunction
 	eventFn              RuntimeEventCustomFunction
 	authProviderRegistry *RuntimeAuthenticateProviderRegistry
+	iapProviderRegistry  *RuntimeIAPProviderRegistry
 
 	satori runtime.Satori
 }
 
-func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, storageIndex StorageIndex, satoriClient runtime.Satori, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, authProviderRegistry *RuntimeAuthenticateProviderRegistry, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
+func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, storageIndex StorageIndex, satoriClient runtime.Satori, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, authProviderRegistry *RuntimeAuthenticateProviderRegistry, iapProviderRegistry *RuntimeIAPProviderRegistry, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
 	return &RuntimeLuaNakamaModule{
 		logger:               logger,
 		db:                   db,
@@ -130,6 +131,7 @@ func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshale
 		matchCreateFn:        matchCreateFn,
 		eventFn:              eventFn,
 		authProviderRegistry: authProviderRegistry,
+		iapProviderRegistry:  iapProviderRegistry,
 
 		satori: satoriClient,
 	}
@@ -137,19 +139,23 @@ func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshale
 
 func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 	functions := map[string]lua.LGFunction{
-		"register_rpc":                       n.registerRPC,
-		"register_authenticate_provider":     n.registerAuthenticateProvider,
-		"register_req_before":                n.registerReqBefore,
-		"register_req_after":                 n.registerReqAfter,
-		"register_rt_before":                 n.registerRTBefore,
-		"register_rt_after":                  n.registerRTAfter,
-		"register_matchmaker_matched":        n.registerMatchmakerMatched,
-		"register_tournament_end":            n.registerTournamentEnd,
-		"register_tournament_reset":          n.registerTournamentReset,
-		"register_leaderboard_reset":         n.registerLeaderboardReset,
-		"register_shutdown":                  n.registerShutdown,
-		"register_storage_index":             n.registerStorageIndex,
-		"register_storage_index_filter":      n.registerStorageIndexFilter,
+		"register_rpc":                              n.registerRPC,
+		"register_authenticate_provider":            n.registerAuthenticateProvider,
+		"register_req_before":                       n.registerReqBefore,
+		"register_req_after":                        n.registerReqAfter,
+		"register_rt_before":                        n.registerRTBefore,
+		"register_rt_after":                         n.registerRTAfter,
+		"register_matchmaker_matched":               n.registerMatchmakerMatched,
+		"register_tournament_end":                   n.registerTournamentEnd,
+		"register_tournament_reset":                 n.registerTournamentReset,
+		"register_leaderboard_reset":                n.registerLeaderboardReset,
+		"register_shutdown":                         n.registerShutdown,
+		"register_storage_index":                    n.registerStorageIndex,
+		"register_storage_index_filter":             n.registerStorageIndexFilter,
+		"register_purchase_notification_apple":      n.registerPurchaseNotificationApple,
+		"register_subscription_notification_apple":  n.registerSubscriptionNotificationApple,
+		"register_purchase_notification_google":     n.registerPurchaseNotificationGoogle,
+		"register_subscription_notification_google": n.registerSubscriptionNotificationGoogle,
 		"run_once":                           n.runOnce,
 		"get_context":                        n.getContext,
 		"event":                              n.event,
@@ -574,6 +580,70 @@ func (n *RuntimeLuaNakamaModule) registerShutdown(l *lua.LState) int {
 	}
 	if n.announceCallbackFn != nil {
 		n.announceCallbackFn(RuntimeExecutionModeShutdown, "")
+	}
+	return 0
+}
+
+// @group hooks
+// @summary Registers a function to be run when an Apple purchase notification is received.
+// @param fn(type=function) A function reference which will be executed on each purchase notification. It receives the context, the validated purchase, the provider payload as a JSON string and the notification type.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) registerPurchaseNotificationApple(l *lua.LState) int {
+	fn := l.CheckFunction(1)
+
+	if n.registerCallbackFn != nil {
+		n.registerCallbackFn(RuntimeExecutionModePurchaseNotificationApple, "", fn)
+	}
+	if n.announceCallbackFn != nil {
+		n.announceCallbackFn(RuntimeExecutionModePurchaseNotificationApple, "")
+	}
+	return 0
+}
+
+// @group hooks
+// @summary Registers a function to be run when an Apple subscription notification is received.
+// @param fn(type=function) A function reference which will be executed on each subscription notification. It receives the context, the validated subscription, the provider payload as a JSON string and the notification type.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) registerSubscriptionNotificationApple(l *lua.LState) int {
+	fn := l.CheckFunction(1)
+
+	if n.registerCallbackFn != nil {
+		n.registerCallbackFn(RuntimeExecutionModeSubscriptionNotificationApple, "", fn)
+	}
+	if n.announceCallbackFn != nil {
+		n.announceCallbackFn(RuntimeExecutionModeSubscriptionNotificationApple, "")
+	}
+	return 0
+}
+
+// @group hooks
+// @summary Registers a function to be run when a Google purchase notification is received.
+// @param fn(type=function) A function reference which will be executed on each purchase notification. It receives the context, the validated purchase, the provider payload as a JSON string and the notification type.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) registerPurchaseNotificationGoogle(l *lua.LState) int {
+	fn := l.CheckFunction(1)
+
+	if n.registerCallbackFn != nil {
+		n.registerCallbackFn(RuntimeExecutionModePurchaseNotificationGoogle, "", fn)
+	}
+	if n.announceCallbackFn != nil {
+		n.announceCallbackFn(RuntimeExecutionModePurchaseNotificationGoogle, "")
+	}
+	return 0
+}
+
+// @group hooks
+// @summary Registers a function to be run when a Google subscription notification is received.
+// @param fn(type=function) A function reference which will be executed on each subscription notification. It receives the context, the validated subscription, the provider payload as a JSON string and the notification type.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) registerSubscriptionNotificationGoogle(l *lua.LState) int {
+	fn := l.CheckFunction(1)
+
+	if n.registerCallbackFn != nil {
+		n.registerCallbackFn(RuntimeExecutionModeSubscriptionNotificationGoogle, "", fn)
+	}
+	if n.announceCallbackFn != nil {
+		n.announceCallbackFn(RuntimeExecutionModeSubscriptionNotificationGoogle, "")
 	}
 	return 0
 }
@@ -1754,6 +1824,7 @@ func (n *RuntimeLuaNakamaModule) bcryptCompare(l *lua.LState) int {
 // @param token(type=string) Apple sign in token.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
 // @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
+// @param importEmail(type=bool, optional=true, default=true) Import email from Apple if available and if the user account has no email set.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return created(bool) Value indicating if this account was just created or already existed.
@@ -1786,7 +1857,10 @@ func (n *RuntimeLuaNakamaModule) authenticateApple(l *lua.LState) int {
 	// Parse create flag, if any.
 	create := l.OptBool(3, true)
 
-	dbUserID, dbUsername, created, err := AuthenticateApple(l.Context(), n.logger, n.db, n.socialClient, n.config.GetSocial().Apple.BundleId, token, username, create)
+	// Parse import email flag, if any.
+	importEmail := l.OptBool(4, true)
+
+	dbUserID, dbUsername, created, err := AuthenticateApple(l.Context(), n.logger, n.db, n.socialClient, n.config.GetSocial().Apple.BundleId, token, username, create, importEmail)
 	if err != nil {
 		l.RaiseError("error authenticating: %v", err.Error())
 		return 0
@@ -1983,6 +2057,7 @@ func (n *RuntimeLuaNakamaModule) authenticateEmail(l *lua.LState) int {
 // @param importFriends(type=bool, optional=true, default=true) Whether to automatically import Facebook friends after authentication.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
 // @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
+// @param importEmail(type=bool, optional=true, default=true) Import email from Facebook if available and if the user account has no email set.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return created(bool) Value indicating if this account was just created or already existed.
@@ -2013,7 +2088,10 @@ func (n *RuntimeLuaNakamaModule) authenticateFacebook(l *lua.LState) int {
 	// Parse create flag, if any.
 	create := l.OptBool(4, true)
 
-	dbUserID, dbUsername, created, err := AuthenticateFacebook(l.Context(), n.logger, n.db, n.socialClient, n.config.GetSocial().FacebookLimitedLogin.AppId, token, username, create)
+	// Parse import email flag, if any.
+	importEmail := l.OptBool(5, true)
+
+	dbUserID, dbUsername, created, err := AuthenticateFacebook(l.Context(), n.logger, n.db, n.socialClient, n.config.GetSocial().FacebookLimitedLogin.AppId, token, username, create, importEmail)
 	if err != nil {
 		l.RaiseError("error authenticating: %v", err.Error())
 		return 0
@@ -2154,6 +2232,7 @@ func (n *RuntimeLuaNakamaModule) authenticateGameCenter(l *lua.LState) int {
 // @param token(type=string) Google OAuth access token.
 // @param username(type=string, optional=true) The user's username. If left empty, one is generated.
 // @param create(type=bool, optional=true, default=true) Create user if one didn't exist previously.
+// @param importEmail(type=bool, optional=true, default=true) Import email from Google if available and if the user account has no email set.
 // @return userID(string) The user ID of the authenticated user.
 // @return username(string) The username of the authenticated user.
 // @return created(bool) Value indicating if this account was just created or already existed.
@@ -2181,7 +2260,10 @@ func (n *RuntimeLuaNakamaModule) authenticateGoogle(l *lua.LState) int {
 	// Parse create flag, if any.
 	create := l.OptBool(3, true)
 
-	dbUserID, dbUsername, created, err := AuthenticateGoogle(l.Context(), n.logger, n.db, n.socialClient, token, username, create)
+	// Parse import email flag, if any.
+	importEmail := l.OptBool(4, true)
+
+	dbUserID, dbUsername, created, err := AuthenticateGoogle(l.Context(), n.logger, n.db, n.socialClient, token, username, create, importEmail)
 	if err != nil {
 		l.RaiseError("error authenticating: %v", err.Error())
 		return 0
@@ -2970,7 +3052,7 @@ func purchaseValidationToLuaTable(l *lua.LState, validation *api.ValidatePurchas
 }
 
 func purchaseToLuaTable(l *lua.LState, p *api.ValidatedPurchase) *lua.LTable {
-	validatedPurchaseTable := l.CreateTable(0, 11)
+	validatedPurchaseTable := l.CreateTable(0, 12)
 
 	validatedPurchaseTable.RawSetString("user_id", lua.LString(p.UserId))
 	validatedPurchaseTable.RawSetString("product_id", lua.LString(p.ProductId))
@@ -2991,6 +3073,9 @@ func purchaseToLuaTable(l *lua.LState, p *api.ValidatedPurchase) *lua.LTable {
 	}
 	validatedPurchaseTable.RawSetString("environment", lua.LString(p.Environment.String()))
 	validatedPurchaseTable.RawSetString("seen_before", lua.LBool(p.SeenBefore))
+	if p.Provider != "" {
+		validatedPurchaseTable.RawSetString("provider", lua.LString(p.Provider))
+	}
 
 	return validatedPurchaseTable
 }
@@ -3003,7 +3088,7 @@ func subscriptionValidationToLuaTable(l *lua.LState, validation *api.ValidateSub
 }
 
 func subscriptionToLuaTable(l *lua.LState, p *api.ValidatedSubscription) *lua.LTable {
-	validatedSubscriptionTable := l.CreateTable(0, 13)
+	validatedSubscriptionTable := l.CreateTable(0, 14)
 	validatedSubscriptionTable.RawSetString("user_id", lua.LString(p.UserId))
 	validatedSubscriptionTable.RawSetString("product_id", lua.LString(p.ProductId))
 	validatedSubscriptionTable.RawSetString("original_transaction_id", lua.LString(p.OriginalTransactionId))
@@ -3025,6 +3110,9 @@ func subscriptionToLuaTable(l *lua.LState, p *api.ValidatedSubscription) *lua.LT
 	validatedSubscriptionTable.RawSetString("active", lua.LBool(p.Active))
 	validatedSubscriptionTable.RawSetString("provider_response", lua.LString(p.ProviderResponse))
 	validatedSubscriptionTable.RawSetString("provider_notification", lua.LString(p.ProviderNotification))
+	if p.Provider != "" {
+		validatedSubscriptionTable.RawSetString("provider", lua.LString(p.Provider))
+	}
 
 	return validatedSubscriptionTable
 }
@@ -3297,6 +3385,7 @@ func (n *RuntimeLuaNakamaModule) usersUnbanId(l *lua.LState) int {
 // @summary Link Apple authentication to a user ID.
 // @param userID(type=string) The user ID to be linked.
 // @param token(type=string) Apple sign in token.
+// @param importEmail(type=bool, optional=true, default=true) Import email from Apple if available and if the user account has no email set.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) linkApple(l *lua.LState) int {
 	userID := l.CheckString(1)
@@ -3312,7 +3401,9 @@ func (n *RuntimeLuaNakamaModule) linkApple(l *lua.LState) int {
 		return 0
 	}
 
-	if err := LinkApple(l.Context(), n.logger, n.db, n.config, n.socialClient, id, token); err != nil {
+	importEmail := l.OptBool(3, true)
+
+	if err := LinkApple(l.Context(), n.logger, n.db, n.config, n.socialClient, id, token, importEmail); err != nil {
 		l.RaiseError("error linking: %v", err.Error())
 	}
 	return 0
@@ -3468,6 +3559,7 @@ func (n *RuntimeLuaNakamaModule) linkEmail(l *lua.LState) int {
 // @param username(type=string, optional=true) If left empty, one is generated.
 // @param token(type=string) Facebook OAuth or Limited Login (JWT) access token.
 // @param importFriends(type=bool, optional=true, default=true) Whether to automatically import Facebook friends after authentication.
+// @param importEmail(type=bool, optional=true, default=true) Import email from Facebook if available and if the user account has no email set.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) linkFacebook(l *lua.LState) int {
 	userID := l.CheckString(1)
@@ -3482,14 +3574,18 @@ func (n *RuntimeLuaNakamaModule) linkFacebook(l *lua.LState) int {
 		l.ArgError(2, "expects username string")
 		return 0
 	}
+
 	token := l.CheckString(3)
 	if token == "" {
 		l.ArgError(3, "expects token string")
 		return 0
 	}
+
 	importFriends := l.OptBool(4, true)
 
-	if err := LinkFacebook(l.Context(), n.logger, n.db, n.socialClient, n.tracker, n.router, id, username, n.config.GetSocial().FacebookLimitedLogin.AppId, token, importFriends); err != nil {
+	importEmail := l.OptBool(5, true)
+
+	if err := LinkFacebook(l.Context(), n.logger, n.db, n.socialClient, n.tracker, n.router, id, username, n.config.GetSocial().FacebookLimitedLogin.AppId, token, importFriends, importEmail); err != nil {
 		l.RaiseError("error linking: %v", err.Error())
 	}
 	return 0
@@ -3579,6 +3675,7 @@ func (n *RuntimeLuaNakamaModule) linkGameCenter(l *lua.LState) int {
 // @summary Link Google authentication to a user ID.
 // @param userID(type=string) The user ID to be linked.
 // @param token(type=string) Google OAuth access token.
+// @param importEmail(type=bool, optional=true, default=true) Import email from Google if available and if the user account has no email set.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) linkGoogle(l *lua.LState) int {
 	userID := l.CheckString(1)
@@ -3594,7 +3691,9 @@ func (n *RuntimeLuaNakamaModule) linkGoogle(l *lua.LState) int {
 		return 0
 	}
 
-	if err := LinkGoogle(l.Context(), n.logger, n.db, n.socialClient, id, token); err != nil {
+	importEmail := l.OptBool(3, true)
+
+	if err := LinkGoogle(l.Context(), n.logger, n.db, n.socialClient, id, token, importEmail); err != nil {
 		l.RaiseError("error linking: %v", err.Error())
 	}
 	return 0
@@ -3605,7 +3704,7 @@ func (n *RuntimeLuaNakamaModule) linkGoogle(l *lua.LState) int {
 // @param userID(type=string) The user ID to be linked.
 // @param username(type=string) If left empty, one is generated.
 // @param token(type=string) Steam access token.
-// @param importFriends(type=bool, optiona=true, default=true) Whether to automatically import Steam friends after authentication.
+// @param importFriends(type=bool, optional=true, default=true) Whether to automatically import Steam friends after authentication.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) linkSteam(l *lua.LState) int {
 	userID := l.CheckString(1)
@@ -4653,7 +4752,7 @@ func (n *RuntimeLuaNakamaModule) streamClose(l *lua.LState) int {
 // @param streamTable(type=table) A stream object consisting of a `mode` (int), `subject` (string), `descriptor` (string) and `label` (string).
 // @param data(type=string) The data to send.
 // @param presences(type=table) Table of presences to receive the sent data. If not set, will be sent to all presences.
-// @param reliable(type=bool, optiona=true, default=true) Whether the sender has been validated prior.
+// @param reliable(type=bool, optional=true, default=true) Whether the sender has been validated prior.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) streamSend(l *lua.LState) int {
 	// Parse input stream identifier.
@@ -8425,7 +8524,7 @@ func (n *RuntimeLuaNakamaModule) purchaseGetByTransactionId(l *lua.LState) int {
 		return 0
 	}
 
-	purchase, err := GetPurchaseByTransactionId(l.Context(), n.logger, n.db, transactionID)
+	purchase, err := GetPurchaseByTransactionId(l.Context(), n.logger, n.db, n.iapProviderRegistry, transactionID)
 	if err != nil {
 		l.RaiseError("error retrieving purchase: %v", err.Error())
 		return 0
@@ -8459,7 +8558,7 @@ func (n *RuntimeLuaNakamaModule) purchasesList(l *lua.LState) int {
 
 	cursor := l.OptString(3, "")
 
-	purchases, err := ListPurchases(l.Context(), n.logger, n.db, userID, limit, cursor, time.Time{}, time.Time{})
+	purchases, err := ListPurchases(l.Context(), n.logger, n.db, n.iapProviderRegistry, userID, limit, cursor, time.Time{}, time.Time{}, nil)
 	if err != nil {
 		l.RaiseError("error retrieving purchases: %v", err.Error())
 		return 0
@@ -8604,7 +8703,7 @@ func (n *RuntimeLuaNakamaModule) subscriptionGetByProductId(l *lua.LState) int {
 		return 0
 	}
 
-	subscription, err := GetSubscriptionByProductId(l.Context(), n.logger, n.db, uid.String(), productID)
+	subscription, err := GetSubscriptionByProductId(l.Context(), n.logger, n.db, n.iapProviderRegistry, uid.String(), productID)
 	if err != nil {
 		l.RaiseError("error retrieving subscription: %v", err.Error())
 		return 0
@@ -8638,7 +8737,7 @@ func (n *RuntimeLuaNakamaModule) subscriptionsList(l *lua.LState) int {
 
 	cursor := l.OptString(3, "")
 
-	subscriptions, err := ListSubscriptions(l.Context(), n.logger, n.db, userID, limit, cursor, time.Time{}, time.Time{})
+	subscriptions, err := ListSubscriptions(l.Context(), n.logger, n.db, n.iapProviderRegistry, userID, limit, cursor, time.Time{}, time.Time{}, nil)
 	if err != nil {
 		l.RaiseError("error retrieving subscriptions: %v", err.Error())
 		return 0

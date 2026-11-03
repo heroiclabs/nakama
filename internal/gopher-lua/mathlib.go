@@ -222,7 +222,6 @@ func mathRandom(L *LState) int {
 		max := L.CheckInt(2) + 1
 		L.Push(LNumber(random.Intn(max-min) + min))
 	}
-
 	return 1
 }
 
@@ -257,3 +256,5 @@ func mathTanh(L *LState) int {
 	L.Push(LNumber(math.Tanh(float64(L.CheckNumber(1)))))
 	return 1
 }
+
+//

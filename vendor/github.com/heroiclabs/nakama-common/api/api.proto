@@ -205,6 +205,8 @@ message AuthenticateAppleRequest {
   google.protobuf.BoolValue create = 2;
   // Set the username on the account at register. Must be unique.
   string username = 3;
+  // Import an email coming from the provider, if available, and if no other email is already set.
+  google.protobuf.BoolValue import_email = 4;
 }
 
 // Authenticate against the server with a custom ID.
@@ -247,6 +249,8 @@ message AuthenticateFacebookRequest {
   string username = 3;
   // Import Facebook friends for the user.
   google.protobuf.BoolValue sync = 4;
+  // Import an email coming from the provider, if available, and if no other email is already set.
+  google.protobuf.BoolValue import_email = 5;
 }
 
 // Authenticate against the server with Facebook Instant Game token.
@@ -277,6 +281,8 @@ message AuthenticateGoogleRequest {
   google.protobuf.BoolValue create = 2;
   // Set the username on the account at register. Must be unique.
   string username = 3;
+  // Import an email coming from the provider, if available, and if no other email is already set.
+  google.protobuf.BoolValue import_email = 4;
 }
 
 // Authenticate against the server with a runtime-registered provider.
@@ -674,12 +680,30 @@ message LeaveGroupRequest {
   string group_id = 1;
 }
 
+// Link Apple to the current user's account.
+message LinkAppleRequest {
+  // The Apple account details.
+  AccountApple account = 1;
+  // Import an email coming from the provider, if available, and if no other email is already set.
+  google.protobuf.BoolValue import_email = 2;
+}
+
 // Link Facebook to the current user's account.
 message LinkFacebookRequest {
   // The Facebook account details.
   AccountFacebook account = 1;
   // Import Facebook friends for the user.
   google.protobuf.BoolValue sync = 2;
+  // Import an email coming from the provider, if available, and if no other email is already set.
+  google.protobuf.BoolValue import_email = 3;
+}
+
+// Link Google to the current user's account.
+message LinkGoogleRequest {
+  // The Google account details.
+  AccountGoogle account = 1;
+  // Import an email coming from the provider, if available, and if no other email is already set.
+  google.protobuf.BoolValue import_email = 2;
 }
 
 // Link Steam to the current user's account.
@@ -1278,6 +1302,26 @@ message ValidatePurchaseSamsungRequest {
   google.protobuf.BoolValue persist = 2;
 }
 
+// Validate a purchase with a runtime-registered IAP provider.
+message ValidateIAPPurchaseRequest {
+  // The name the provider was registered under during runtime initialization.
+  string provider = 1;
+  // Opaque JSON passed through to the registered provider.
+  google.protobuf.Struct payload = 2;
+  // Persist the purchase so that seenBefore can be computed to protect against replay attacks.
+  google.protobuf.BoolValue persist = 3;
+}
+
+// Validate a subscription with a runtime-registered IAP provider.
+message ValidateIAPSubscriptionRequest {
+  // The name the provider was registered under during runtime initialization.
+  string provider = 1;
+  // Opaque JSON passed through to the registered provider.
+  google.protobuf.Struct payload = 2;
+  // Persist the subscription.
+  google.protobuf.BoolValue persist = 3;
+}
+
 // Validated Purchase stored by Nakama.
 message ValidatedPurchase {
   // Purchase User ID.
@@ -1302,6 +1346,8 @@ message ValidatedPurchase {
   StoreEnvironment environment = 10;
   // Whether the purchase had already been validated by Nakama before.
   bool seen_before = 11;
+  // Name of the IAP provider that validated the purchase, empty for a built-in store. For IAP providers, store holds the provider's code.
+  string provider = 12;
 }
 
 // Validate IAP response.
@@ -1313,6 +1359,17 @@ message ValidatePurchaseResponse {
 // Validate Subscription response.
 message ValidateSubscriptionResponse {
   ValidatedSubscription validated_subscription = 1;
+}
+
+// Purchases validated by a runtime-registered IAP provider.
+message ValidateIAPPurchaseResponse {
+  // Validated purchases.
+  repeated ValidatedPurchase purchase = 1;
+}
+
+// Subscription validated by a runtime-registered IAP provider.
+message ValidateIAPSubscriptionResponse {
+  ValidatedSubscription subscription = 1;
 }
 
 // Validation Provider,
@@ -1366,6 +1423,8 @@ message ValidatedSubscription {
   string provider_notification = 12;
   // Whether the subscription is currently active or not.
   bool active = 13;
+  // Name of the IAP provider that validated the subscription, empty for a built-in store. For IAP providers, store holds the provider's code.
+  string provider = 14;
 }
 
 // A list of validated purchases stored by Nakama.
