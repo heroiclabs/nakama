@@ -7,6 +7,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [3.42.0] - 2026-11-03
 ### Added
+- Add Hiro Streaks support to the console, with its own ACL resource and audit logging.
 - Add Go runtime IAP providers, validated with the `ValidatePurchase` client API and `PurchaseValidate` function.
 - Add subscription validation through IAP providers with the `ValidateSubscription` client API and `SubscriptionValidate` function, and the `RegisterBeforeValidateSubscription` and `RegisterAfterValidateSubscription` hooks.
 - Add a notification endpoint for each IAP provider at `/v2/console/<Name>/notifications/<NotificationEndpointId>`, or `/v2/console/<Name>/notifications` when the provider returns no `NotificationEndpointId`.
