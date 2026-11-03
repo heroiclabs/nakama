@@ -21,6 +21,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"html/template"
 	"io"
 	"math"
 	"net"
@@ -251,6 +252,27 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		logger.Info("Registered endpoint for IAP provider notifications callback", zap.String("provider", name), zap.String("endpoint", endpoint))
 	}
 
+	grpcGatewayRouter.Path("/v2/console/login").Methods("POST").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		token := r.PostFormValue("token")
+
+		session, err := s.Authenticate(r.Context(), &console.AuthenticateRequest{
+			Token: &token,
+		})
+		if err != nil {
+			logger.Error("Failed to authenticate.", zap.Error(err))
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		html := strings.ReplaceAll(string(console.LoginHTML), "{{token}}", template.JSEscapeString(session.Token))
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		_, _ = w.Write([]byte(html))
+	})
+
 	// pprof routes
 	grpcGatewayRouter.Handle("/debug/pprof/", adminBasicAuth(config.GetConsole())(http.HandlerFunc(pprof.Index)))
 	grpcGatewayRouter.Handle("/debug/pprof/cmdline", adminBasicAuth(config.GetConsole())(http.HandlerFunc(pprof.Cmdline)))
@@ -366,6 +388,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		// Allow GRPC Gateway to handle the request.
 		handlerWithMaxBody.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxTraceId{}, uuid.Must(uuid.NewV4()).String())))
 	})
+
 	if err := registerDashboardHandlers(logger, grpcGatewayRouter); err != nil {
 		startupLogger.Fatal("Console dashboard registration failed", zap.Error(err))
 	}
