@@ -4,6 +4,8 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 [Unreleased]
+
+## [3.42.0] - 2026-11-03
 ### Added
 - Add Hiro Streaks support to the console, with its own ACL resource and audit logging.
 - Add Go runtime IAP providers, validated with the `ValidatePurchase` client API and `PurchaseValidate` function.
@@ -11,17 +13,22 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add a notification endpoint for each IAP provider at `/v2/console/<Name>/notifications/<NotificationEndpointId>`, or `/v2/console/<Name>/notifications` when the provider returns no `NotificationEndpointId`.
 - Add the `RegisterIAPPurchaseNotification` and `RegisterIAPSubscriptionNotification` hooks for purchase refunds and subscription changes reported by IAP providers.
 - Add a provider filter to the console purchase and subscription lists, taking an IAP provider name or a built-in store.
-- Build with Go 1.27.3.
 - Log a startup warning when a Lua runtime before or after request hook is registered for an unknown API name.
 
 ### Changed
 - Directory listings on the console port now return an HTTP 404 Not Found error.
 - Change the Fleet Manager Init interface to receive the namespace of the instance being registered.
 - Fleet Manager registration by name is now case-insensitive.
-- Change Authenticate/Link{Apple,Facebook,Google} APIs to optionally allow opting-out from importing the email address from the provider.
+- Change AuthenticateApple to optionally opt-out from importing the email address from the provider.
+- Change AuthenticateFacebook to optionally opt-out from importing the email address from the provider.
+- Change AuthenticateGoogle to optionally opt-out from importing the email address from the provider.
+- Change LinkApple to optionally opt-out from importing the email address from the provider.
+- Change LinkFacebook to optionally opt-out from importing the email address from the provider.
+- Change LinkGoogle to optionally opt-out from importing the email address from the provider.
+- Build with Go 1.27.3.
 
 ### Fixed
-- Only apply Google Authentication token aud/azp validation if explicitly configured via google_auth.client_ids.
+- Only apply Google Authentication token aud/azp validation if explicitly configured via `google_auth.client_ids`.
 - Fix JavaScript runtime not finding `InitModule` or match handlers declared after another variable in the same declaration.
 - Fix leaderboard reset and tournament end and reset hooks sometimes being skipped by the scheduler.
 - Fix tournament end and reset hooks sometimes not firing for the first active period when the start time is in the future.
