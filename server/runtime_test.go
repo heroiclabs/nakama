@@ -30,6 +30,9 @@ import (
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	rt "github.com/heroiclabs/nakama-common/runtime"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -82,7 +85,11 @@ func runtimeWithModulesWithData(t *testing.T, modules map[string]string) (*Runti
 	defer os.RemoveAll(dir)
 
 	for moduleName, moduleData := range modules {
-		if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("%v.lua", moduleName)), []byte(moduleData), 0o644); err != nil {
+		fileName := moduleName + ".lua"
+		if filepath.Ext(moduleName) == ".js" {
+			fileName = moduleName
+		}
+		if err := os.WriteFile(filepath.Join(dir, fileName), []byte(moduleData), 0o644); err != nil {
 			t.Fatalf("Failed initializing runtime modules tempfile: %s", err.Error())
 		}
 	}
@@ -913,6 +920,217 @@ nakama.register_req_after(after_storage_write, "WriteStorageObjects")`,
 	if account.Wallet != `{"gem": 10}` {
 		t.Fatalf("Unexpected wallet value: %s", account.Wallet)
 	}
+}
+
+func TestRuntimeLuaRequestHooksRun(t *testing.T) {
+	ctx := context.Background()
+
+	cases := []struct {
+		name   string
+		module string
+		invoke func(t *testing.T, r *Runtime) error
+	}{
+		{
+			name: "after ListFriendsOfFriends",
+			module: `local nk = require("nakama")
+
+local function hook(ctx, out, input)
+	error("hook ran")
+end
+
+nk.register_req_after(hook, "ListFriendsOfFriends")`,
+			invoke: func(t *testing.T, r *Runtime) error {
+				fn := r.AfterListFriendsOfFriends()
+				require.NotNil(t, fn)
+				return fn(ctx, logger, "", "", "", nil, 0, "", "", &api.FriendsOfFriendsList{})
+			},
+		},
+		{
+			name: "before DemoteGroupUsers",
+			module: `local nk = require("nakama")
+
+local function hook(ctx, input)
+	error("hook ran")
+end
+
+nk.register_req_before(hook, "DemoteGroupUsers")`,
+			invoke: func(t *testing.T, r *Runtime) error {
+				fn := r.BeforeDemoteGroupUsers()
+				require.NotNil(t, fn)
+				_, err, _ := fn(ctx, logger, "", "", "", nil, 0, "", "", &api.DemoteGroupUsersRequest{})
+				return err
+			},
+		},
+		{
+			name: "after DemoteGroupUsers",
+			module: `local nk = require("nakama")
+
+local function hook(ctx, out, input)
+	error("hook ran")
+end
+
+nk.register_req_after(hook, "DemoteGroupUsers")`,
+			invoke: func(t *testing.T, r *Runtime) error {
+				fn := r.AfterDemoteGroupUsers()
+				require.NotNil(t, fn)
+				return fn(ctx, logger, "", "", "", nil, 0, "", "", &api.DemoteGroupUsersRequest{})
+			},
+		},
+		{
+			name: "before ImportSteamFriends",
+			module: `local nk = require("nakama")
+
+local function hook(ctx, input)
+	error("hook ran")
+end
+
+nk.register_req_before(hook, "ImportSteamFriends")`,
+			invoke: func(t *testing.T, r *Runtime) error {
+				fn := r.BeforeImportSteamFriends()
+				require.NotNil(t, fn)
+				_, err, _ := fn(ctx, logger, "", "", "", nil, 0, "", "", &api.ImportSteamFriendsRequest{})
+				return err
+			},
+		},
+		{
+			name: "after ImportSteamFriends",
+			module: `local nk = require("nakama")
+
+local function hook(ctx, out, input)
+	error("hook ran")
+end
+
+nk.register_req_after(hook, "ImportSteamFriends")`,
+			invoke: func(t *testing.T, r *Runtime) error {
+				fn := r.AfterImportSteamFriends()
+				require.NotNil(t, fn)
+				return fn(ctx, logger, "", "", "", nil, 0, "", "", &api.ImportSteamFriendsRequest{})
+			},
+		},
+		{
+			name: "before DeleteTournamentRecord",
+			module: `local nk = require("nakama")
+
+local function hook(ctx, input)
+	error("hook ran")
+end
+
+nk.register_req_before(hook, "DeleteTournamentRecord")`,
+			invoke: func(t *testing.T, r *Runtime) error {
+				fn := r.BeforeDeleteTournamentRecord()
+				require.NotNil(t, fn)
+				_, err, _ := fn(ctx, logger, "", "", "", nil, 0, "", "", &api.DeleteTournamentRecordRequest{})
+				return err
+			},
+		},
+		{
+			name: "after DeleteTournamentRecord",
+			module: `local nk = require("nakama")
+
+local function hook(ctx, out, input)
+	error("hook ran")
+end
+
+nk.register_req_after(hook, "DeleteTournamentRecord")`,
+			invoke: func(t *testing.T, r *Runtime) error {
+				fn := r.AfterDeleteTournamentRecord()
+				require.NotNil(t, fn)
+				return fn(ctx, logger, "", "", "", nil, 0, "", "", &api.DeleteTournamentRecordRequest{})
+			},
+		},
+		{
+			name: "before ListParties",
+			module: `local nk = require("nakama")
+
+local function hook(ctx, input)
+	error("hook ran")
+end
+
+nk.register_req_before(hook, "ListParties")`,
+			invoke: func(t *testing.T, r *Runtime) error {
+				fn := r.BeforeListParties()
+				require.NotNil(t, fn)
+				_, err, _ := fn(ctx, logger, "", "", "", nil, 0, "", "", &api.ListPartiesRequest{})
+				return err
+			},
+		},
+		{
+			name: "after ListParties",
+			module: `local nk = require("nakama")
+
+local function hook(ctx, out, input)
+	error("hook ran")
+end
+
+nk.register_req_after(hook, "ListParties")`,
+			invoke: func(t *testing.T, r *Runtime) error {
+				fn := r.AfterListParties()
+				require.NotNil(t, fn)
+				return fn(ctx, logger, "", "", "", nil, 0, "", "", &api.PartyList{}, &api.ListPartiesRequest{})
+			},
+		},
+		{
+			name: "after ValidateSubscriptionGoogle",
+			module: `local nk = require("nakama")
+
+local function hook(ctx, out, input)
+	error("hook ran")
+end
+
+nk.register_req_after(hook, "ValidateSubscriptionGoogle")`,
+			invoke: func(t *testing.T, r *Runtime) error {
+				require.Nil(t, r.AfterValidateSubscriptionApple())
+				fn := r.AfterValidateSubscriptionGoogle()
+				require.NotNil(t, fn)
+				return fn(ctx, logger, "", "", "", nil, 0, "", "", &api.ValidateSubscriptionResponse{}, &api.ValidateSubscriptionGoogleRequest{})
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r, _, err := runtimeWithModules(t, map[string]string{"hooks": tc.module})
+			require.NoError(t, err)
+
+			err = tc.invoke(t, r)
+			require.ErrorContains(t, err, "hook ran", "failed to call hook")
+		})
+	}
+}
+
+func TestRuntimeLuaRequestHookWithUnknownIdWarnsAtStartup(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "hooks.lua"), []byte(`local nk = require("nakama")
+
+local function before_hook(ctx, input)
+	return input
+end
+
+local function after_hook(ctx, out, input)
+end
+
+nk.register_req_before(before_hook, "GetAcount")
+nk.register_req_after(after_hook, "GetAccount")`), 0o644))
+
+	core, logs := observer.New(zap.WarnLevel)
+	startupLogger := zap.New(core)
+	cfg := NewConfig(logger)
+	cfg.Runtime.Path = dir
+	ctx := context.Background()
+	db := NewDB(t)
+	lbCache := NewLocalLeaderboardCache(ctx, logger, logger, db)
+	lbRankCache := NewLocalLeaderboardRankCache(ctx, logger, db, cfg.Leaderboard, lbCache)
+	lbSched := NewLocalLeaderboardScheduler(logger, db, cfg, lbCache, lbRankCache)
+	sessionRegistry := NewLocalSessionRegistry(metrics)
+	tracker := &LocalTracker{sessionRegistry: sessionRegistry}
+	statusRegistry := NewLocalStatusRegistry(logger, cfg, sessionRegistry, protojsonMarshaler)
+
+	_, _, err := NewRuntime(ctx, logger, startupLogger, db, protojsonMarshaler, protojsonUnmarshaler, cfg, "", nil, lbCache, lbRankCache, lbSched, sessionRegistry, nil, statusRegistry, nil, nil, tracker, metrics, nil, &DummyMessageRouter{}, storageIdx, nil)
+	require.NoError(t, err)
+
+	warnings := logs.FilterMessage("Lua runtime request hook id matches no API, the hook will not run").All()
+	require.Len(t, warnings, 1)
+	require.Equal(t, map[string]any{"id": "getacount", "mode": "before"}, warnings[0].ContextMap())
 }
 
 func TestRuntimeRTBeforeHook(t *testing.T) {

@@ -11,6 +11,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add the `RegisterIAPPurchaseNotification` and `RegisterIAPSubscriptionNotification` hooks for purchase refunds and subscription changes reported by IAP providers.
 - Add a provider filter to the console purchase and subscription lists, taking an IAP provider name or a built-in store.
 - Build with Go 1.27.3.
+- Log a startup warning when a Lua runtime before or after request hook is registered for an unknown API name.
 
 ### Changed
 - Directory listings on the console port now return an HTTP 404 Not Found error.
@@ -29,6 +30,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Fix JavaScript runtime match registration failing when handler keys are quoted.
 - Add missing Lua runtime functions to register Apple and Google In-App Purchase and Subscription notification hooks.
 - Fix Lua runtime shutdown hooks never running.
+- Fix some Go, Lua and JavaScript runtime request hooks never running, and Lua and JavaScript Google subscription validation after hooks running on Apple validations instead.
 
 ## [3.41.0] - 2026-09-18
 ### Added
