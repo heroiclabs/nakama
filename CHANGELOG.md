@@ -31,6 +31,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Add missing Lua runtime functions to register Apple and Google In-App Purchase and Subscription notification hooks.
 - Fix Lua runtime shutdown hooks never running.
 - Fix some Go, Lua and JavaScript runtime request hooks never running, and Lua and JavaScript Google subscription validation after hooks running on Apple validations instead.
+- Fix Lua and JavaScript authentication providers and storage index filters stalling when called from an RPC or hook while the runtime pool is exhausted.
 
 ## [3.41.0] - 2026-09-18
 ### Added
