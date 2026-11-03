@@ -83,3 +83,21 @@ func Test_AclUpgrades(t *testing.T) {
 		})
 	}
 }
+
+func Test_IsAdmin(t *testing.T) {
+	tests := []struct {
+		name string
+		in   Permission
+		want bool
+	}{
+		{name: "admin is admin", in: Admin(), want: true},
+		{name: "none is not admin", in: None(), want: false},
+		{name: "zero value is not admin", in: Permission{}, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.in.IsAdmin())
+		})
+	}
+}
