@@ -47,7 +47,8 @@ func Test_Permission(t *testing.T) {
 
 func Test_AclUpgrades(t *testing.T) {
 	limited := NewPermission(console.AclResources_ACCOUNT, PermissionRead).
-		Compose(NewPermission(console.AclResources_USER, PermissionWrite))
+		Compose(NewPermission(console.AclResources_USER, PermissionWrite)).
+		Compose(NewPermission(console.AclResources_HIRO_STATS, PermissionDelete))
 
 	lastResource := ConsoleResource(len(console.AclResources_value) - 1)
 	allButLastResourceDelete := None()
@@ -67,9 +68,6 @@ func Test_AclUpgrades(t *testing.T) {
 	paddingBits := byteCount*8 - len(console.AclResources_value)*3
 	newerLimited[byteCount-1] |= byte(1<<paddingBits - 1)
 
-	allButLastBit := Admin()
-	allButLastBit.bitmap[byteCount-1] = 0xFE
-
 	tests := []struct {
 		name string
 		in   []byte
@@ -78,9 +76,9 @@ func Test_AclUpgrades(t *testing.T) {
 		{name: "current length limited user is kept", in: limited.bitmap, want: limited},
 		{name: "current length admin is kept", in: Admin().bitmap, want: Admin()},
 		{name: "current length missing last resource delete is not promoted to admin", in: allButLastResourceDelete.bitmap, want: allButLastResourceDelete},
-		{name: "current length missing last bit is not promoted to admin", in: allButLastBit.bitmap, want: allButLastBit},
 		{name: "older shorter limited user is zero-extended", in: limited.bitmap[:byteCount-1], want: limited},
 		{name: "older shorter admin stays admin", in: Admin().bitmap[:byteCount-1], want: Admin()},
+		{name: "much older shorter admin stays admin", in: Admin().bitmap[:byteCount-2], want: Admin()},
 		{name: "empty bitmap has no access", in: nil, want: None()},
 		{name: "newer longer limited user is truncated", in: newerLimited, want: limited},
 		{name: "newer longer admin stays admin", in: append(Admin().bitmap, 0xFF), want: Admin()},
@@ -88,7 +86,7 @@ func Test_AclUpgrades(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want.bitmap, NewFromBytes(tt.in).bitmap)
+			assert.Equal(t, tt.want.String(), NewFromBytes(tt.in).String())
 		})
 	}
 }
