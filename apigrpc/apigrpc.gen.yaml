@@ -16,7 +16,7 @@ plugins:
     include_imports: false
     opt:
       - paths=source_relative
-  - remote: buf.build/grpc-ecosystem/openapiv2:v2.33.0
+  - remote: buf.build/grpc-ecosystem/openapiv2:v2.18.1
     out: .
     include_imports: false
     opt:
