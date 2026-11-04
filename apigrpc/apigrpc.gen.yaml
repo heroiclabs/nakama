@@ -16,3 +16,12 @@ plugins:
     include_imports: false
     opt:
       - paths=source_relative
+  - remote: buf.build/grpc-ecosystem/openapiv2:v2.33.0
+    out: .
+    include_imports: false
+    opt:
+      - use_go_templates=true
+      - allow_merge=true
+      - merge_file_name=apigrpc
+      - logtostderr=true
+      - allow_delete_body=true
