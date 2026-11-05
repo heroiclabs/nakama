@@ -33,6 +33,27 @@ Build scalable games and apps with a production ready server used by ambitious g
 
 The server is simple to setup and run for local development and can be deployed to any cloud provider. See the [deployment notes](#deployment) for recommendations on how to deploy the project for production. Nakama server requires CockroachDB or another Postgres wire-compatible server as it's database.
 
+### Authentication keys
+
+Before starting the server, configure three distinct random signing keys of at least
+32 bytes. Generate each value separately with `openssl rand -hex 32` and set them in
+an access-restricted configuration file, for example the gitignored `local.yml`:
+
+```yaml
+session:
+  encryption_key: ""
+  refresh_encryption_key: ""
+console:
+  signing_key: ""
+```
+
+Replace each empty value with its generated key and restrict file access. The server
+rejects missing, short, and former public default keys. The repository's Compose
+examples load `local.yml` from the project directory; for a native server pass
+`--config local.yml`. Database migration and healthcheck commands do not require these
+keys. All nodes in a deployment must share the same configured values. Keep the keys
+across restarts; rotating them invalidates the corresponding existing tokens.
+
 ### Docker
 
 <a href="https://heroiclabs.com/docs/install-docker-quickstart/"><img src="https://commons.wikimedia.org/wiki/Special:FilePath/Docker_Logo.svg" width="170"></a>
@@ -64,7 +85,7 @@ You can run the servers with native binaries for your platform.
 4. Start Nakama and connect to the database:
 
    ```shell
-   nakama --database.address "root@127.0.0.1:26257"
+   nakama --config local.yml --database.address "root@127.0.0.1:26257"
    ```
 
 When connected you'll see server output which describes all settings the server uses for [configuration](https://heroiclabs.com/docs/nakama/getting-started/configuration).
