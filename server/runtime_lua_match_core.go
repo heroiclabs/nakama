@@ -96,7 +96,7 @@ func NewRuntimeLuaMatchCore(logger *zap.Logger, module string, db *sql.DB, proto
 			vm.Call(1, 0)
 		}
 
-		nakamaModule := NewRuntimeLuaNakamaModule(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, rankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, once, localCache, storageIndex, satoriClient, matchProvider.CreateMatch, eventFn, authProviderRegistry, iapProviderRegistry, nil, nil)
+		nakamaModule := NewRuntimeLuaNakamaModule(logger, db, protojsonMarshaler, protojsonUnmarshaler, config, version, socialClient, leaderboardCache, rankCache, leaderboardScheduler, sessionRegistry, sessionCache, statusRegistry, matchRegistry, partyRegistry, tracker, metrics, streamManager, router, once, localCache, storageIndex, satoriClient, matchProvider.CreateMatch, eventFn, authProviderRegistry, iapProviderRegistry, nil, nil, nil)
 		vm.PreloadModule("nakama", nakamaModule.Loader)
 	}
 
