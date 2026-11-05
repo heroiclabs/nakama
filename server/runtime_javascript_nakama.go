@@ -50,6 +50,11 @@ import (
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/apple"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/facebookinstant"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/google"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/huawei"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/samsung"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -6535,10 +6540,11 @@ func (n *RuntimeJavascriptNakamaModule) purchaseValidateApple(r *goja.Runtime) f
 			persist = getJsBool(r, f.Argument(2))
 		}
 
-		validation, err := ValidatePurchasesApple(n.ctx, n.logger, n.db, uid, password, receipt, persist)
+		validated, err := ValidatePurchase(n.ctx, n.logger, n.db, n.iapProviderRegistry, uid, "", apple.Name, map[string]any{"receipt": receipt}, map[string]any{"shared_password": password}, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Apple receipt: %s", err.Error())))
 		}
+		validation := &api.ValidatePurchaseResponse{ValidatedPurchases: validated.Purchase}
 
 		validationResult := purchaseResponseToJsObject(validation)
 
@@ -6590,10 +6596,11 @@ func (n *RuntimeJavascriptNakamaModule) purchaseValidateGoogle(r *goja.Runtime) 
 			panic(r.NewGoError(errors.New("google IAP is not configured")))
 		}
 
-		validation, err := ValidatePurchaseGoogle(n.ctx, n.logger, n.db, uid, &IAPGoogleConfig{clientEmail, privateKey, "", 0, ""}, receipt, persist)
+		validated, err := ValidatePurchase(n.ctx, n.logger, n.db, n.iapProviderRegistry, uid, "", google.Name, map[string]any{"purchase": receipt}, map[string]any{"client_email": clientEmail, "private_key": privateKey}, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Google receipt: %s", err.Error())))
 		}
+		validation := &api.ValidatePurchaseResponse{ValidatedPurchases: validated.Purchase}
 
 		validationResult := purchaseResponseToJsObject(validation)
 
@@ -6641,10 +6648,11 @@ func (n *RuntimeJavascriptNakamaModule) purchaseValidateHuawei(r *goja.Runtime) 
 			persist = getJsBool(r, f.Argument(3))
 		}
 
-		validation, err := ValidatePurchaseHuawei(n.ctx, n.logger, n.db, uid, n.config.GetIAP().Huawei, receipt, signature, persist)
+		validated, err := ValidatePurchase(n.ctx, n.logger, n.db, n.iapProviderRegistry, uid, "", huawei.Name, map[string]any{"purchase": receipt, "signature": signature}, nil, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Huawei receipt: %s", err.Error())))
 		}
+		validation := &api.ValidatePurchaseResponse{ValidatedPurchases: validated.Purchase}
 
 		validationResult := purchaseResponseToJsObject(validation)
 
@@ -6684,10 +6692,11 @@ func (n *RuntimeJavascriptNakamaModule) purchaseValidateFacebookInstant(r *goja.
 			persist = getJsBool(r, f.Argument(2))
 		}
 
-		validation, err := ValidatePurchaseFacebookInstant(n.ctx, n.logger, n.db, uid, n.config.GetIAP().FacebookInstant, signedRequest, persist)
+		validated, err := ValidatePurchase(n.ctx, n.logger, n.db, n.iapProviderRegistry, uid, "", facebookinstant.Name, map[string]any{"signed_request": signedRequest}, nil, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Facebook Instant receipt: %s", err.Error())))
 		}
+		validation := &api.ValidatePurchaseResponse{ValidatedPurchases: validated.Purchase}
 
 		validationResult := purchaseResponseToJsObject(validation)
 
@@ -6723,10 +6732,11 @@ func (n *RuntimeJavascriptNakamaModule) purchaseValidateSamsung(r *goja.Runtime)
 			persist = getJsBool(r, f.Argument(2))
 		}
 
-		validation, err := ValidatePurchaseSamsung(n.ctx, n.logger, n.db, uid, n.config.GetIAP().Samsung, purchaseId, persist)
+		validated, err := ValidatePurchase(n.ctx, n.logger, n.db, n.iapProviderRegistry, uid, "", samsung.Name, map[string]any{"purchase_id": purchaseId}, nil, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Samsung receipt: %s", err.Error())))
 		}
+		validation := &api.ValidatePurchaseResponse{ValidatedPurchases: validated.Purchase}
 
 		validationResult := purchaseResponseToJsObject(validation)
 
@@ -6847,10 +6857,11 @@ func (n *RuntimeJavascriptNakamaModule) subscriptionValidateApple(r *goja.Runtim
 			password = getJsString(r, f.Argument(3))
 		}
 
-		validation, err := ValidateSubscriptionApple(n.ctx, n.logger, n.db, uid, password, receipt, persist)
+		validated, err := ValidateSubscription(n.ctx, n.logger, n.db, n.iapProviderRegistry, uid, "", apple.Name, map[string]any{"receipt": receipt}, map[string]any{"shared_password": password}, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Apple receipt: %s", err.Error())))
 		}
+		validation := &api.ValidateSubscriptionResponse{ValidatedSubscription: validated.Subscription}
 
 		validationResult := subscriptionResponseToJsObject(validation)
 
@@ -6907,10 +6918,11 @@ func (n *RuntimeJavascriptNakamaModule) subscriptionValidateGoogle(r *goja.Runti
 			PrivateKey:  privateKey,
 		}
 
-		validation, err := ValidateSubscriptionGoogle(n.ctx, n.logger, n.db, uid, configOverride, receipt, persist)
+		validated, err := ValidateSubscription(n.ctx, n.logger, n.db, n.iapProviderRegistry, uid, "", google.Name, map[string]any{"receipt": receipt}, map[string]any{"client_email": configOverride.ClientEmail, "private_key": configOverride.PrivateKey}, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Google receipt: %s", err.Error())))
 		}
+		validation := &api.ValidateSubscriptionResponse{ValidatedSubscription: validated.Subscription}
 
 		validationResult := subscriptionResponseToJsObject(validation)
 

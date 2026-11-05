@@ -51,6 +51,11 @@ import (
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
 	lua "github.com/heroiclabs/nakama/v3/internal/gopher-lua"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/apple"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/facebookinstant"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/google"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/huawei"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/samsung"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -8319,11 +8324,12 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateApple(l *lua.LState) int {
 
 	passwordOverride := l.OptString(4, n.config.GetIAP().Apple.SharedPassword)
 
-	validation, err := ValidatePurchasesApple(l.Context(), n.logger, n.db, uid, passwordOverride, receipt, persist)
+	validated, err := ValidatePurchase(l.Context(), n.logger, n.db, n.iapProviderRegistry, uid, "", apple.Name, map[string]any{"receipt": receipt}, map[string]any{"shared_password": passwordOverride}, persist)
 	if err != nil {
 		l.RaiseError("error validating Apple receipt: %v", err.Error())
 		return 0
 	}
+	validation := &api.ValidatePurchaseResponse{ValidatedPurchases: validated.Purchase}
 
 	l.Push(purchaseValidationToLuaTable(l, validation))
 	return 1
@@ -8371,12 +8377,13 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateGoogle(l *lua.LState) int {
 		PrivateKey:  privateKeyOverride,
 	}
 
-	validation, err := ValidatePurchaseGoogle(l.Context(), n.logger, n.db, uid, configOverride, receipt, persist)
+	validated, err := ValidatePurchase(l.Context(), n.logger, n.db, n.iapProviderRegistry, uid, "", google.Name, map[string]any{"purchase": receipt}, map[string]any{"client_email": configOverride.ClientEmail, "private_key": configOverride.PrivateKey}, persist)
 
 	if err != nil {
 		l.RaiseError("error validating Google receipt: %v", err.Error())
 		return 0
 	}
+	validation := &api.ValidatePurchaseResponse{ValidatedPurchases: validated.Purchase}
 
 	l.Push(purchaseValidationToLuaTable(l, validation))
 	return 1
@@ -8423,11 +8430,12 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateHuawei(l *lua.LState) int {
 
 	persist := l.OptBool(4, true)
 
-	validation, err := ValidatePurchaseHuawei(l.Context(), n.logger, n.db, uid, n.config.GetIAP().Huawei, signature, receipt, persist)
+	validated, err := ValidatePurchase(l.Context(), n.logger, n.db, n.iapProviderRegistry, uid, "", huawei.Name, map[string]any{"purchase": signature, "signature": receipt}, nil, persist)
 	if err != nil {
 		l.RaiseError("error validating Huawei receipt: %v", err.Error())
 		return 0
 	}
+	validation := &api.ValidatePurchaseResponse{ValidatedPurchases: validated.Purchase}
 
 	l.Push(purchaseValidationToLuaTable(l, validation))
 	return 1
@@ -8465,11 +8473,12 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateFacebookInstant(l *lua.LState) 
 
 	persist := l.OptBool(3, true)
 
-	validation, err := ValidatePurchaseFacebookInstant(l.Context(), n.logger, n.db, uid, n.config.GetIAP().FacebookInstant, signedRequest, persist)
+	validated, err := ValidatePurchase(l.Context(), n.logger, n.db, n.iapProviderRegistry, uid, "", facebookinstant.Name, map[string]any{"signed_request": signedRequest}, nil, persist)
 	if err != nil {
 		l.RaiseError("error validating Facebook Instant receipt: %v", err.Error())
 		return 0
 	}
+	validation := &api.ValidatePurchaseResponse{ValidatedPurchases: validated.Purchase}
 
 	l.Push(purchaseValidationToLuaTable(l, validation))
 	return 1
@@ -8502,11 +8511,12 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateSamsung(l *lua.LState) int {
 
 	persist := l.OptBool(3, true)
 
-	validation, err := ValidatePurchaseSamsung(l.Context(), n.logger, n.db, uid, n.config.GetIAP().Samsung, purchaseId, persist)
+	validated, err := ValidatePurchase(l.Context(), n.logger, n.db, n.iapProviderRegistry, uid, "", samsung.Name, map[string]any{"purchase_id": purchaseId}, nil, persist)
 	if err != nil {
 		l.RaiseError("error validating Samsung receipt: %v", err.Error())
 		return 0
 	}
+	validation := &api.ValidatePurchaseResponse{ValidatedPurchases: validated.Purchase}
 
 	l.Push(purchaseValidationToLuaTable(l, validation))
 	return 1
@@ -8616,11 +8626,12 @@ func (n *RuntimeLuaNakamaModule) subscriptionValidateApple(l *lua.LState) int {
 
 	passwordOverride := l.OptString(4, n.config.GetIAP().Apple.SharedPassword)
 
-	validation, err := ValidateSubscriptionApple(l.Context(), n.logger, n.db, uid, passwordOverride, receipt, persist)
+	validated, err := ValidateSubscription(l.Context(), n.logger, n.db, n.iapProviderRegistry, uid, "", apple.Name, map[string]any{"receipt": receipt}, map[string]any{"shared_password": passwordOverride}, persist)
 	if err != nil {
 		l.RaiseError("error validating Apple receipt: %v", err.Error())
 		return 0
 	}
+	validation := &api.ValidateSubscriptionResponse{ValidatedSubscription: validated.Subscription}
 
 	l.Push(subscriptionValidationToLuaTable(l, validation))
 	return 1
@@ -8668,12 +8679,13 @@ func (n *RuntimeLuaNakamaModule) subscriptionValidateGoogle(l *lua.LState) int {
 		PrivateKey:  privateKeyOverride,
 	}
 
-	validation, err := ValidateSubscriptionGoogle(l.Context(), n.logger, n.db, uid, configOverride, receipt, persist)
+	validated, err := ValidateSubscription(l.Context(), n.logger, n.db, n.iapProviderRegistry, uid, "", google.Name, map[string]any{"receipt": receipt}, map[string]any{"client_email": configOverride.ClientEmail, "private_key": configOverride.PrivateKey}, persist)
 
 	if err != nil {
 		l.RaiseError("error validating Google receipt: %v", err.Error())
 		return 0
 	}
+	validation := &api.ValidateSubscriptionResponse{ValidatedSubscription: validated.Subscription}
 
 	l.Push(subscriptionValidationToLuaTable(l, validation))
 	return 1

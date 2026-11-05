@@ -4,6 +4,12 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 [Unreleased]
+### Changed
+- Apple, Google, Huawei, Facebook Instant and Samsung are now built-in IAP providers, also usable by name with `ValidatePurchase` and `ValidateSubscription`.
+- Store-specific validation hooks now also run for `ValidatePurchase` and `ValidateSubscription` calls naming that store, and the generic validation hooks run for a store's validations when it has no store-specific hook.
+- Breaking: Apple and Google notifications now fire only the `RegisterIAPPurchaseNotification` and `RegisterIAPSubscriptionNotification` hooks; the Apple and Google purchase and subscription notification hooks no longer fire.
+- Apple and Google notification endpoints are now registered even when `notifications_endpoint_id` is not set.
+- Validating an Apple receipt that holds no purchases now returns an error instead of an empty list.
 
 ## [3.42.0] - 2026-11-03
 ### Added

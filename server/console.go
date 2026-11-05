@@ -40,6 +40,8 @@ import (
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/heroiclabs/nakama/v3/console/acl"
 	"github.com/heroiclabs/nakama/v3/internal/satori"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/apple"
+	"github.com/heroiclabs/nakama/v3/server/plugins/iap/google"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -221,34 +223,20 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 		return http.MaxBytesHandler(next, config.GetConsole().MaxMessageSizeBytes)
 	})
 
-	if config.GetIAP().Apple.NotificationsEndpointId != "" {
-		handler := appleNotificationHandler(logger, db, runtime.PurchaseNotificationApple(), runtime.SubscriptionNotificationApple())
-		endpoint := fmt.Sprintf("/v2/console/apple/subscriptions/%s", config.GetIAP().Apple.NotificationsEndpointId) // For backwards compatibility.
-		iapRouter.HandleFunc(endpoint, handler)
-		logger.Info("Registered endpoint for Apple subscription notifications callback", zap.String("endpoint", endpoint))
-		endpoint = fmt.Sprintf("/v2/console/apple/notifications/%s", config.GetIAP().Apple.NotificationsEndpointId)
-		iapRouter.HandleFunc(endpoint, handler)
-		logger.Info("Registered endpoint for Apple subscription notifications callback", zap.String("endpoint", endpoint))
-	}
-
-	if config.GetIAP().Google.NotificationsEndpointId != "" {
-		handler := googleNotificationHandler(logger, db, config.GetIAP().Google, runtime.PurchaseNotificationGoogle(), runtime.SubscriptionNotificationGoogle())
-		endpoint := fmt.Sprintf("/v2/console/google/subscriptions/%s", config.GetIAP().Google.NotificationsEndpointId) // For backwards compatibility.
-		iapRouter.HandleFunc(endpoint, handler)
-		logger.Info("Registered endpoint for Google subscription notifications callback", zap.String("endpoint", endpoint))
-		endpoint = fmt.Sprintf("/v2/console/google/notifications/%s", config.GetIAP().Google.NotificationsEndpointId)
-		iapRouter.HandleFunc(endpoint, handler)
-		logger.Info("Registered endpoint for Google subscription notifications callback", zap.String("endpoint", endpoint))
-	}
-
 	iapProviderRegistry := runtime.IAPProviderRegistry()
 	for name, provider := range iapProviderRegistry.providersByName.Range {
 		if provider.notificationHandler == nil {
 			continue
 		}
+		handler := iapProviderNotificationHandler(logger, db, iapProviderRegistry, provider, runtime.IAPPurchaseNotification(), runtime.IAPSubscriptionNotification())
 		endpoint := path.Join("/v2/console", provider.name, "notifications", provider.notificationEndpointId)
-		iapRouter.HandleFunc(endpoint, iapProviderNotificationHandler(logger, db, iapProviderRegistry, provider, runtime.IAPPurchaseNotification(), runtime.IAPSubscriptionNotification()))
+		iapRouter.HandleFunc(endpoint, handler)
 		logger.Info("Registered endpoint for IAP provider notifications callback", zap.String("provider", name), zap.String("endpoint", endpoint))
+		if provider.name == apple.Name || provider.name == google.Name {
+			endpoint = path.Join("/v2/console", provider.name, "subscriptions", provider.notificationEndpointId) // For backwards compatibility.
+			iapRouter.HandleFunc(endpoint, handler)
+			logger.Info("Registered endpoint for IAP provider notifications callback", zap.String("provider", name), zap.String("endpoint", endpoint))
+		}
 	}
 
 	// pprof routes
