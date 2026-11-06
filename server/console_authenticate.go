@@ -136,9 +136,10 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 			var dbUsername string
 			var permissionBytes []byte
 			var dbDisableTime pgtype.Timestamptz
+			var heroicCloudUser bool
 
-			query := "SELECT id, username, acl, disable_time FROM console_user WHERE email = $1"
-			err := tx.QueryRowContext(ctx, query, claims.Email).Scan(&dbUserID, &dbUsername, &permissionBytes, &dbDisableTime)
+			query := "SELECT id, username, acl, disable_time, COALESCE(metadata->>'type', '') = 'heroic_cloud' FROM console_user WHERE email = $1"
+			err := tx.QueryRowContext(ctx, query, claims.Email).Scan(&dbUserID, &dbUsername, &permissionBytes, &dbDisableTime, &heroicCloudUser)
 			switch {
 			case err == nil:
 				if dbDisableTime.Valid && dbDisableTime.Time.Unix() != 0 {
@@ -154,6 +155,26 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 
 				userID = dbUserID
 				username = dbUsername
+
+				if !heroicCloudUser {
+					// Heroic Cloud now owns this identity: retire the local password and stamp the account so it
+					// cannot be reset back to a local login. Bumping update_time also invalidates any outstanding
+					// reset/invite code (AuthenticatePasswordChange requires update_time <= the code's IssuedAt).
+					password := make([]byte, 32)
+					if _, err := rand.Read(password); err != nil {
+						logger.Error("Failed to generate a password for the Heroic Cloud user.", zap.Error(err))
+						return status.Error(codes.Internal, "Failed to claim console user for Heroic Cloud.")
+					}
+					hashedPassword, err := bcrypt.GenerateFromPassword(password, bcryptHashCost)
+					if err != nil {
+						logger.Error("Failed to hash the password for the Heroic Cloud user.", zap.Error(err))
+						return status.Error(codes.Internal, "Failed to claim console user for Heroic Cloud.")
+					}
+					if _, err := tx.ExecContext(ctx, "UPDATE console_user SET password = $1, metadata = metadata || $2::jsonb, update_time = NOW() WHERE id = $3", hashedPassword, `{"type":"heroic_cloud"}`, dbUserID); err != nil {
+						logger.Error("Failed to claim console user for Heroic Cloud.", zap.String("email", claims.Email), zap.Error(err))
+						return status.Error(codes.Internal, "Failed to claim console user for Heroic Cloud.")
+					}
+				}
 
 				return nil
 
@@ -189,8 +210,8 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 				return status.Error(codes.Internal, "Failed to create Heroic Cloud console user.")
 			}
 
-			query = "INSERT INTO console_user (id, username, email, password, acl) VALUES ($1, $2, $3, $4, $5)"
-			if _, err := tx.ExecContext(ctx, query, newUserID.String(), username, claims.Email, hashedPassword, claims.Acl); err != nil {
+			query = "INSERT INTO console_user (id, username, email, password, acl, metadata) VALUES ($1, $2, $3, $4, $5, $6)"
+			if _, err := tx.ExecContext(ctx, query, newUserID.String(), username, claims.Email, hashedPassword, claims.Acl, `{"type":"heroic_cloud"}`); err != nil {
 				var pgErr *pgconn.PgError
 				if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
 					logger.Info("Console user already registered.", zap.String("email", claims.Email))
@@ -536,7 +557,7 @@ func (s *ConsoleServer) AuthenticatePasswordChange(ctx context.Context, in *cons
 		return nil, status.Error(codes.Internal, "Failed to hash the password for the user.")
 	}
 
-	query := `UPDATE console_user SET password = $1, update_time = NOW() WHERE id = $2 AND date_trunc('second', update_time) <= $3`
+	query := `UPDATE console_user SET password = $1, update_time = NOW() WHERE id = $2 AND date_trunc('second', update_time) <= $3 AND COALESCE(metadata->>'type', '') <> 'heroic_cloud'`
 
 	res, err := s.db.ExecContext(ctx, query, hashedPassword, claims.Id, time.Unix(claims.IssuedAt, 0).UTC())
 	if err != nil {
