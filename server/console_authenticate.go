@@ -17,6 +17,7 @@ package server
 import (
 	"context"
 	"crypto"
+	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
 	"errors"
@@ -30,6 +31,7 @@ import (
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/heroiclabs/nakama/v3/console/acl"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -95,6 +97,159 @@ func (s *ConsoleServer) Authenticate(ctx context.Context, in *console.Authentica
 	ip, _ := extractClientAddressFromContext(logger, s.config, ctx)
 	if !s.loginAttemptCache.Allow(in.Username, ip) {
 		return nil, status.Error(codes.ResourceExhausted, "Try again later.")
+	}
+
+	if in.Token != nil && *in.Token != "" {
+		consoleConfig := s.config.GetConsole()
+
+		kumoToken, err := jwt.ParseWithClaims(*in.Token, &ConsoleTokenClaims{}, func(token *jwt.Token) (interface{}, error) {
+			return []byte(consoleConfig.SigningKey), nil
+		}, jwt.WithExpirationRequired(), jwt.WithValidMethods([]string{"HS256"}))
+		if err != nil {
+			logger.Info("Failed to parse the Heroic Cloud console token.", zap.Error(err))
+			return nil, status.Error(codes.Unauthenticated, "Invalid credentials.")
+		}
+
+		claims, ok := kumoToken.Claims.(*ConsoleTokenClaims)
+		if !ok || !kumoToken.Valid {
+			logger.Info("Heroic Cloud console token claims are invalid.")
+			return nil, status.Error(codes.Unauthenticated, "Invalid credentials.")
+		}
+
+		// Heroic Cloud mints hand-off tokens without a user ID; one carrying an ID is not ours.
+		if claims.ID != "" {
+			return nil, status.Error(codes.InvalidArgument, "Invalid user ID.")
+		}
+
+		tokenRole, err := acl.NewFromJson(claims.Acl)
+		if err != nil {
+			logger.Info("Failed to parse the ACL in the Heroic Cloud console token.", zap.Error(err))
+			return nil, status.Error(codes.InvalidArgument, "Invalid ACL.")
+		}
+
+		username := strings.ToLower(claims.Email)
+
+		var userID uuid.UUID
+		var role acl.Permission
+		if err := ExecuteInTx(ctx, s.db, func(tx *sql.Tx) error {
+			var dbUserID uuid.UUID
+			var dbUsername string
+			var permissionBytes []byte
+			var dbDisableTime pgtype.Timestamptz
+			var heroicCloudUser bool
+
+			query := "SELECT id, username, acl, disable_time, COALESCE(metadata->>'type', '') = 'heroic_cloud' FROM console_user WHERE email = $1"
+			err := tx.QueryRowContext(ctx, query, claims.Email).Scan(&dbUserID, &dbUsername, &permissionBytes, &dbDisableTime, &heroicCloudUser)
+			switch {
+			case err == nil:
+				if dbDisableTime.Valid && dbDisableTime.Time.Unix() != 0 {
+					logger.Info("Console user account is disabled.", zap.String("email", claims.Email))
+					return status.Error(codes.PermissionDenied, "Invalid credentials.")
+				}
+
+				role, err = acl.NewFromJson(string(permissionBytes))
+				if err != nil {
+					logger.Error("Failed to parse json ACL for console user.", zap.String("email", claims.Email), zap.Error(err))
+					return status.Error(codes.Internal, "Error looking up console user.")
+				}
+
+				userID = dbUserID
+				username = dbUsername
+
+				if !heroicCloudUser {
+					// Heroic Cloud now owns this identity: retire the local password and stamp the account so it
+					// cannot be reset back to a local login. Bumping update_time also invalidates any outstanding
+					// reset/invite code (AuthenticatePasswordChange requires update_time <= the code's IssuedAt).
+					password := make([]byte, 32)
+					if _, err := rand.Read(password); err != nil {
+						logger.Error("Failed to generate a password for the Heroic Cloud user.", zap.Error(err))
+						return status.Error(codes.Internal, "Failed to claim console user for Heroic Cloud.")
+					}
+					hashedPassword, err := bcrypt.GenerateFromPassword(password, bcryptHashCost)
+					if err != nil {
+						logger.Error("Failed to hash the password for the Heroic Cloud user.", zap.Error(err))
+						return status.Error(codes.Internal, "Failed to claim console user for Heroic Cloud.")
+					}
+					if _, err := tx.ExecContext(ctx, "UPDATE console_user SET password = $1, metadata = metadata || $2::jsonb, update_time = NOW() WHERE id = $3", hashedPassword, `{"type":"heroic_cloud"}`, dbUserID); err != nil {
+						logger.Error("Failed to claim console user for Heroic Cloud.", zap.String("email", claims.Email), zap.Error(err))
+						return status.Error(codes.Internal, "Failed to claim console user for Heroic Cloud.")
+					}
+				}
+
+				return nil
+
+			case errors.Is(err, sql.ErrNoRows):
+				// No account yet: provision one below.
+
+			default:
+				if errors.Is(err, context.Canceled) {
+					return status.Error(codes.Canceled, "Operation cancelled.")
+				}
+
+				logger.Error("Failed to look up console user.", zap.Error(err))
+
+				return status.Error(codes.Internal, "Error looking up console user.")
+			}
+
+			// Heroic Cloud owns this identity, so the local password is a value nobody has seen.
+			password := make([]byte, 32)
+			if _, err := rand.Read(password); err != nil {
+				logger.Error("Failed to generate a temporary password for the new Heroic Cloud user.", zap.Error(err))
+				return status.Error(codes.Internal, "Failed to create Heroic Cloud console user.")
+			}
+
+			hashedPassword, err := bcrypt.GenerateFromPassword(password, bcryptHashCost)
+			if err != nil {
+				logger.Error("Failed to hash the temporary password for the new Heroic Cloud user.", zap.Error(err))
+				return status.Error(codes.Internal, "Failed to create Heroic Cloud console user.")
+			}
+
+			newUserID, err := uuid.NewV4()
+			if err != nil {
+				logger.Error("Failed to generate an ID for the new Heroic Cloud user.", zap.Error(err))
+				return status.Error(codes.Internal, "Failed to create Heroic Cloud console user.")
+			}
+
+			query = "INSERT INTO console_user (id, username, email, password, acl, metadata) VALUES ($1, $2, $3, $4, $5, $6)"
+			if _, err := tx.ExecContext(ctx, query, newUserID.String(), username, claims.Email, hashedPassword, claims.Acl, `{"type":"heroic_cloud"}`); err != nil {
+				var pgErr *pgconn.PgError
+				if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
+					logger.Info("Console user already registered.", zap.String("email", claims.Email))
+					return status.Error(codes.FailedPrecondition, "The email or username provided is already registered.")
+				}
+
+				logger.Error("Failed to create Heroic Cloud console user.", zap.Error(err))
+
+				return status.Error(codes.Internal, "Failed to create Heroic Cloud console user.")
+			}
+
+			userID = newUserID
+			role = tokenRole
+
+			return nil
+		}); err != nil {
+			return nil, err
+		}
+
+		exp := time.Now().UTC().Add(time.Duration(consoleConfig.TokenExpirySec) * time.Second).Unix()
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, &ConsoleTokenClaims{
+			ExpiresAt: exp,
+			ID:        userID.String(),
+			Username:  username,
+			Email:     claims.Email,
+			Acl:       role.String(),
+			Cookie:    s.cookie,
+		})
+
+		signedToken, err := token.SignedString([]byte(consoleConfig.SigningKey))
+		if err != nil {
+			logger.Error("Failed to sign the Heroic Cloud console session token.", zap.Error(err))
+			return nil, status.Error(codes.Internal, "Failed to create Heroic Cloud console session.")
+		}
+
+		s.consoleSessionCache.Add(userID, exp, signedToken, 0, "")
+
+		return &console.ConsoleSession{Token: signedToken}, nil
 	}
 
 	var email string
@@ -402,7 +557,7 @@ func (s *ConsoleServer) AuthenticatePasswordChange(ctx context.Context, in *cons
 		return nil, status.Error(codes.Internal, "Failed to hash the password for the user.")
 	}
 
-	query := `UPDATE console_user SET password = $1, update_time = NOW() WHERE id = $2 AND date_trunc('second', update_time) <= $3`
+	query := `UPDATE console_user SET password = $1, update_time = NOW() WHERE id = $2 AND date_trunc('second', update_time) <= $3 AND COALESCE(metadata->>'type', '') <> 'heroic_cloud'`
 
 	res, err := s.db.ExecContext(ctx, query, hashedPassword, claims.Id, time.Unix(claims.IssuedAt, 0).UTC())
 	if err != nil {
