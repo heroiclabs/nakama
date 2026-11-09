@@ -8336,8 +8336,8 @@ func (x *ValidateIAPPurchaseResponse) GetPurchase() []*ValidatedPurchase {
 
 // Subscription validated by a runtime-registered IAP provider.
 type ValidateIAPSubscriptionResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Subscription  *ValidatedSubscription `protobuf:"bytes,1,opt,name=subscription,proto3" json:"subscription,omitempty"`
+	state         protoimpl.MessageState   `protogen:"open.v1"`
+	Subscription  []*ValidatedSubscription `protobuf:"bytes,1,rep,name=subscription,proto3" json:"subscription,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -8372,7 +8372,7 @@ func (*ValidateIAPSubscriptionResponse) Descriptor() ([]byte, []int) {
 	return file_api_proto_rawDescGZIP(), []int{115}
 }
 
-func (x *ValidateIAPSubscriptionResponse) GetSubscription() *ValidatedSubscription {
+func (x *ValidateIAPSubscriptionResponse) GetSubscription() []*ValidatedSubscription {
 	if x != nil {
 		return x.Subscription
 	}
@@ -10121,7 +10121,7 @@ const file_api_proto_rawDesc = "" +
 	"\x1bValidateIAPPurchaseResponse\x129\n" +
 	"\bpurchase\x18\x01 \x03(\v2\x1d.nakama.api.ValidatedPurchaseR\bpurchase\"h\n" +
 	"\x1fValidateIAPSubscriptionResponse\x12E\n" +
-	"\fsubscription\x18\x01 \x01(\v2!.nakama.api.ValidatedSubscriptionR\fsubscription\"\xc3\x05\n" +
+	"\fsubscription\x18\x01 \x03(\v2!.nakama.api.ValidatedSubscriptionR\fsubscription\"\xc3\x05\n" +
 	"\x15ValidatedSubscription\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1d\n" +
 	"\n" +

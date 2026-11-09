@@ -612,8 +612,11 @@ func ValidateSubscription(ctx context.Context, logger *zap.Logger, db *sql.DB, r
 	}
 
 	// Every subscription is stored in the order the provider listed them, repeats included, so the last
-	// entry for an original transaction ID is the one that stays, as with Apple's legacy receipts.
+	// entry for an original transaction ID is the one that stays, as with Apple's legacy receipts. The caller
+	// gets that entry back for each original transaction ID, in the order the IDs first appeared.
 	storageSubs := make([]*storageSubscription, 0, len(subscriptions))
+	latestSubs := make(map[string]*storageSubscription, len(subscriptions))
+	originalTransactionIds := make([]string, 0, len(subscriptions))
 	for _, subscription := range subscriptions {
 		if subscription == nil || subscription.OriginalTransactionId == "" {
 			logger.Error("IAP provider returned a subscription without an original transaction ID.", zap.String("provider", provider.name))
@@ -624,7 +627,7 @@ func ValidateSubscription(ctx context.Context, logger *zap.Logger, db *sql.DB, r
 		if refundTime.IsZero() {
 			refundTime = time.Unix(0, 0)
 		}
-		storageSubs = append(storageSubs, &storageSubscription{
+		storageSub := &storageSubscription{
 			userID:                userID,
 			originalTransactionId: subscription.OriginalTransactionId,
 			store:                 api.StoreProvider(provider.storeCode),
@@ -634,65 +637,63 @@ func ValidateSubscription(ctx context.Context, logger *zap.Logger, db *sql.DB, r
 			expireTime:            subscription.ExpiryTime,
 			refundTime:            refundTime,
 			rawResponse:           subscription.RawResponse,
-		})
+		}
+		storageSubs = append(storageSubs, storageSub)
+		if _, found := latestSubs[storageSub.originalTransactionId]; !found {
+			originalTransactionIds = append(originalTransactionIds, storageSub.originalTransactionId)
+		}
+		latestSubs[storageSub.originalTransactionId] = storageSub
 	}
 
-	storageSub := storageSubs[0]
-	validatedSub := &api.ValidatedSubscription{
-		UserId:                userID.String(),
-		ProductId:             storageSub.productId,
-		OriginalTransactionId: storageSub.originalTransactionId,
-		Store:                 storageSub.store,
-		Provider:              provider.name,
-		PurchaseTime:          timestamppb.New(storageSub.purchaseTime),
-		Environment:           storageSub.environment,
-		ExpiryTime:            timestamppb.New(storageSub.expireTime),
-		RefundTime:            timestamppb.New(storageSub.refundTime),
-		ProviderResponse:      storageSub.rawResponse,
-		Active:                storageSub.Active(),
-	}
-
-	if !persist {
-		return &api.ValidateIAPSubscriptionResponse{Subscription: validatedSub}, nil
-	}
-
-	if err = ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
-		for _, sub := range storageSubs {
-			if err := upsertSubscription(ctx, tx, sub); err != nil {
-				if errors.Is(err, errSubscriptionOwnedByAnotherStore) {
-					logger.Warn("IAP provider original transaction ID belongs to another store, not storing.", zap.String("provider", provider.name), zap.String("original_transaction_id", sub.originalTransactionId))
-					continue
+	if persist {
+		if err = ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
+			for _, sub := range storageSubs {
+				if err := upsertSubscription(ctx, tx, sub); err != nil {
+					if errors.Is(err, errSubscriptionOwnedByAnotherStore) {
+						logger.Warn("IAP provider original transaction ID belongs to another store, not storing.", zap.String("provider", provider.name), zap.String("original_transaction_id", sub.originalTransactionId))
+						continue
+					}
+					return err
 				}
-				return err
 			}
+			return nil
+		}); err != nil {
+			if !errors.Is(err, context.Canceled) {
+				logger.Error("Error storing subscription from provider", zap.String("provider", provider.name), zap.Error(err))
+			}
+			return nil, err
 		}
-		return nil
-	}); err != nil {
-		if !errors.Is(err, context.Canceled) {
-			logger.Error("Error storing subscription from provider", zap.String("provider", provider.name), zap.Error(err))
+	}
+
+	validatedSubs := make([]*api.ValidatedSubscription, 0, len(originalTransactionIds))
+	for _, originalTransactionId := range originalTransactionIds {
+		sub := latestSubs[originalTransactionId]
+		validatedSub := &api.ValidatedSubscription{
+			UserId:                userID.String(),
+			ProductId:             sub.productId,
+			OriginalTransactionId: sub.originalTransactionId,
+			Store:                 sub.store,
+			Provider:              provider.name,
+			PurchaseTime:          timestamppb.New(sub.purchaseTime),
+			Environment:           sub.environment,
+			ExpiryTime:            timestamppb.New(sub.expireTime),
+			RefundTime:            timestamppb.New(sub.refundTime),
+			ProviderResponse:      sub.rawResponse,
+			Active:                sub.Active(),
 		}
-		return nil, err
+		if !sub.createTime.IsZero() {
+			validatedSub.UserId = sub.userID.String()
+			if sub.userID.IsNil() {
+				validatedSub.UserId = ""
+			}
+			validatedSub.CreateTime = timestamppb.New(sub.createTime)
+			validatedSub.UpdateTime = timestamppb.New(sub.updateTime)
+			validatedSub.ProviderNotification = sub.rawNotification
+		}
+		validatedSubs = append(validatedSubs, validatedSub)
 	}
 
-	if storageSub.createTime.IsZero() {
-		return &api.ValidateIAPSubscriptionResponse{Subscription: validatedSub}, nil
-	}
-
-	suid := storageSub.userID.String()
-	if storageSub.userID.IsNil() {
-		suid = ""
-	}
-
-	validatedSub.UserId = suid
-	validatedSub.CreateTime = timestamppb.New(storageSub.createTime)
-	validatedSub.UpdateTime = timestamppb.New(storageSub.updateTime)
-	validatedSub.ExpiryTime = timestamppb.New(storageSub.expireTime)
-	validatedSub.RefundTime = timestamppb.New(storageSub.refundTime)
-	validatedSub.ProviderResponse = storageSub.rawResponse
-	validatedSub.ProviderNotification = storageSub.rawNotification
-	validatedSub.Active = storageSub.Active()
-
-	return &api.ValidateIAPSubscriptionResponse{Subscription: validatedSub}, nil
+	return &api.ValidateIAPSubscriptionResponse{Subscription: validatedSubs}, nil
 }
 
 func GetSubscriptionByProductId(ctx context.Context, logger *zap.Logger, db *sql.DB, registry *RuntimeIAPProviderRegistry, userID, productID string) (*api.ValidatedSubscription, error) {

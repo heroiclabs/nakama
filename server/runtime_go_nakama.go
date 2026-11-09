@@ -4722,7 +4722,7 @@ func (n *RuntimeGoNakamaModule) PurchaseValidate(ctx context.Context, provider, 
 // @param payload(type=map[string]any) The opaque payload passed through to the provider.
 // @param persist(type=bool) Persist the subscription.
 // @param overrides(type=map[string]any, optional=true) Optional credential overrides passed through to the provider.
-// @return validation(*api.ValidateIAPSubscriptionResponse) The resulting successfully validated subscription.
+// @return validation(*api.ValidateIAPSubscriptionResponse) The resulting successfully validated subscriptions.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) SubscriptionValidate(ctx context.Context, provider, userID string, payload map[string]any, persist bool, overrides ...map[string]any) (*api.ValidateIAPSubscriptionResponse, error) {
 	uid, err := uuid.FromString(userID)
