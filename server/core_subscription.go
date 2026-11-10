@@ -615,8 +615,8 @@ func ValidateSubscription(ctx context.Context, logger *zap.Logger, db *sql.DB, r
 	// entry for an original transaction ID is the one that stays, as with Apple's legacy receipts. The caller
 	// gets that entry back for each original transaction ID, in the order the IDs first appeared.
 	storageSubs := make([]*storageSubscription, 0, len(subscriptions))
-	latestSubs := make(map[string]*storageSubscription, len(subscriptions))
-	originalTransactionIds := make([]string, 0, len(subscriptions))
+	latestSubs := make([]*storageSubscription, 0, len(subscriptions))
+	latestSubSet := make(map[string]int, len(subscriptions))
 	for _, subscription := range subscriptions {
 		if subscription == nil || subscription.OriginalTransactionId == "" {
 			logger.Error("IAP provider returned a subscription without an original transaction ID.", zap.String("provider", provider.name))
@@ -639,10 +639,12 @@ func ValidateSubscription(ctx context.Context, logger *zap.Logger, db *sql.DB, r
 			rawResponse:           subscription.RawResponse,
 		}
 		storageSubs = append(storageSubs, storageSub)
-		if _, found := latestSubs[storageSub.originalTransactionId]; !found {
-			originalTransactionIds = append(originalTransactionIds, storageSub.originalTransactionId)
+		if i, found := latestSubSet[storageSub.originalTransactionId]; found {
+			latestSubs[i] = storageSub
+			continue
 		}
-		latestSubs[storageSub.originalTransactionId] = storageSub
+		latestSubSet[storageSub.originalTransactionId] = len(latestSubs)
+		latestSubs = append(latestSubs, storageSub)
 	}
 
 	if persist {
@@ -665,9 +667,8 @@ func ValidateSubscription(ctx context.Context, logger *zap.Logger, db *sql.DB, r
 		}
 	}
 
-	validatedSubs := make([]*api.ValidatedSubscription, 0, len(originalTransactionIds))
-	for _, originalTransactionId := range originalTransactionIds {
-		sub := latestSubs[originalTransactionId]
+	validatedSubs := make([]*api.ValidatedSubscription, 0, len(latestSubs))
+	for _, sub := range latestSubs {
 		validatedSub := &api.ValidatedSubscription{
 			UserId:                userID.String(),
 			ProductId:             sub.productId,
