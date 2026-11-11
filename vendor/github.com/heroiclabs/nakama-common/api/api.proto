@@ -1369,7 +1369,7 @@ message ValidateIAPPurchaseResponse {
 
 // Subscription validated by a runtime-registered IAP provider.
 message ValidateIAPSubscriptionResponse {
-  ValidatedSubscription subscription = 1;
+  repeated ValidatedSubscription subscription = 1;
 }
 
 // Validation Provider,

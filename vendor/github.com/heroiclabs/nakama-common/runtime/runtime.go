@@ -1184,7 +1184,7 @@ type IAPProvider interface {
 	Code() int
 	// ValidatePurchase verifies the caller's payload, using any server-side overrides, and returns the purchases for Nakama to store.
 	ValidatePurchase(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, payload map[string]any, overrides map[string]any) ([]*IAPProviderPurchase, error)
-	// ValidateSubscription verifies the caller's payload, using any server-side overrides, and returns the subscriptions for Nakama to store. The first one is returned to the caller.
+	// ValidateSubscription verifies the caller's payload, using any server-side overrides, and returns the subscriptions for Nakama to store and return to the caller.
 	ValidateSubscription(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, payload map[string]any, overrides map[string]any) ([]*IAPProviderSubscription, error)
 	// HandleNotification receives the store's notifications. It authenticates a notification and returns the updates it carries, in order, or none to acknowledge and ignore it.
 	HandleNotification(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, body []byte, headers, query map[string][]string) ([]*IAPProviderNotification, error)

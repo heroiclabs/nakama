@@ -5616,7 +5616,11 @@
       "type": "object",
       "properties": {
         "subscription": {
-          "$ref": "#/definitions/apiValidatedSubscription"
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/apiValidatedSubscription"
+          }
         }
       },
       "description": "Subscription validated by a runtime-registered IAP provider."
