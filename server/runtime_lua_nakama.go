@@ -9159,18 +9159,20 @@ func (n *RuntimeLuaNakamaModule) tournamentList(l *lua.LState) int {
 		return 0
 	}
 
-	startTime := l.OptNumber(3, -1)
-	startTimeInt := int(lua.LVAsNumber(startTime))
-	if startTimeInt < -1 {
+	// Compare the Lua number before converting it to int: int() truncates toward zero, so -1.5 would
+	// become -1 and slip past the documented "-1 means no filter" sentinel as if it were valid.
+	startTime := float64(l.OptNumber(3, -1))
+	if startTime < -1 {
 		l.ArgError(3, "startTime must be >= -1")
 		return 0
 	}
-	endTime := l.OptNumber(4, -1)
-	endTimeInt := int(lua.LVAsNumber(endTime))
-	if endTimeInt < -1 {
+	startTimeInt := int(startTime)
+	endTime := float64(l.OptNumber(4, -1))
+	if endTime < -1 {
 		l.ArgError(4, "endTime must be >= -1")
 		return 0
 	}
+	endTimeInt := int(endTime)
 	if startTimeInt > endTimeInt {
 		l.ArgError(4, "endTime must be >= startTime")
 		return 0
