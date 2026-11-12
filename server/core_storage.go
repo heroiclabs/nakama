@@ -210,7 +210,7 @@ LIMIT $2`
 	err := ExecuteRetryable(func() error {
 		rows, err := db.QueryContext(ctx, query, params...)
 		if err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				objects = &api.StorageObjectList{Objects: make([]*api.StorageObject, 0)}
 				return nil
 			}
@@ -250,7 +250,7 @@ LIMIT $3`
 	err := ExecuteRetryable(func() error {
 		rows, err := db.QueryContext(ctx, query, params...)
 		if err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				objects = &api.StorageObjectList{Objects: make([]*api.StorageObject, 0)}
 				return nil
 			}
@@ -299,7 +299,7 @@ LIMIT $3`
 	err := ExecuteRetryable(func() error {
 		rows, err := db.QueryContext(ctx, query, params...)
 		if err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				objects = &api.StorageObjectList{Objects: make([]*api.StorageObject, 0)}
 				return nil
 			}
@@ -329,7 +329,7 @@ WHERE user_id = $1`
 	err := ExecuteRetryable(func() error {
 		rows, err := db.QueryContext(ctx, query, userID)
 		if err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				objects = make([]*api.StorageObject, 0)
 				return nil
 			}
@@ -641,19 +641,19 @@ func storageWriteObjects(ctx context.Context, logger *zap.Logger, metrics Metric
 		var updateTime time.Time
 		var isUpsert bool
 		err := br.QueryRow().Scan(&resultRead, &resultWrite, &resultVersion, &createTime, &updateTime, &isUpsert)
-		var pgErr *pgconn.PgError
-		if err != nil && errors.As(err, &pgErr) {
-			if pgErr.Code == dbErrorUniqueViolation {
+		if err != nil {
+			if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
+				if pgErr.Code == dbErrorUniqueViolation {
+					metrics.StorageWriteRejectCount(map[string]string{"collection": object.Collection, "reason": "version"}, 1)
+					return nil, nil, runtime.ErrStorageRejectedVersion
+				}
+				return nil, nil, err
+			} else if errors.Is(err, pgx.ErrNoRows) {
+				// Not every case from storagePrepWriteObject can return NoRows, but those
+				// which do are always ErrStorageRejectedVersion
 				metrics.StorageWriteRejectCount(map[string]string{"collection": object.Collection, "reason": "version"}, 1)
 				return nil, nil, runtime.ErrStorageRejectedVersion
 			}
-			return nil, nil, err
-		} else if err == pgx.ErrNoRows {
-			// Not every case from storagePrepWriteObject can return NoRows, but those
-			// which do are always ErrStorageRejectedVersion
-			metrics.StorageWriteRejectCount(map[string]string{"collection": object.Collection, "reason": "version"}, 1)
-			return nil, nil, runtime.ErrStorageRejectedVersion
-		} else if err != nil {
 			return nil, nil, err
 		}
 
@@ -848,7 +848,7 @@ func StorageDeleteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, s
 		}
 		return nil
 	}); err != nil {
-		if e, ok := err.(*statusError); ok {
+		if e, ok := errors.AsType[*statusError](err); ok {
 			return e.Code(), e.Cause()
 		}
 		logger.Error("Error deleting storage objects.", zap.Error(err))

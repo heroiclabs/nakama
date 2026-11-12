@@ -51,6 +51,9 @@ func MultiUpdate(ctx context.Context, logger *zap.Logger, db *sql.DB, metrics Me
 			if errors.Is(updateErr, runtime.ErrStorageRejectedVersion) {
 				return StatusError(codes.FailedPrecondition, "Storage write rejected.", updateErr)
 			}
+			if errors.Is(updateErr, runtime.ErrStorageRejectedPermission) {
+				return StatusError(codes.InvalidArgument, "Storage write rejected.", updateErr)
+			}
 			return updateErr
 		}
 
@@ -68,7 +71,7 @@ func MultiUpdate(ctx context.Context, logger *zap.Logger, db *sql.DB, metrics Me
 
 		return nil
 	}); err != nil {
-		if e, ok := err.(*statusError); ok {
+		if e, ok := errors.AsType[*statusError](err); ok {
 			return nil, walletUpdateResults, e.Cause()
 		}
 		logger.Error("Error running multi update.", zap.Error(err))
