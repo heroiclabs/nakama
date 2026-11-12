@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 [Unreleased]
 ### Fixed
 - Support multiple subscriptions in the IAP provider subscription validation reply.
+- Avoid logging unnecessary errors when runtime MultiUpdate calls encounter storage version rejections.
 
 ## [3.42.0] - 2026-11-03
 ### Added
