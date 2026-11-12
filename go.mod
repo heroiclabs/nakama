@@ -16,7 +16,7 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.33.0
-	github.com/heroiclabs/nakama-common v1.49.0
+	github.com/heroiclabs/nakama-common v1.49.1-0.20261109142731-34c21734aa15
 	github.com/heroiclabs/sql-migrate v0.0.0-20260723131912-797198e52567
 	github.com/jackc/pgerrcode v0.0.0-20250907135507-afb5586c32a6
 	github.com/jackc/pgx/v5 v5.12.0
@@ -31,7 +31,6 @@ require (
 	golang.org/x/oauth2 v0.37.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20261026165753-2ffab32bce7e
 	google.golang.org/grpc v1.85.0
-	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.6.0
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1

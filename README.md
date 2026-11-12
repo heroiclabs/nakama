@@ -149,24 +149,15 @@ The codebase uses Protocol Buffers, GRPC, GRPC-Gateway, buf, and the OpenAPI spe
 
 To build the codebase and generate all sources follow these steps.
 
-1. Install the toolchain.
+1. Install [buf](https://buf.build/docs/cli/installation/). The protoc plugins run as remote plugins at the versions pinned in `apigrpc/apigrpc.gen.yaml` and `console/console.gen.yaml`.
 
-   ```shell
-   go install \
-       "google.golang.org/protobuf/cmd/protoc-gen-go" \
-       "google.golang.org/grpc/cmd/protoc-gen-go-grpc" \
-       "github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway" \
-       "github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2"
-   ```
-2. Install [buf](https://buf.build/docs/cli/installation/).
-
-3. Re-generate the protocol buffers and gateway code.
+2. Re-generate the protocol buffers and gateway code.
    ```shell
    # Run the shell script:
    ./buf.sh
    ```
 
-4. Build the codebase.
+3. Build the codebase.
 
    ```shell
    go build -trimpath -mod=vendor

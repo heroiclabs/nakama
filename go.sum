@@ -103,8 +103,8 @@ github.com/gorilla/websocket v1.5.3/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/ad
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.33.0 h1:5T5Ns3kMpWr+z3s5ZA0e7ljVyWNVNxK76sHPAxi5D1k=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.33.0/go.mod h1:oWNYw09cH8wl8fFgC5hKlBLxR4XfKy2KQpP8MJjeCcc=
 github.com/hashicorp/hcl v1.0.0/go.mod h1:E5yfLk+7swimpb2L/Alb/PJmXilQ/rhwaUYs4T20WEQ=
-github.com/heroiclabs/nakama-common v1.49.0 h1:12lavIxPU3Ep9ovRB8ZT0aT6138kal+1LYHIZO+1YlM=
-github.com/heroiclabs/nakama-common v1.49.0/go.mod h1:UVj7IzTJyDk48o7wKbJXQOTfxQJngsbg6sY/ekCRzs8=
+github.com/heroiclabs/nakama-common v1.49.1-0.20261109142731-34c21734aa15 h1:JiRO2PIfMUJ6kqc/x3+fjcwJcd9W/N9CaHh31cJAc3w=
+github.com/heroiclabs/nakama-common v1.49.1-0.20261109142731-34c21734aa15/go.mod h1:UVj7IzTJyDk48o7wKbJXQOTfxQJngsbg6sY/ekCRzs8=
 github.com/heroiclabs/sql-migrate v0.0.0-20260723131912-797198e52567 h1:rfePJ8WxawwBGbffqcI+8r7mSnPmj4OkYphn5cGyo6o=
 github.com/heroiclabs/sql-migrate v0.0.0-20260723131912-797198e52567/go.mod h1:uwcmopkVQIfb/JQqul5zmGI9ounclRC08j9S9lLcpRQ=
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=
@@ -248,8 +248,6 @@ google.golang.org/genproto/googleapis/rpc v0.0.0-20261026165753-2ffab32bce7e h1:
 google.golang.org/genproto/googleapis/rpc v0.0.0-20261026165753-2ffab32bce7e/go.mod h1:OaIUM3+LpYcK2GXM4FTmhWoIq371Owdr+Cc7/BsYHHc=
 google.golang.org/grpc v1.85.0 h1:BPBCfuVRQ1qvBhKDOq9uvQllMvO59rKsYhXpp7Dd8vw=
 google.golang.org/grpc v1.85.0/go.mod h1:0rQrOD58yjal/0EaVbGBANindixsCZNQPDV3VKtaKuQ=
-google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.6.0 h1:6Al3kEFFP9VJhRz3DID6quisgPnTeZVr4lep9kkxdPA=
-google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.6.0/go.mod h1:QLvsjh0OIR0TYBeiu2bkWGTJBUNQ64st52iWj/yA93I=
 google.golang.org/protobuf v1.36.12 h1:pJOKDDOyeXErUroCihFAd5LQuwXBSpVnKGrj5o/fwxc=
 google.golang.org/protobuf v1.36.12/go.mod h1:HTf+CrKn2C3g5S8VImy6tdcUvCska2kB7j23XfzDpco=
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
