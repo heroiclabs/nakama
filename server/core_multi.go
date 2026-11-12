@@ -17,11 +17,13 @@ package server
 import (
 	"context"
 	"database/sql"
+	"errors"
 
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
 )
 
 func MultiUpdate(ctx context.Context, logger *zap.Logger, db *sql.DB, metrics Metrics, accountUpdates []*accountUpdate, storageWrites StorageOpWrites, storageDeletes StorageOpDeletes, storageIndex StorageIndex, walletUpdates []*walletUpdate, updateLedger bool) ([]*api.StorageObjectAck, []*runtime.WalletUpdateResult, error) {
@@ -46,6 +48,9 @@ func MultiUpdate(ctx context.Context, logger *zap.Logger, db *sql.DB, metrics Me
 		// Execute any storage updates.
 		storageWriteOps, storageWriteAcks, updateErr = storageWriteObjects(ctx, logger, metrics, tx, true, storageWrites)
 		if updateErr != nil {
+			if errors.Is(updateErr, runtime.ErrStorageRejectedVersion) {
+				return StatusError(codes.FailedPrecondition, "Storage write rejected.", updateErr)
+			}
 			return updateErr
 		}
 
