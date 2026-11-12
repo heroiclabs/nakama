@@ -327,11 +327,16 @@ func (s *ConsoleServer) ResetUserPassword(ctx context.Context, in *console.Usern
 		// Keep the target row locked until its password is changed so a concurrent
 		// ACL update cannot invalidate the caller-to-target authorization decision.
 		var targetACLJSON []byte
-		if err := tx.QueryRowContext(ctx, `SELECT acl FROM console_user WHERE username = $1 FOR UPDATE`, in.Username).Scan(&targetACLJSON); err != nil {
+		var heroicCloudUser bool
+		if err := tx.QueryRowContext(ctx, `SELECT acl, COALESCE(metadata->>'type', '') = 'heroic_cloud' FROM console_user WHERE username = $1 FOR UPDATE`, in.Username).Scan(&targetACLJSON, &heroicCloudUser); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return status.Error(codes.NotFound, "User not found.")
 			}
 			return fmt.Errorf("load console user ACL: %w", err)
+		}
+
+		if heroicCloudUser {
+			return status.Error(codes.FailedPrecondition, "This user is managed by Heroic Cloud and cannot be reset.")
 		}
 
 		targetRole, err := acl.NewFromJson(string(targetACLJSON))
