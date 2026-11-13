@@ -23,9 +23,10 @@ services:
     entrypoint:
       - "/bin/sh"
       - "-ecx"
+      # Disposable test keys match the server test fixture.
       - >
         /nakama/nakama migrate up --database.address postgres:localdb@db:5432/nakama &&
-        exec /nakama/nakama --logger.level DEBUG --name nakama --database.address postgres:localdb@db:5432/nakama --session.token_expiry_sec 7200 --socket.port 7350 --console.port 7351
+        exec /nakama/nakama --logger.level DEBUG --name nakama --database.address postgres:localdb@db:5432/nakama --session.token_expiry_sec 7200 --socket.port 7350 --console.port 7351 --session.encryption_key aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --session.refresh_encryption_key bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb --console.signing_key cccccccccccccccccccccccccccccccc
     restart: always
     links:
       - "db:db"

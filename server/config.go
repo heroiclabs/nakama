@@ -149,11 +149,11 @@ func ValidateConfig(logger *zap.Logger, c Config) map[string]string {
 	if c.GetSession().TokenExpirySec < 1 {
 		logger.Fatal("Token expiry seconds must be >= 1", zap.String("param", "session.token_expiry_sec"))
 	}
-	if c.GetSession().EncryptionKey == "" {
-		logger.Fatal("Encryption key must be set", zap.String("param", "session.encryption_key"))
+	if len(strings.TrimSpace(c.GetSession().EncryptionKey)) < 32 {
+		logger.Fatal("Session encryption key must contain at least 32 non-padding bytes", zap.String("param", "session.encryption_key"))
 	}
-	if c.GetSession().RefreshEncryptionKey == "" {
-		logger.Fatal("Refresh token encryption key must be set", zap.String("param", "session.refresh_encryption_key"))
+	if len(strings.TrimSpace(c.GetSession().RefreshEncryptionKey)) < 32 {
+		logger.Fatal("Refresh token encryption key must contain at least 32 non-padding bytes", zap.String("param", "session.refresh_encryption_key"))
 	}
 	if c.GetSession().RefreshTokenExpirySec < 1 {
 		logger.Fatal("Refresh token expiry seconds must be >= 1", zap.String("param", "session.refresh_token_expiry_sec"))
@@ -188,8 +188,8 @@ func ValidateConfig(logger *zap.Logger, c Config) map[string]string {
 	if c.GetConsole().Password == "" {
 		logger.Fatal("Console password must be set", zap.String("param", "console.password"))
 	}
-	if c.GetConsole().SigningKey == "" {
-		logger.Fatal("Console signing key must be set", zap.String("param", "console.signing_key"))
+	if len(strings.TrimSpace(c.GetConsole().SigningKey)) < 32 {
+		logger.Fatal("Console signing key must contain at least 32 non-padding bytes", zap.String("param", "console.signing_key"))
 	}
 	if c.GetSocket().CloseAckWaitMs < 1 {
 		logger.Fatal("Socket close ack timeout milliseconds must be >= 1", zap.Int("socket.close_ack_wait", c.GetSocket().CloseAckWaitMs))
@@ -337,21 +337,9 @@ func ValidateConfig(logger *zap.Logger, c Config) map[string]string {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "console.password"))
 		configWarnings["console.password"] = "Insecure default parameter value, change this for production!"
 	}
-	if c.GetConsole().SigningKey == "defaultsigningkey" {
-		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "console.signing_key"))
-		configWarnings["console.signing_key"] = "Insecure default parameter value, change this for production!"
-	}
 	if c.GetSocket().ServerKey == "defaultkey" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "socket.server_key"))
 		configWarnings["socket.server_key"] = "Insecure default parameter value, change this for production!"
-	}
-	if c.GetSession().EncryptionKey == "defaultencryptionkey" {
-		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "session.encryption_key"))
-		configWarnings["session.encryption_key"] = "Insecure default parameter value, change this for production!"
-	}
-	if c.GetSession().RefreshEncryptionKey == "defaultrefreshencryptionkey" {
-		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "session.refresh_encryption_key"))
-		configWarnings["session.refresh_encryption_key"] = "Insecure default parameter value, change this for production!"
 	}
 	if c.GetRuntime().HTTPKey == "defaulthttpkey" {
 		logger.Warn("WARNING: insecure default parameter value, change this for production!", zap.String("param", "runtime.http_key"))
@@ -806,9 +794,9 @@ func (cfg *SessionConfig) Clone() *SessionConfig {
 
 func NewSessionConfig() *SessionConfig {
 	return &SessionConfig{
-		EncryptionKey:         "defaultencryptionkey",
+		EncryptionKey:         "",
 		TokenExpirySec:        60,
-		RefreshEncryptionKey:  "defaultrefreshencryptionkey",
+		RefreshEncryptionKey:  "",
 		RefreshTokenExpirySec: 3600,
 	}
 }
@@ -1283,7 +1271,7 @@ func NewConsoleConfig() *ConsoleConfig {
 		Username:            "admin",
 		Password:            "password",
 		TokenExpirySec:      86400,
-		SigningKey:          "defaultsigningkey",
+		SigningKey:          "",
 		MFA:                 NewMFAConfig(),
 	}
 }
