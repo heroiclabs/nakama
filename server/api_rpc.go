@@ -218,7 +218,9 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 	var fnErr error
 	result, fnErr, rpcCode = fn(requestCtx, headers, queryParams, traceID, uid, username, vars, expiry, "", clientIP, clientPort, "", payload)
 	if fnErr != nil {
-		response, _ := json.Marshal(map[string]any{"error": fnErr, "message": fnErr.Error(), "code": rpcCode})
+		// Send only the message, in the same shape as the fixed errors above. Marshalling
+		// fnErr itself would expose runtime internals such as a JavaScript stack trace.
+		response, _ := json.Marshal(map[string]any{"error": fnErr.Error(), "message": fnErr.Error(), "code": rpcCode})
 		w.Header().Set("content-type", "application/json")
 		w.WriteHeader(grpcgw.HTTPStatusFromCode(rpcCode))
 		sentBytes, err = w.Write(response)
