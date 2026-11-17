@@ -875,6 +875,30 @@ func upsertSubscription(ctx context.Context, db *sql.Tx, sub *storageSubscriptio
 		sub.refundTime = time.Unix(0, 0)
 	}
 
+	// Reconcile with the stored subscription, a renewal shares the original transaction ID of the transactions before it.
+	var (
+		dbStore      api.StoreProvider
+		dbProductId  string
+		dbExpireTime pgtype.Timestamptz
+		dbRefundTime pgtype.Timestamptz
+	)
+	err := db.QueryRowContext(ctx, "SELECT store, product_id, expire_time, refund_time FROM subscription WHERE original_transaction_id = $1 FOR UPDATE", sub.originalTransactionId).Scan(&dbStore, &dbProductId, &dbExpireTime, &dbRefundTime)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+	case err != nil:
+		return err
+	case dbStore != sub.store:
+		return errSubscriptionOwnedByAnotherStore
+	case sub.store == api.StoreProvider_APPLE_APP_STORE && sub.refundTime.Unix() != 0 && sub.expireTime.Before(dbExpireTime.Time):
+		// A refund of an earlier Apple transaction, keep the newer period, which was paid for separately.
+		sub.productId = dbProductId
+		sub.expireTime = dbExpireTime.Time
+		sub.refundTime = dbRefundTime.Time
+	case sub.refundTime.Unix() == 0 && !sub.expireTime.After(dbExpireTime.Time):
+		// Not a newer period, so an earlier refund still applies.
+		sub.refundTime = dbRefundTime.Time
+	}
+
 	query := `
 INSERT
 INTO
@@ -902,7 +926,7 @@ DO
 		update_time = now(),
 		raw_response = coalesce(to_jsonb(nullif($8, '')), subscription.raw_response::jsonb),
 		raw_notification = coalesce(to_jsonb(nullif($9, '')), subscription.raw_notification::jsonb),
-		refund_time = coalesce(nullif($10, '1970-01-01 00:00:00+00'), subscription.refund_time)
+		refund_time = $10
 	WHERE
 		subscription.store = EXCLUDED.store
 RETURNING
