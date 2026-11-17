@@ -203,7 +203,7 @@ func CheckACL(path string, userPermissions Permission) bool {
 	case "/nakama.console.Console/AddAclTemplate":
 		requiredPermissions = NewPermission(console.AclResources_ACL_TEMPLATE, PermissionWrite)
 	case "/nakama.console.Console/AddUser":
-		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
+		requiredPermissions = NewPermission(console.AclResources_USER, PermissionWrite)
 	case "/nakama.console.Console/BanAccount":
 		requiredPermissions = NewPermission(console.AclResources_ACCOUNT, PermissionWrite)
 	case "/nakama.console.Console/AddAccountNote":
