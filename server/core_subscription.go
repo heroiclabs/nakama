@@ -532,6 +532,11 @@ func ValidateSubscriptionGoogle(ctx context.Context, logger *zap.Logger, db *sql
 		return nil, err
 	}
 
+	if len(gResponse.LineItems) == 0 {
+		logger.Warn("Google subscription receipt has no line items", zap.String("purchase_token", gReceipt.PurchaseToken))
+		return nil, status.Error(codes.FailedPrecondition, "Invalid Receipt. No subscriptions found.")
+	}
+
 	purchaseEnv := api.StoreEnvironment_PRODUCTION
 	if gResponse.TestPurchase != nil {
 		purchaseEnv = api.StoreEnvironment_SANDBOX
@@ -1775,6 +1780,12 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 
 				loggerWithNotification.Debug("Google IAP subscription notification received", zap.Any("api_response", gSubscription))
 
+				if len(gSubscription.LineItems) == 0 {
+					loggerWithNotification.Warn("Google IAP subscription refund notification has no line items", zap.Any("api_response", gSubscription))
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+
 				uid, err := extractAccountIdentifier(gSubscription)
 				if err != nil {
 					loggerWithNotification.Error("failed to extract account id", zap.Error(err))
@@ -1814,7 +1825,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 					originalTransactionId: transactionId,
 					userID:                *uid,
 					store:                 api.StoreProvider_GOOGLE_PLAY_STORE,
-					productId:             gSubscription.LineItems[0].ProductId, // This item can have multiple entries if the subscription was upgraded/downgraded. Skip handling this for now.
+					productId:             gSubscription.LineItems[0].ProductId, // Subscriptions with add-ons have an entry per product in no defined order. Skip handling this for now.
 					refundTime:            time.Now(),
 					environment:           env,
 					expireTime:            gSubscription.LineItems[0].ExpiryTime,
@@ -1888,6 +1899,12 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 
 				loggerWithNotification.Debug("Google IAP purchase notification received", zap.Any("api_response", gPurchase))
 
+				if len(gPurchase.ProductLineItem) == 0 {
+					loggerWithNotification.Warn("Google IAP purchase refund notification has no line items", zap.Any("api_response", gPurchase))
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+
 				uid, err := extractAccountIdentifier(gPurchase)
 				if err != nil {
 					loggerWithNotification.Error("failed to extract account id", zap.Error(err))
@@ -1923,7 +1940,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 				sPurchase := &storagePurchase{
 					userID:        *uid,
 					store:         int(api.StoreProvider_GOOGLE_PLAY_STORE),
-					productId:     gPurchase.ProductLineItem[0].ProductId, // This item can have multiple entries if the subscription was upgraded/downgraded. Skip handling this for now.
+					productId:     gPurchase.ProductLineItem[0].ProductId, // Multi-product purchases have an entry per product. Skip handling this for now.
 					purchaseTime:  gPurchase.PurchaseCompletionTime,
 					transactionId: transactionId,
 					refundTime:    time.Now(),
