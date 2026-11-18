@@ -46,7 +46,7 @@ var File_apigrpc_proto protoreflect.FileDescriptor
 const file_apigrpc_proto_rawDesc = "" +
 	"\n" +
 	"\rapigrpc.proto\x12\n" +
-	"nakama.api\x1a\rapi/api.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a.protoc-gen-openapiv2/options/annotations.proto2\x89V\n" +
+	"nakama.api\x1a\rapi/api.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a.protoc-gen-openapiv2/options/annotations.proto2\x9dV\n" +
 	"\x06Nakama\x12W\n" +
 	"\n" +
 	"AddFriends\x12\x1d.nakama.api.AddFriendsRequest\x1a\x16.google.protobuf.Empty\"\x12\x82\xd3\xe4\x93\x02\f\"\n" +
@@ -145,12 +145,14 @@ const file_apigrpc_proto_rawDesc = "" +
 	"\x0eListUserGroups\x12!.nakama.api.ListUserGroupsRequest\x1a\x19.nakama.api.UserGroupList\" \x82\xd3\xe4\x93\x02\x1a\x12\x18/v2/user/{user_id}/group\x12w\n" +
 	"\x11PromoteGroupUsers\x12$.nakama.api.PromoteGroupUsersRequest\x1a\x16.google.protobuf.Empty\"$\x82\xd3\xe4\x93\x02\x1e\"\x1c/v2/group/{group_id}/promote\x12t\n" +
 	"\x10DemoteGroupUsers\x12#.nakama.api.DemoteGroupUsersRequest\x1a\x16.google.protobuf.Empty\"#\x82\xd3\xe4\x93\x02\x1d\"\x1b/v2/group/{group_id}/demote\x12o\n" +
-	"\x12ReadStorageObjects\x12%.nakama.api.ReadStorageObjectsRequest\x1a\x1a.nakama.api.StorageObjects\"\x16\x82\xd3\xe4\x93\x02\x10:\x01*\"\v/v2/storage\x12\x7f\n" +
-	"\aRpcFunc\x12\x0f.nakama.api.Rpc\x1a\x0f.nakama.api.Rpc\"R\x92A\"b \n" +
-	"\r\n" +
-	"\tBearerJwt\x12\x00\n" +
+	"\x12ReadStorageObjects\x12%.nakama.api.ReadStorageObjectsRequest\x1a\x1a.nakama.api.StorageObjects\"\x16\x82\xd3\xe4\x93\x02\x10:\x01*\"\v/v2/storage\x12\x92\x01\n" +
+	"\aRpcFunc\x12\x0f.nakama.api.Rpc\x1a\x0f.nakama.api.Rpc\"e\x92A5b\x11\n" +
 	"\x0f\n" +
-	"\vHttpKeyAuth\x12\x00\x82\xd3\xe4\x93\x02':\apayloadZ\x0e\x12\f/v2/rpc/{id}\"\f/v2/rpc/{id}\x12d\n" +
+	"\vHttpKeyAuth\x12\x00b\x0f\n" +
+	"\r\n" +
+	"\tBasicAuth\x12\x00b\x0f\n" +
+	"\r\n" +
+	"\tBearerJwt\x12\x00\x82\xd3\xe4\x93\x02':\apayloadZ\x0e\x12\f/v2/rpc/{id}\"\f/v2/rpc/{id}\x12d\n" +
 	"\vUnlinkApple\x12\x18.nakama.api.AccountApple\x1a\x16.google.protobuf.Empty\"#\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v2/account/unlink/apple\x12g\n" +
 	"\fUnlinkCustom\x12\x19.nakama.api.AccountCustom\x1a\x16.google.protobuf.Empty\"$\x82\xd3\xe4\x93\x02\x1e:\x01*\"\x19/v2/account/unlink/custom\x12\\\n" +
 	"\x06Unlink\x12\x1b.nakama.api.AccountProvider\x1a\x16.google.protobuf.Empty\"\x1d\x82\xd3\xe4\x93\x02\x17:\x01*\"\x12/v2/account/unlink\x12g\n" +
@@ -182,7 +184,7 @@ const file_apigrpc_proto_rawDesc = "" +
 	" \n" +
 	"\tBearerJwt\x12\x13\b\x02\x1a\rAuthorization \x02\n" +
 	"\x1d\n" +
-	"\vHttpKeyAuth\x12\x0e\b\x02\x1a\bhttp_key \x02b\x0f\n" +
+	"\vHttpKeyAuth\x12\x0e\b\x02\x1a\bhttp_key \x01b\x0f\n" +
 	"\r\n" +
 	"\tBearerJwt\x12\x00r:\n" +
 	"\x1bNakama server documentation\x12\x1bhttps://heroiclabs.com/docs\n" +
