@@ -894,9 +894,6 @@ func upsertSubscription(ctx context.Context, db *sql.Tx, sub *storageSubscriptio
 		sub.productId = dbProductId
 		sub.expireTime = dbExpireTime.Time
 		sub.refundTime = dbRefundTime.Time
-	case sub.refundTime.Unix() == 0 && !sub.expireTime.After(dbExpireTime.Time):
-		// Not a newer period, so an earlier refund still applies.
-		sub.refundTime = dbRefundTime.Time
 	}
 
 	query := `
@@ -926,7 +923,13 @@ DO
 		update_time = now(),
 		raw_response = coalesce(to_jsonb(nullif($8, '')), subscription.raw_response::jsonb),
 		raw_notification = coalesce(to_jsonb(nullif($9, '')), subscription.raw_notification::jsonb),
-		refund_time = $10
+		-- Not a newer period, so an earlier refund still applies. Done here so it also holds against a concurrent first insert.
+		refund_time = CASE
+			WHEN EXCLUDED.refund_time = '1970-01-01 00:00:00+00'
+				AND EXCLUDED.expire_time <= subscription.expire_time
+			THEN subscription.refund_time
+			ELSE EXCLUDED.refund_time
+		END
 	WHERE
 		subscription.store = EXCLUDED.store
 RETURNING
@@ -1157,6 +1160,12 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 			renewalInfo := notificationData.RenewalInfo
 			transactionInfo := notificationData.TransactionInfo
 			if renewalInfo == nil {
+				if notificationType == "REVOKE" {
+					// Family Sharing revocations of non-consumable purchases carry no renewal info.
+					logger.Debug("Skipping Apple IAP REVOKE notification for a non-subscription purchase", zap.String("payload", string(body)))
+					w.WriteHeader(http.StatusOK)
+					return
+				}
 				logger.Warn("No renewal info for this Apple IAP notification type", zap.String("notification_type", notificationType))
 				w.WriteHeader(http.StatusInternalServerError)
 				return
@@ -1369,6 +1378,12 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 				// A SEATS subtype refunds only some seats of a multiseat purchase, the transaction has no revocation date
 				// and remains valid until all of its seats are revoked.
 				if subscriptionNotificationCallback == nil || transactionInfo.RevocationDate == 0 {
+					break
+				}
+
+				// A refund of an earlier billing cycle leaves the current period untouched, so the stored subscription
+				// carries no refund and there's no coherent refunded state to notify.
+				if sub.refundTime.Unix() == 0 {
 					break
 				}
 
