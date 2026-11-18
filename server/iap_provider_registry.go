@@ -23,7 +23,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"google.golang.org/grpc/codes"
 )
@@ -54,18 +53,11 @@ func (r *RuntimeIAPProviderRegistry) Register(name, notificationEndpointId strin
 	if !iapProviderNameRegex.MatchString(name) {
 		return errors.New("expects provider name to be valid, must be 1-128 bytes and contain only [a-zA-Z0-9_-]")
 	}
-	switch name {
-	case "apple", "google", "huawei", "facebookinstant", "samsung":
-		return fmt.Errorf("IAP provider name is reserved: %s", name)
-	}
 	if notificationEndpointId != "" && !iapProviderNameRegex.MatchString(notificationEndpointId) {
 		return fmt.Errorf("expects IAP provider notification endpoint id of %s to be valid, must be 1-128 bytes and contain only [a-zA-Z0-9_-]: %q", name, notificationEndpointId)
 	}
 	if code < math.MinInt16 || code > math.MaxInt16 {
 		return fmt.Errorf("IAP provider code must fit in 16 bits: %s has %d", name, code)
-	}
-	if _, builtIn := api.StoreProvider_name[int32(code)]; builtIn {
-		return fmt.Errorf("IAP provider code %d is used by a built-in store: %s", code, name)
 	}
 	provider := &RuntimeIAPProviderFunctions{name: name, notificationEndpointId: notificationEndpointId, storeCode: code, validatePurchase: validatePurchase, validateSubscription: validateSubscription, notificationHandler: notificationHandler}
 	if _, found := r.providersByName.LoadOrStore(name, provider); found {

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package iap
+package huawei
 
 import (
 	"context"
@@ -30,6 +30,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type huaweiConfig struct {
+	publicKey string
+}
+
+func (c huaweiConfig) GetPublicKey() string { return c.publicKey }
+
+func (c huaweiConfig) GetClientID() string { return "client-id" }
+
+func (c huaweiConfig) GetClientSecret() string { return "client-secret" }
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
@@ -57,7 +67,7 @@ func TestHuaweiValidationSendsThePurchaseToHuaweisVerifyEndpoint(t *testing.T) {
 		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(body))}, nil
 	})}
 
-	_, _, _, err = ValidateReceiptHuawei(context.Background(), httpc, base64.StdEncoding.EncodeToString(publicKey), "client-id", "client-secret", purchaseData, base64.StdEncoding.EncodeToString(signature))
+	_, err = (&Provider{Config: huaweiConfig{publicKey: base64.StdEncoding.EncodeToString(publicKey)}, Client: httpc}).ValidatePurchase(context.Background(), nil, nil, nil, map[string]any{"purchase": purchaseData, "signature": base64.StdEncoding.EncodeToString(signature)}, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{
