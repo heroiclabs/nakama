@@ -532,6 +532,11 @@ func ValidateSubscriptionGoogle(ctx context.Context, logger *zap.Logger, db *sql
 		return nil, err
 	}
 
+	if len(gResponse.LineItems) == 0 {
+		logger.Warn("Google subscription receipt has no line items", zap.String("purchase_token", gReceipt.PurchaseToken))
+		return nil, status.Error(codes.FailedPrecondition, "Invalid Receipt. No subscriptions found.")
+	}
+
 	purchaseEnv := api.StoreEnvironment_PRODUCTION
 	if gResponse.TestPurchase != nil {
 		purchaseEnv = api.StoreEnvironment_SANDBOX
@@ -870,6 +875,27 @@ func upsertSubscription(ctx context.Context, db *sql.Tx, sub *storageSubscriptio
 		sub.refundTime = time.Unix(0, 0)
 	}
 
+	// Reconcile with the stored subscription, a renewal shares the original transaction ID of the transactions before it.
+	var (
+		dbStore      api.StoreProvider
+		dbProductId  string
+		dbExpireTime pgtype.Timestamptz
+		dbRefundTime pgtype.Timestamptz
+	)
+	err := db.QueryRowContext(ctx, "SELECT store, product_id, expire_time, refund_time FROM subscription WHERE original_transaction_id = $1 FOR UPDATE", sub.originalTransactionId).Scan(&dbStore, &dbProductId, &dbExpireTime, &dbRefundTime)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+	case err != nil:
+		return err
+	case dbStore != sub.store:
+		return errSubscriptionOwnedByAnotherStore
+	case sub.store == api.StoreProvider_APPLE_APP_STORE && sub.refundTime.Unix() != 0 && sub.expireTime.Before(dbExpireTime.Time):
+		// A refund of an earlier Apple transaction, keep the newer period, which was paid for separately.
+		sub.productId = dbProductId
+		sub.expireTime = dbExpireTime.Time
+		sub.refundTime = dbRefundTime.Time
+	}
+
 	query := `
 INSERT
 INTO
@@ -897,7 +923,13 @@ DO
 		update_time = now(),
 		raw_response = coalesce(to_jsonb(nullif($8, '')), subscription.raw_response::jsonb),
 		raw_notification = coalesce(to_jsonb(nullif($9, '')), subscription.raw_notification::jsonb),
-		refund_time = coalesce(nullif($10, '1970-01-01 00:00:00+00'), subscription.refund_time)
+		-- Not a newer period, so an earlier refund still applies. Done here so it also holds against a concurrent first insert.
+		refund_time = CASE
+			WHEN EXCLUDED.refund_time = '1970-01-01 00:00:00+00'
+				AND EXCLUDED.expire_time <= subscription.expire_time
+			THEN subscription.refund_time
+			ELSE EXCLUDED.refund_time
+		END
 	WHERE
 		subscription.store = EXCLUDED.store
 RETURNING
@@ -1014,9 +1046,8 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 		}
 
 		switch notificationType := strings.ToUpper(notificationPayload.NotificationType); notificationType {
-		case "DID_RENEW", "SUBSCRIBED", "DID_CHANGE_RENEWAL_PREF", "OFFER_REDEEMED":
+		case "DID_RENEW", "SUBSCRIBED", "DID_CHANGE_RENEWAL_PREF", "OFFER_REDEEMED", "RENEWAL_EXTENDED":
 			// These notification types only relate to subscriptions.
-			// These should always contain transactionInfo as they imply something was billed.
 			transactionInfo := notificationData.TransactionInfo
 			if transactionInfo == nil {
 				logger.Warn("No transaction info available for Apple IAP notification type", zap.String("notification_type", notificationType),
@@ -1052,23 +1083,11 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 				}
 			}
 
-			productId := transactionInfo.ProductId
-			switch notificationPayload.Subtype {
-			case "UPGRADE", "DOWNGRADE":
-				// For subscription plan changes, the product ID is in the renewal info.
-				renewalInfo := notificationData.RenewalInfo
-				if renewalInfo != nil {
-					productId = renewalInfo.AutoRenewProductId
-				} else {
-					logger.Warn("No renewal info for Apple IAP subscription plan change notification", zap.String("notification_subtype", notificationPayload.Subtype))
-				}
-			}
-
 			sub := &storageSubscription{
 				userID:                uid,
 				originalTransactionId: transactionInfo.OriginalTransactionId,
 				store:                 api.StoreProvider_APPLE_APP_STORE,
-				productId:             productId,
+				productId:             transactionInfo.ProductId,
 				purchaseTime:          parseMillisecondUnixTimestamp(transactionInfo.OriginalPurchaseDate),
 				environment:           env,
 				expireTime:            parseMillisecondUnixTimestamp(transactionInfo.ExpiresDate),
@@ -1110,7 +1129,8 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 				suid = sub.userID.String()
 			}
 
-			if subscriptionNotificationCallback != nil {
+			nType := appleSubscriptionNotificationType(notificationType, notificationPayload.Subtype)
+			if nType != 0 && subscriptionNotificationCallback != nil {
 				validatedSub := &api.ValidatedSubscription{
 					UserId:                suid,
 					ProductId:             sub.productId,
@@ -1127,24 +1147,25 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 					Active:                active,
 				}
 
-				notification := runtime.IAPNotificationSubscribed
-				if notificationType == "DID_RENEW" {
-					notification = runtime.IAPNotificationRenewed
-				}
-
-				if err = subscriptionNotificationCallback(r.Context(), notification, validatedSub, notificationData); err != nil {
-					logger.Error("Error invoking Apple IAP subscription notification function", zap.Error(err), zap.String("notification_type", notification.String()), zap.String("notification_payload", string(body)))
+				if err = subscriptionNotificationCallback(r.Context(), nType, validatedSub, notificationData); err != nil {
+					logger.Error("Error invoking Apple IAP subscription notification function", zap.Error(err), zap.String("notification_type", nType.String()), zap.String("notification_payload", string(body)))
 					w.WriteHeader(http.StatusOK)
 					return
 				}
 			}
 
-		case "EXPIRED", "DID_CHANGE_RENEWAL_STATUS", "GRACE_PERIOD_EXPIRED", "REVOKED":
-			// These only apply to subscriptions that have expired or have been revoked (family sharing).
+		case "EXPIRED", "DID_CHANGE_RENEWAL_STATUS", "DID_FAIL_TO_RENEW", "GRACE_PERIOD_EXPIRED", "REVOKE":
+			// These only apply to subscriptions that have changed auto-renewal status, expired, failed to renew or have been revoked (family sharing, organization or group).
 			// These should all contain RenewalInfo but may not contain TransactionInfo.
-			// DID_CHANGE_RENEWAL_STATUS contains a substatus for auto-renewal cancellation.
 			renewalInfo := notificationData.RenewalInfo
+			transactionInfo := notificationData.TransactionInfo
 			if renewalInfo == nil {
+				if notificationType == "REVOKE" {
+					// Family Sharing revocations of non-consumable purchases carry no renewal info.
+					logger.Debug("Skipping Apple IAP REVOKE notification for a non-subscription purchase", zap.String("payload", string(body)))
+					w.WriteHeader(http.StatusOK)
+					return
+				}
 				logger.Warn("No renewal info for this Apple IAP notification type", zap.String("notification_type", notificationType))
 				w.WriteHeader(http.StatusInternalServerError)
 				return
@@ -1178,10 +1199,23 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 				env = api.StoreEnvironment_SANDBOX
 			}
 
+			// Prefer the expiry of the latest transaction, falling back to the renewal date when it's not present.
+			// Access is extended until the end of the billing grace period, if any.
 			expiryTime := parseMillisecondUnixTimestamp(renewalInfo.RenewalDate)
-			graceExpiryTime := parseMillisecondUnixTimestamp(renewalInfo.GracePeriodExpiresDate)
-			if !graceExpiryTime.IsZero() && graceExpiryTime.After(expiryTime) {
-				expiryTime = graceExpiryTime
+			var purchaseTime, refundTime time.Time
+			if transactionInfo != nil {
+				if transactionInfo.ExpiresDate != 0 {
+					expiryTime = parseMillisecondUnixTimestamp(transactionInfo.ExpiresDate)
+				}
+				purchaseTime = parseMillisecondUnixTimestamp(transactionInfo.OriginalPurchaseDate)
+				if transactionInfo.RevocationDate != 0 {
+					refundTime = parseMillisecondUnixTimestamp(transactionInfo.RevocationDate)
+				}
+			}
+			if renewalInfo.GracePeriodExpiresDate != 0 {
+				if graceExpiryTime := parseMillisecondUnixTimestamp(renewalInfo.GracePeriodExpiresDate); graceExpiryTime.After(expiryTime) {
+					expiryTime = graceExpiryTime
+				}
 			}
 
 			sub := &storageSubscription{
@@ -1189,9 +1223,15 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 				originalTransactionId: renewalInfo.OriginalTransactionId,
 				store:                 api.StoreProvider_APPLE_APP_STORE,
 				productId:             renewalInfo.ProductId,
+				purchaseTime:          purchaseTime,
 				environment:           env,
 				expireTime:            expiryTime,
 				rawNotification:       string(body),
+				refundTime:            refundTime,
+			}
+			if transactionInfo != nil && transactionInfo.ProductId != "" {
+				// The renewal info product may differ from the current one if a downgrade is pending.
+				sub.productId = transactionInfo.ProductId
 			}
 
 			if err = ExecuteInTx(r.Context(), db, func(tx *sql.Tx) error {
@@ -1228,18 +1268,8 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 				suid = sub.userID.String()
 			}
 
-			nType := runtime.IAPNotificationExpired
-			if notificationType == "DID_CHANGE_RENEWAL_STATUS" {
-				if notificationPayload.Subtype == "AUTO_RENEW_DISABLED" {
-					nType = runtime.IAPNotificationCancelled
-				} else {
-					// AUTO_RENEW_ENABLED: The user enabled the auto-renewal, but there's nothing to upsert or hook to fire, so do nothing.
-					w.WriteHeader(http.StatusOK)
-					return
-				}
-			}
-
-			if subscriptionNotificationCallback != nil {
+			nType := appleSubscriptionNotificationType(notificationType, notificationPayload.Subtype)
+			if nType != 0 && subscriptionNotificationCallback != nil {
 				validatedSub := &api.ValidatedSubscription{
 					UserId:                suid,
 					ProductId:             sub.productId,
@@ -1265,6 +1295,11 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 
 		case "REFUND":
 			transactionInfo := notificationData.TransactionInfo
+			if transactionInfo == nil {
+				logger.Warn("No transaction info available for Apple IAP notification type", zap.String("notification_type", notificationType))
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
 
 			uid := uuid.Nil
 			if transactionInfo.AppAccountToken != "" {
@@ -1314,6 +1349,42 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 					expireTime:            parseMillisecondUnixTimestamp(transactionInfo.ExpiresDate),
 					rawNotification:       string(body),
 					refundTime:            parseMillisecondUnixTimestamp(transactionInfo.RevocationDate),
+				}
+
+				if err = ExecuteInTx(r.Context(), db, func(tx *sql.Tx) error {
+					if err = upsertSubscription(r.Context(), tx, sub); err != nil {
+						if errors.Is(err, errSubscriptionOwnedByAnotherStore) {
+							logger.Warn("App Store refund notification original transaction ID belongs to another store", zap.String("original_transaction_id", sub.originalTransactionId))
+							return ErrSkipNotification
+						}
+						var pgErr *pgconn.PgError
+						if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
+							// User id was not found, ignore this notification
+							return ErrSkipNotification
+						}
+						return err
+					}
+					return nil
+				}); err != nil {
+					if errors.Is(err, ErrSkipNotification) {
+						w.WriteHeader(http.StatusOK)
+						return
+					}
+					logger.Error("Failed to store App Store refund notification subscription data", zap.Error(err))
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+
+				// A SEATS subtype refunds only some seats of a multiseat purchase, the transaction has no revocation date
+				// and remains valid until all of its seats are revoked.
+				if subscriptionNotificationCallback == nil || transactionInfo.RevocationDate == 0 {
+					break
+				}
+
+				// A refund of an earlier billing cycle leaves the current period untouched, so the stored subscription
+				// carries no refund and there's no coherent refunded state to notify.
+				if sub.refundTime.Unix() == 0 {
+					break
 				}
 
 				active := false
@@ -1411,9 +1482,53 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 				}
 			}
 		default:
-			// Unhandled notification type.
 		}
 		w.WriteHeader(http.StatusOK)
+	}
+}
+
+// appleSubscriptionNotificationType maps an App Store notification type and subtype to the notification type reported to the
+// runtime subscription notification hook. A zero value means the subscription is stored without invoking the hook.
+func appleSubscriptionNotificationType(notificationType, subtype string) runtime.NotificationType {
+	switch notificationType {
+	case "SUBSCRIBED":
+		// INITIAL_BUY or RESUBSCRIBE.
+		return runtime.IAPNotificationSubscribed
+	case "DID_RENEW", "RENEWAL_EXTENDED":
+		// DID_RENEW may have a BILLING_RECOVERY subtype if a previously failed renewal succeeded.
+		return runtime.IAPNotificationRenewed
+	case "DID_CHANGE_RENEWAL_PREF", "OFFER_REDEEMED":
+		switch subtype {
+		case "INITIAL_BUY", "RESUBSCRIBE", "UPGRADE":
+			// Upgrades take effect immediately.
+			return runtime.IAPNotificationSubscribed
+		default:
+			// DOWNGRADE, or no subtype for a reverted downgrade or an offer applied to an active subscription, take effect at the next renewal.
+			return 0
+		}
+	case "DID_CHANGE_RENEWAL_STATUS":
+		if subtype == "AUTO_RENEW_DISABLED" {
+			return runtime.IAPNotificationCancelled
+		}
+		// AUTO_RENEW_ENABLED does not change the subscription entitlement.
+		return 0
+	case "DID_FAIL_TO_RENEW":
+		if subtype == "GRACE_PERIOD" {
+			// Access is extended until the grace period expiry date.
+			return runtime.IAPNotificationInGracePeriod
+		}
+		// No grace period, the App Store retries billing while access is suspended.
+		return runtime.IAPNotificationOnHold
+	case "GRACE_PERIOD_EXPIRED":
+		// The App Store keeps retrying billing after the grace period ends.
+		return runtime.IAPNotificationOnHold
+	case "EXPIRED", "REVOKE":
+		// EXPIRED subtypes: VOLUNTARY, BILLING_RETRY, PRICE_INCREASE, PRODUCT_NOT_FOR_SALE.
+		return runtime.IAPNotificationExpired
+	case "REFUND":
+		return runtime.IAPNotificationRefunded
+	default:
+		return 0
 	}
 }
 
@@ -1492,6 +1607,38 @@ type googleStoreNotificationMessage struct {
 	MessageId  string            `json:"messageId"`
 }
 
+// googleSubscriptionNotificationType maps a Google Play subscription notification type to the notification type reported
+// to the runtime subscription notification hook. A zero value means the subscription is stored without invoking the hook.
+func googleSubscriptionNotificationType(googleType runtime.GoogleSubscriptionNotificationType) runtime.NotificationType {
+	switch googleType {
+	case runtime.GoogleSubscriptionPurchased:
+		return runtime.IAPNotificationSubscribed
+	case runtime.GoogleSubscriptionRenewed, runtime.GoogleSubscriptionRecovered, runtime.GoogleSubscriptionRestarted:
+		return runtime.IAPNotificationRenewed
+	case runtime.GoogleSubscriptionDeferred:
+		// The renewal date was extended by the developer.
+		return runtime.IAPNotificationRenewed
+	case runtime.GoogleSubscriptionCanceled:
+		return runtime.IAPNotificationCancelled
+	case runtime.GoogleSubscriptionExpired:
+		return runtime.IAPNotificationExpired
+	case runtime.GoogleSubscriptionRevoked:
+		return runtime.IAPNotificationRefunded
+	case runtime.GoogleSubscriptionInGracePeriod:
+		return runtime.IAPNotificationInGracePeriod
+	case runtime.GoogleSubscriptionOnHold, runtime.GoogleSubscriptionPaused:
+		return runtime.IAPNotificationOnHold
+	case runtime.GoogleSubscriptionPauseScheduleChanged, runtime.GoogleSubscriptionPriceChangeConfirmed, runtime.GoogleSubscriptionPriceChangeUpdated:
+		// These don't change the subscription entitlement or expiry.
+		return 0
+	case runtime.GoogleSubscriptionPendingPurchaseCanceled:
+		// A pending purchase was canceled before the subscription was ever active.
+		return 0
+	default:
+		return 0
+	}
+}
+
 func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogleConfig, purchaseNotificationCallback RuntimePurchaseNotificationGoogleFunction, subscriptionNotificationCallback RuntimeSubscriptionNotificationGoogleFunction) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
@@ -1545,6 +1692,12 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 
 			loggerWithNotification.Debug("Google IAP subscription notification received", zap.Any("api_response", gSubscription))
 
+			if len(gSubscription.LineItems) == 0 {
+				loggerWithNotification.Warn("Google IAP subscription notification has no line items", zap.Any("api_response", gSubscription))
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+
 			uid, err := extractAccountIdentifier(gSubscription)
 			if err != nil {
 				loggerWithNotification.Error("failed to extract account id", zap.Error(err))
@@ -1590,19 +1743,10 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 				rawNotification:       string(body),
 			}
 
-			var notificationType runtime.NotificationType
-			switch googleNotification.SubscriptionNotification.NotificationType {
-			case runtime.GoogleSubscriptionPurchased:
-				notificationType = runtime.IAPNotificationSubscribed
-			case runtime.GoogleSubscriptionRenewed:
-				notificationType = runtime.IAPNotificationRenewed
-			case runtime.GoogleSubscriptionExpired:
-				notificationType = runtime.IAPNotificationExpired
-			case runtime.GoogleSubscriptionCanceled:
-				notificationType = runtime.IAPNotificationCancelled
-			default:
-				w.WriteHeader(http.StatusOK)
-				return
+			// Always store the subscription state returned by Google, the notification type only determines what is reported to the hook.
+			notificationType := googleSubscriptionNotificationType(googleNotification.SubscriptionNotification.NotificationType)
+			if notificationType == runtime.IAPNotificationRefunded {
+				storageSub.refundTime = time.Now()
 			}
 
 			if err = ExecuteInTx(r.Context(), db, func(tx *sql.Tx) error {
@@ -1629,7 +1773,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 				return
 			}
 
-			if subscriptionNotificationCallback != nil {
+			if notificationType != 0 && subscriptionNotificationCallback != nil {
 				active := false
 				if storageSub.expireTime.After(time.Now()) && storageSub.refundTime.Unix() == 0 {
 					active = true
@@ -1675,6 +1819,12 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 
 				loggerWithNotification.Debug("Google IAP subscription notification received", zap.Any("api_response", gSubscription))
 
+				if len(gSubscription.LineItems) == 0 {
+					loggerWithNotification.Warn("Google IAP subscription refund notification has no line items", zap.Any("api_response", gSubscription))
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+
 				uid, err := extractAccountIdentifier(gSubscription)
 				if err != nil {
 					loggerWithNotification.Error("failed to extract account id", zap.Error(err))
@@ -1714,7 +1864,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 					originalTransactionId: transactionId,
 					userID:                *uid,
 					store:                 api.StoreProvider_GOOGLE_PLAY_STORE,
-					productId:             gSubscription.LineItems[0].ProductId, // This item can have multiple entries if the subscription was upgraded/downgraded. Skip handling this for now.
+					productId:             gSubscription.LineItems[0].ProductId, // Subscriptions with add-ons have an entry per product in no defined order. Skip handling this for now.
 					refundTime:            time.Now(),
 					environment:           env,
 					expireTime:            gSubscription.LineItems[0].ExpiryTime,
@@ -1788,6 +1938,12 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 
 				loggerWithNotification.Debug("Google IAP purchase notification received", zap.Any("api_response", gPurchase))
 
+				if len(gPurchase.ProductLineItem) == 0 {
+					loggerWithNotification.Warn("Google IAP purchase refund notification has no line items", zap.Any("api_response", gPurchase))
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+
 				uid, err := extractAccountIdentifier(gPurchase)
 				if err != nil {
 					loggerWithNotification.Error("failed to extract account id", zap.Error(err))
@@ -1823,7 +1979,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 				sPurchase := &storagePurchase{
 					userID:        *uid,
 					store:         int(api.StoreProvider_GOOGLE_PLAY_STORE),
-					productId:     gPurchase.ProductLineItem[0].ProductId, // This item can have multiple entries if the subscription was upgraded/downgraded. Skip handling this for now.
+					productId:     gPurchase.ProductLineItem[0].ProductId, // Multi-product purchases have an entry per product. Skip handling this for now.
 					purchaseTime:  gPurchase.PurchaseCompletionTime,
 					transactionId: transactionId,
 					refundTime:    time.Now(),

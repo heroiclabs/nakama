@@ -4,9 +4,14 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 [Unreleased]
+### Added
+- Introduce IAP Subscription Notification types for subscriptions in grace period and on hold for registered hooks.
+
 ### Fixed
 - Support multiple subscriptions in the IAP provider subscription validation reply.
 - Avoid logging unnecessary errors when runtime MultiUpdate calls encounter storage version rejections.
+- Improve Apple and Google IAP Subscription tracking of status and expiry.
+- Trigger the IAP Subscription Notification hooks for more types of Apple and Google notifications, when applicable.
 
 ## [3.42.0] - 2026-11-03
 ### Added
