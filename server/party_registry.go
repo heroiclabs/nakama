@@ -482,7 +482,7 @@ func (p *LocalPartyRegistry) PartyList(ctx context.Context, limit int, open *boo
 		if limit != idxCursor.Limit {
 			return nil, "", fmt.Errorf("invalid cursor: param limit mismatch")
 		}
-		if open != idxCursor.Open && *open != *idxCursor.Open {
+		if (open == nil) != (idxCursor.Open == nil) || (open != nil && *open != *idxCursor.Open) {
 			return nil, "", fmt.Errorf("invalid cursor: param open mismatch")
 		}
 	}
