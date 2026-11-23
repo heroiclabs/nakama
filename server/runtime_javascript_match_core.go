@@ -487,13 +487,13 @@ func (rm *RuntimeJavaScriptMatchCore) MatchTerminate(tick int64, state any, grac
 		return nil, err
 	}
 
+	if goja.IsNull(retVal) || goja.IsUndefined(retVal) {
+		return nil, nil
+	}
+
 	retMap, ok := retVal.Export().(map[string]any)
 	if !ok {
 		return nil, errors.New("matchTerminate is expected to return an object with 'state' property")
-	}
-
-	if goja.IsNull(retVal) || goja.IsUndefined(retVal) {
-		return nil, nil
 	}
 
 	newState, ok := retMap["state"]
@@ -519,13 +519,13 @@ func (rm *RuntimeJavaScriptMatchCore) MatchSignal(tick int64, state any, data st
 		return nil, "", err
 	}
 
+	if goja.IsNull(retVal) || goja.IsUndefined(retVal) {
+		return nil, "", nil
+	}
+
 	retMap, ok := retVal.Export().(map[string]any)
 	if !ok {
 		return nil, "", errors.New("matchSignal is expected to return an object with 'state' property")
-	}
-
-	if goja.IsNull(retVal) || goja.IsUndefined(retVal) {
-		return nil, "", nil
 	}
 
 	newState, ok := retMap["state"]
