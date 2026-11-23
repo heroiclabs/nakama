@@ -1364,3 +1364,42 @@ nk.register_shutdown(shutdown)`, key),
 		t.Fatalf("expected the shutdown hook to write its storage object, got %d objects", len(objects.Objects))
 	}
 }
+
+func TestRuntimeLuaLeaderboardPrevResetField(t *testing.T) {
+	lbID := uuid.Must(uuid.NewV4()).String()
+	modules := map[string]string{
+		"lb_prev_reset": fmt.Sprintf(`
+local nk = require("nakama")
+
+nk.leaderboard_create(%q, false, "desc", "best", "* * * * *", {}, false)
+
+local got = nk.leaderboards_get_id({%q})
+assert(#got == 1, "expected 1 leaderboard")
+assert(type(got[1].prev_reset) == "number" and got[1].prev_reset > 0, "expected leaderboards_get_id prev_reset to be positive number, got " .. tostring(got[1].prev_reset))
+assert(got[1][""] == nil, "expected empty-string key not to be populated")
+
+local cursor = nil
+local found = false
+repeat
+	local list, next_cursor = nk.leaderboard_list(100, cursor)
+	for _, lb in ipairs(list) do
+		if lb.id == %q then
+			found = true
+			assert(type(lb.prev_reset) == "number" and lb.prev_reset > 0, "expected leaderboard_list prev_reset to be positive number, got " .. tostring(lb.prev_reset))
+			assert(lb[""] == nil, "expected empty-string key not to be populated in leaderboard_list")
+		end
+	end
+	cursor = next_cursor
+until cursor == nil
+assert(found, "expected leaderboard to be returned by leaderboard_list")
+
+nk.leaderboard_delete(%q)
+`, lbID, lbID, lbID, lbID),
+	}
+
+	_, _, err := runtimeWithModules(t, modules)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
