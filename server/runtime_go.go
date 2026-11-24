@@ -40,6 +40,8 @@ import (
 
 var authenticationProviderNameRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,128}$`)
 
+var fleetManagerNameRegex = regexp.MustCompile(`^[a-z0-9_-]*$`)
+
 // No need for a stateful RuntimeProviderGo here.
 
 type RuntimeGoInitializer struct {
@@ -3709,7 +3711,7 @@ func (ri *RuntimeGoInitializer) RegisterFleetManager(fleetManager runtime.FleetM
 
 // @group fleetmanager
 // @summary Register a FleetManager implementation under the given name. The fleet manager can be retrieved later from the runtime using GetFleetManagerByName().
-// @param name(type=string) The name to register the fleet manager under. The empty name is the default.
+// @param name(type=string) The name to register the fleet manager under, case insensitive. The empty name is the default.
 // @param fleetManager(type=runtime.FleetManagerInitializer) The fleet manager implementation to register.
 // @return error(error) An optional error value if an error occurred.
 func (ri *RuntimeGoInitializer) RegisterFleetManagerByName(name string, fleetManager runtime.FleetManagerInitializer) error {
@@ -3718,6 +3720,13 @@ func (ri *RuntimeGoInitializer) RegisterFleetManagerByName(name string, fleetMan
 	}
 
 	name = strings.ToLower(name)
+	if len(name) > 128 {
+		return errors.New("fleet manager name must be at most 128 characters")
+	}
+	if !fleetManagerNameRegex.MatchString(name) {
+		return errors.New("fleet manager name must contain only letters, digits, '_' or '-'")
+	}
+
 	if err := fleetManager.Init(ri, ri.nk, ri.fmCallbackHandler, name); err != nil {
 		return fmt.Errorf("failed to run fleet manager Init function: %s", err.Error())
 	}
