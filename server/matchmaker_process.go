@@ -169,10 +169,10 @@ func (m *LocalMatchmaker) processDefault(activeIndexCount int, activeIndexesCopy
 			for entryComboIdx, entryCombo := range entryCombos {
 				if len(entryCombo)+len(hitIndex.Entries)+activeIndex.Count <= activeIndex.MaxCount {
 					// There is room in this combo for these entries. Check if there are session ID or mutual match conflicts with current combo.
-					var mutualMatchConflict bool
+					var comboSessionConflict, mutualMatchConflict bool
 					for _, entry := range entryCombo {
 						if _, found := hitIndex.SessionIDs[entry.Presence.SessionId]; found {
-							sessionIdConflict = true
+							comboSessionConflict = true
 							break
 						}
 						if !threshold && m.config.GetMatchmaker().RevPrecision {
@@ -203,7 +203,7 @@ func (m *LocalMatchmaker) processDefault(activeIndexCount int, activeIndexesCopy
 							}
 						}
 					}
-					if sessionIdConflict || mutualMatchConflict {
+					if comboSessionConflict || mutualMatchConflict {
 						continue
 					}
 
