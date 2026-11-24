@@ -372,6 +372,10 @@ func consoleAuditLogInterceptor(logger *zap.Logger, db *sql.DB) func(context.Con
 			case "/nakama.console.Console/UpdateAccount":
 				action = console.AuditLogAction_UPDATE
 				resource = console.AclResources_ACCOUNT
+				msg := req.(*console.UpdateAccountRequest)
+				if msg.Password != nil && msg.Password.Value != "" {
+					msg.Password.Value = "REDACTED"
+				}
 				metadata, mErr = auditLogMarshaller.Marshal(msg)
 				log = "player account data updated"
 			case "/nakama.console.Console/UpdateAclTemplate":

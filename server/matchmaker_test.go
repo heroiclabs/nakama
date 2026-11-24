@@ -2425,6 +2425,96 @@ func TestMatchmakerCountMultipleLongestWaitingPriority(t *testing.T) {
 	}
 }
 
+func TestMatchmakerEntryComboSessionConflictDoesNotLeakAcrossCombos(t *testing.T) {
+	consoleLogger := loggerForTest(t)
+	matchesSeen := make(map[string]*rtapi.MatchmakerMatched)
+	matchMaker, cleanup, err := createTestMatchmaker(t, consoleLogger, false, func(presences []*PresenceID, envelope *rtapi.Envelope) {
+		if len(presences) == 1 {
+			matchesSeen[presences[0].SessionID.String()] = envelope.GetMatchmakerMatched()
+		}
+	})
+	if err != nil {
+		t.Fatalf("error creating test matchmaker: %v", err)
+	}
+	defer cleanup()
+
+	sessionA, _ := uuid.NewV4()
+	sessionB, _ := uuid.NewV4()
+	sessionC, _ := uuid.NewV4()
+	sessionE, _ := uuid.NewV4()
+	sessionF, _ := uuid.NewV4()
+
+	addSolo := func(sid uuid.UUID, label string) {
+		_, _, err := matchMaker.Add(context.Background(), []*MatchmakerPresence{
+			{
+				UserId:    label,
+				SessionId: sid.String(),
+				Username:  label,
+				Node:      "node",
+				SessionID: sid,
+			},
+		}, sid.String(), "", "*", 4, 4, 1, map[string]string{}, map[string]float64{})
+		if err != nil {
+			t.Fatalf("error adding solo ticket for %s: %v", label, err)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	addParty := func(partyID string, sids []uuid.UUID, labels []string) {
+		presences := make([]*MatchmakerPresence, len(sids))
+		for i, sid := range sids {
+			presences[i] = &MatchmakerPresence{
+				UserId:    labels[i],
+				SessionId: sid.String(),
+				Username:  labels[i],
+				Node:      "node",
+				SessionID: sid,
+			}
+		}
+		_, _, err := matchMaker.Add(context.Background(), presences, "", partyID, "*", 4, 4, 1, map[string]string{}, map[string]float64{})
+		if err != nil {
+			t.Fatalf("error adding party ticket %s: %v", partyID, err)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// Deterministic created_at order for Bluge hits when A initiates:
+	// 1. B1 (party of 2: sessionB, sessionE) -> entryCombos[0] = [B1]
+	// 2. C1 (party of 2: sessionC, sessionF) -> 2+2+1 > 4, opens entryCombos[1] = [C1]
+	// 3. B2 (solo: sessionB) -> conflicts with entryCombos[0] (sessionB),
+	//    must still be checked cleanly against entryCombos[1] ([C1]) and form match A + C1 + B2 = 4.
+	addParty("party-b", []uuid.UUID{sessionB, sessionE}, []string{"b1", "e1"})
+	addParty("party-c", []uuid.UUID{sessionC, sessionF}, []string{"c1", "f1"})
+	addSolo(sessionB, "b2")
+	addSolo(sessionA, "a")
+
+	// Restrict activeIndexes to initiator A so the exact hit ordering above is exercised.
+	matchMaker.Lock()
+	for k, v := range matchMaker.activeIndexes {
+		if v.SessionID != sessionA.String() {
+			delete(matchMaker.activeIndexes, k)
+		}
+	}
+	matchMaker.Unlock()
+
+	matchMaker.Process()
+
+	if len(matchesSeen) != 4 {
+		t.Fatalf("expected 4 matched presences (A + C1 + B2), got %d", len(matchesSeen))
+	}
+	for name, sid := range map[string]uuid.UUID{"a": sessionA, "b2": sessionB, "c1": sessionC, "f1": sessionF} {
+		if _, ok := matchesSeen[sid.String()]; !ok {
+			t.Fatalf("expected %s (%s) to be matched", name, sid.String())
+		}
+	}
+	if _, ok := matchesSeen[sessionE.String()]; ok {
+		t.Fatalf("expected e1 (%s) from conflicting party-b not to be matched", sessionE.String())
+	}
+	if len(matchMaker.indexes) != 1 {
+		t.Fatalf("expected 1 remaining unmatched ticket (party-b), got %d", len(matchMaker.indexes))
+	}
+}
+
 func benchmarkMatchmakerProcessTickets(ticketsMax int32, unmatchable int, minCount, maxCount int, b *testing.B) {
 	consoleLogger := loggerForBenchmark(b)
 	consoleLogger.Info("Benchmark running")

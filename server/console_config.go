@@ -77,6 +77,17 @@ func (s *ConsoleServer) GetConfig(ctx context.Context, in *emptypb.Empty) (*cons
 		cfg.GetIAP().FacebookInstant.AppSecret = ObfuscationString
 	}
 
+	if cfg.GetSession().EncryptionKey != "" {
+		cfg.GetSession().EncryptionKey = ObfuscationString
+	}
+	if cfg.GetSession().RefreshEncryptionKey != "" {
+		cfg.GetSession().RefreshEncryptionKey = ObfuscationString
+	}
+
+	if cfg.GetMFA().StorageEncryptionKey != "" {
+		cfg.GetMFA().StorageEncryptionKey = ObfuscationString
+	}
+
 	cfgBytes, err := json.Marshal(cfg)
 	if err != nil {
 		logger.Error("Error encoding config.", zap.Error(err))

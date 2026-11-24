@@ -719,7 +719,7 @@ func (rm *RuntimeJavaScriptMatchCore) validateBroadcast(r *goja.Runtime, f goja.
 		if usernameVal == nil {
 			panic(r.NewTypeError("presence is expected to contain a 'username'"))
 		}
-		username, ok := sidVal.(string)
+		username, ok := usernameVal.(string)
 		if !ok {
 			panic(r.NewTypeError("expects a 'username' string"))
 		}
