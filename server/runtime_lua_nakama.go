@@ -9334,7 +9334,7 @@ func (n *RuntimeLuaNakamaModule) tournamentRanksDisable(l *lua.LState) int {
 		return 0
 	}
 
-	if err := disableLeaderboardRanks(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, id); err != nil {
+	if err := DisableTournamentRanks(l.Context(), n.logger, n.db, n.leaderboardCache, n.rankCache, id); err != nil {
 		l.RaiseError("error disabling tournament ranks: %s", err.Error())
 	}
 
