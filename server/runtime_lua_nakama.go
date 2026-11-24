@@ -8283,7 +8283,7 @@ func leaderboardToLuaTable(l *lua.LState, leaderboard *api.Leaderboard) (*lua.LT
 		lt.RawSetString("next_reset", lua.LNumber(leaderboard.NextReset))
 	}
 	if leaderboard.PrevReset != 0 {
-		lt.RawSetString("", lua.LNumber(leaderboard.PrevReset))
+		lt.RawSetString("prev_reset", lua.LNumber(leaderboard.PrevReset))
 	}
 
 	return lt, nil
