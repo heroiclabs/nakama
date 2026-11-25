@@ -8,6 +8,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Support multiple subscriptions in the IAP provider subscription validation reply.
 - Avoid logging unnecessary errors when runtime MultiUpdate calls encounter storage version rejections.
 - Stop HTTP RPC error responses from including the JavaScript runtime stack trace.
+- Accept Google `google_auth.credentials_json` without `redirect_uris`, as downloaded for Play Games server-side access.
 
 ## [3.42.0] - 2026-11-03
 ### Added

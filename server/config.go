@@ -16,6 +16,7 @@ package server
 
 import (
 	"crypto/tls"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"maps"
@@ -121,7 +122,15 @@ func ParseArgs(logger *zap.Logger, args []string) Config {
 
 	if mainConfig.GetGoogleAuth() != nil {
 		if mainConfig.GetGoogleAuth().CredentialsJSON != "" {
-			cnf, err := google.ConfigFromJSON([]byte(mainConfig.GetGoogleAuth().CredentialsJSON))
+			credentialsJSON := []byte(mainConfig.GetGoogleAuth().CredentialsJSON)
+			var creds map[string]map[string]any
+			if json.Unmarshal(credentialsJSON, &creds) == nil && creds["web"] != nil {
+				if uris, _ := creds["web"]["redirect_uris"].([]any); len(uris) == 0 {
+					creds["web"]["redirect_uris"] = []string{""}
+					credentialsJSON, _ = json.Marshal(creds)
+				}
+			}
+			cnf, err := google.ConfigFromJSON(credentialsJSON)
 			if err != nil {
 				logger.Fatal("Failed to parse Google's credentials JSON", zap.Error(err))
 			}
