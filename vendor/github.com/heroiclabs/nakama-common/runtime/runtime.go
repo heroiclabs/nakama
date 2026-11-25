@@ -2011,15 +2011,13 @@ const (
 type NotificationType int
 
 const (
-	IAPNotificationSubscribed NotificationType = 1
-	IAPNotificationRenewed    NotificationType = 2
-	IAPNotificationExpired    NotificationType = 3
-	IAPNotificationCancelled  NotificationType = 4
-	IAPNotificationRefunded   NotificationType = 5
-	// The renewal payment failed but the store extends access until the grace period ends.
+	IAPNotificationSubscribed    NotificationType = 1
+	IAPNotificationRenewed       NotificationType = 2
+	IAPNotificationExpired       NotificationType = 3
+	IAPNotificationCancelled     NotificationType = 4
+	IAPNotificationRefunded      NotificationType = 5
 	IAPNotificationInGracePeriod NotificationType = 6
-	// The renewal payment failed and access is suspended while the store retries billing (account hold, billing retry, or paused).
-	IAPNotificationOnHold NotificationType = 7
+	IAPNotificationOnHold        NotificationType = 7
 )
 
 func (nt NotificationType) String() string {
