@@ -68,7 +68,7 @@ type SatoriClient struct {
 
 	cacheEnabled         bool
 	propertiesCacheMutex sync.RWMutex
-	propertiesCache      map[context.Context]*runtime.Properties
+	propertiesCache      map[contextCacheKey]*runtime.Properties
 	flagsCache           satoriCache[flagCacheEntry, struct{}]
 	flagsOverridesCache  satoriCache[flagOverridesCacheEntry, struct{}]
 	liveEventsCache      satoriCache[*runtime.LiveEvent, liveEventFilters]
@@ -100,7 +100,7 @@ func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyN
 
 		cacheEnabled:         cacheEnabled,
 		propertiesCacheMutex: sync.RWMutex{},
-		propertiesCache:      make(map[context.Context]*runtime.Properties),
+		propertiesCache:      make(map[contextCacheKey]*runtime.Properties),
 	}
 
 	switch cacheMode {
@@ -135,9 +135,9 @@ func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyN
 					return
 				case <-ticker.C:
 					sc.propertiesCacheMutex.Lock()
-					for cacheCtx := range sc.propertiesCache {
-						if cacheCtx.Err() != nil {
-							delete(sc.propertiesCache, cacheCtx)
+					for key := range sc.propertiesCache {
+						if key.ctx.Err() != nil {
+							delete(sc.propertiesCache, key)
 						}
 					}
 					sc.propertiesCacheMutex.Unlock()
@@ -331,7 +331,7 @@ func (s *SatoriClient) PropertiesGet(ctx context.Context, id string) (*runtime.P
 	var found bool
 	if s.cacheEnabled {
 		s.propertiesCacheMutex.RLock()
-		entry, found = s.propertiesCache[ctx]
+		entry, found = s.propertiesCache[contextCacheKey{ctx: ctx, userID: id}]
 		s.propertiesCacheMutex.RUnlock()
 	}
 
@@ -355,7 +355,7 @@ func (s *SatoriClient) PropertiesGet(ctx context.Context, id string) (*runtime.P
 
 		if s.cacheEnabled {
 			s.propertiesCacheMutex.Lock()
-			s.propertiesCache[ctx] = props
+			s.propertiesCache[contextCacheKey{ctx: ctx, userID: id}] = props
 			s.propertiesCacheMutex.Unlock()
 		}
 
@@ -391,6 +391,13 @@ func (s *SatoriClient) PropertiesUpdate(ctx context.Context, id string, properti
 	_, err = s.httpRequestWithRetries(ctx, sessionToken, url, http.MethodPut, nil, json)
 	if err != nil {
 		return err
+	}
+
+	if s.cacheEnabled {
+		// Drop any cached properties so the next lookup fetches the updated values.
+		s.propertiesCacheMutex.Lock()
+		delete(s.propertiesCache, contextCacheKey{ctx: ctx, userID: id})
+		s.propertiesCacheMutex.Unlock()
 	}
 
 	return nil
