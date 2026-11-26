@@ -2011,11 +2011,13 @@ const (
 type NotificationType int
 
 const (
-	IAPNotificationSubscribed NotificationType = 1
-	IAPNotificationRenewed    NotificationType = 2
-	IAPNotificationExpired    NotificationType = 3
-	IAPNotificationCancelled  NotificationType = 4
-	IAPNotificationRefunded   NotificationType = 5
+	IAPNotificationSubscribed    NotificationType = 1
+	IAPNotificationRenewed       NotificationType = 2
+	IAPNotificationExpired       NotificationType = 3
+	IAPNotificationCancelled     NotificationType = 4
+	IAPNotificationRefunded      NotificationType = 5
+	IAPNotificationInGracePeriod NotificationType = 6
+	IAPNotificationOnHold        NotificationType = 7
 )
 
 func (nt NotificationType) String() string {
@@ -2030,6 +2032,10 @@ func (nt NotificationType) String() string {
 		return "CANCELLED"
 	case IAPNotificationRefunded:
 		return "REFUNDED"
+	case IAPNotificationInGracePeriod:
+		return "IN_GRACE_PERIOD"
+	case IAPNotificationOnHold:
+		return "ON_HOLD"
 	default:
 		return "UNKNOWN"
 	}
@@ -2082,7 +2088,7 @@ const (
 func (nt GoogleSubscriptionNotificationType) String() string {
 	switch nt {
 	case GoogleSubscriptionRecovered:
-		return "SUBSCRIBED"
+		return "RECOVERED"
 	case GoogleSubscriptionRenewed:
 		return "RENEWED"
 	case GoogleSubscriptionCanceled:
