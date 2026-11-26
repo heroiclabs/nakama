@@ -17,6 +17,7 @@ package server
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"strconv"
 	"strings"
 
@@ -131,7 +132,7 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
 	})
 
 	if err != nil {
-		if e, ok := err.(*statusError); ok {
+		if e, ok := errors.AsType[*statusError](err); ok {
 			return e.Status()
 		}
 		logger.Error("Error in database transaction.", zap.Error(err))
@@ -178,7 +179,7 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
 	})
 
 	if err != nil {
-		if e, ok := err.(*statusError); ok {
+		if e, ok := errors.AsType[*statusError](err); ok {
 			return e.Status()
 		}
 		logger.Error("Error in database transaction.", zap.Error(err))

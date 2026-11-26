@@ -432,7 +432,7 @@ func (s *ConsoleServer) lookupConsoleUser(ctx context.Context, logger *zap.Logge
 	var dbDisableTime pgtype.Timestamptz
 	err = s.db.QueryRowContext(ctx, query, unameOrEmail).Scan(&id, &uname, &email, &permissionBytes, &dbPassword, &mfaRequired, &mfaSecret, &mfaRecoveryCodes, &dbDisableTime)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			if lockout, until := s.loginAttemptCache.Add("", ip); lockout == LockoutTypeIp {
 				logger.Info(fmt.Sprintf("Console user IP locked until %v.", until))
 			}

@@ -107,7 +107,11 @@ func (p *Pipeline) statusFollow(ctx context.Context, logger *zap.Logger, session
 			if err = rows.Scan(&id); err != nil {
 				_ = rows.Close()
 				logger.Error("Error scanning users in status follow", zap.Error(err))
-				break
+				_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+					Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
+					Message: "Could not check users",
+				}}}, true)
+				return false, nil
 			}
 			userID := uuid.FromStringOrNil(id)
 			if userID == uuid.Nil {
@@ -117,6 +121,14 @@ func (p *Pipeline) statusFollow(ctx context.Context, logger *zap.Logger, session
 			followUserIDs[userID] = struct{}{}
 		}
 		_ = rows.Close()
+		if err := rows.Err(); err != nil {
+			logger.Error("Error scanning users in status follow", zap.Error(err))
+			_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+				Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
+				Message: "Could not check users",
+			}}}, true)
+			return false, nil
+		}
 	} else {
 		query := "SELECT id, username FROM users WHERE "
 
@@ -175,6 +187,14 @@ func (p *Pipeline) statusFollow(ctx context.Context, logger *zap.Logger, session
 			followUserIDs[userID] = struct{}{}
 		}
 		_ = rows.Close()
+		if err := rows.Err(); err != nil {
+			logger.Error("Error scanning users in status follow", zap.Error(err))
+			_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+				Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
+				Message: "Could not check users",
+			}}}, true)
+			return false, nil
+		}
 	}
 
 	if l := len(uniqueUserIDs) + len(uniqueUsernames); len(followUserIDs) != l {

@@ -244,10 +244,9 @@ func (s *LocalStatusRegistry) Unfollow(sessionID uuid.UUID, userIDs []uuid.UUID)
 			// The session only had this user ID followed.
 			delete(s.bySession, sessionID)
 			break
-		} else {
-			// The session is still following other user IDs, just drop this one.
-			delete(sessionFollows, userID)
 		}
+		// The session is still following other user IDs, just drop this one.
+		delete(sessionFollows, userID)
 	}
 
 	s.Unlock()

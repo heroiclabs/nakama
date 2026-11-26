@@ -137,9 +137,11 @@ FROM groups ORDER BY id ASC LIMIT $1`
 		}
 		// checks limit before append for the use case where (last page == limit) => null cursor
 		if limit > 0 && len(groups) >= limit {
-			nextCursor = &consoleGroupCursor{
-				ID:   uuid.FromStringOrNil(previousGroup.Id),
-				Name: previousGroup.Name,
+			if previousGroup != nil {
+				nextCursor = &consoleGroupCursor{
+					ID:   uuid.FromStringOrNil(previousGroup.Id),
+					Name: previousGroup.Name,
+				}
 			}
 			break
 		}
@@ -147,6 +149,10 @@ FROM groups ORDER BY id ASC LIMIT $1`
 		previousGroup = group
 	}
 	_ = rows.Close()
+	if err := rows.Err(); err != nil {
+		logger.Error("Error scanning groups.", zap.Any("in", in), zap.Error(err))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to list groups.")
+	}
 
 	response := &console.GroupList{
 		Groups:     groups,
@@ -189,7 +195,7 @@ func (s *ConsoleServer) GetGroup(ctx context.Context, in *console.GroupId) (*api
 
 	group, err := getGroup(ctx, logger, s.db, groupID)
 	if err != nil {
-		if err == runtime.ErrGroupNotFound {
+		if errors.Is(err, runtime.ErrGroupNotFound) {
 			return nil, status.Error(codes.NotFound, "Group not found.")
 		}
 		return nil, status.Error(codes.Internal, "An error occurred while trying to retrieve group.")
@@ -210,7 +216,7 @@ func (s *ConsoleServer) ExportGroup(ctx context.Context, in *console.GroupId) (*
 
 	group, err := getGroup(ctx, logger, s.db, groupID)
 	if err != nil {
-		if err == runtime.ErrGroupNotFound {
+		if errors.Is(err, runtime.ErrGroupNotFound) {
 			return nil, status.Error(codes.NotFound, "Group not found.")
 		}
 		return nil, status.Error(codes.Internal, "An error occurred while trying to export group data.")
@@ -279,7 +285,7 @@ func (s *ConsoleServer) DemoteGroupMember(ctx context.Context, in *console.Updat
 			var dbState sql.NullInt64
 			query := "SELECT state FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID"
 			if err := db.QueryRowContext(ctx, query, groupID, caller).Scan(&dbState); err != nil {
-				if err == sql.ErrNoRows {
+				if errors.Is(err, sql.ErrNoRows) {
 					logger.Info("Could not retrieve state as no group relationship exists.", zap.String("group_id", groupID.String()), zap.String("user_id", caller.String()))
 					return runtime.ErrGroupPermissionDenied
 				}
@@ -346,7 +352,7 @@ RETURNING state`
 
 			var newState sql.NullInt64
 			if err := tx.QueryRowContext(ctx, query, groupID, uid, myState, api.GroupUserList_GroupUser_MEMBER).Scan(&newState); err != nil {
-				if err == sql.ErrNoRows {
+				if errors.Is(err, sql.ErrNoRows) {
 					return ErrEmptyMemberDemote
 				}
 				logger.Debug("Could not demote user in group.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
@@ -357,7 +363,7 @@ RETURNING state`
 			var username sql.NullString
 			query = "SELECT username FROM users WHERE id = $1::UUID"
 			if err := tx.QueryRowContext(ctx, query, uid).Scan(&username); err != nil {
-				if err == sql.ErrNoRows {
+				if errors.Is(err, sql.ErrNoRows) {
 					return runtime.ErrGroupUserNotFound
 				}
 				logger.Debug("Could not retrieve username to demote user in group.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
@@ -385,7 +391,7 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 			}
 			return nil
 		}); err != nil {
-			if err != ErrEmptyMemberDemote {
+			if !errors.Is(err, ErrEmptyMemberDemote) {
 				logger.Error("Error demoting users in group.", zap.Error(err), zap.String("group_id", groupID.String()))
 			}
 			return err
@@ -395,7 +401,7 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 	}
 
 	if err = demoteGroupUser(ctx, logger, s.db, s.router, uuid.Nil, groupID, userID); err != nil {
-		if err == ErrEmptyMemberDemote {
+		if errors.Is(err, ErrEmptyMemberDemote) {
 			return nil, status.Error(codes.FailedPrecondition, "Cannot demote user in the group.")
 		}
 		return nil, status.Error(codes.Internal, "An error occurred while trying to demote the user in the group.")
@@ -424,7 +430,7 @@ func (s *ConsoleServer) PromoteGroupMember(ctx context.Context, in *console.Upda
 			var dbState sql.NullInt64
 			query := "SELECT state FROM group_edge WHERE source_id = $1::UUID AND destination_id = $2::UUID"
 			if err := db.QueryRowContext(ctx, query, groupID, caller).Scan(&dbState); err != nil {
-				if err == sql.ErrNoRows {
+				if errors.Is(err, sql.ErrNoRows) {
 					logger.Info("Could not retrieve state as no group relationship exists.", zap.String("group_id", groupID.String()), zap.String("user_id", caller.String()))
 					return runtime.ErrGroupPermissionDenied
 				}
@@ -480,7 +486,7 @@ RETURNING state`
 
 			var newState sql.NullInt64
 			if err := tx.QueryRowContext(ctx, query, groupID, uid, myState).Scan(&newState); err != nil {
-				if err == sql.ErrNoRows {
+				if errors.Is(err, sql.ErrNoRows) {
 					return ErrEmptyMemberPromote
 				}
 				logger.Debug("Could not promote user in group.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
@@ -498,7 +504,7 @@ RETURNING state`
 			var username sql.NullString
 			query = "SELECT username FROM users WHERE id = $1::UUID"
 			if err := tx.QueryRowContext(ctx, query, uid).Scan(&username); err != nil {
-				if err == sql.ErrNoRows {
+				if errors.Is(err, sql.ErrNoRows) {
 					return runtime.ErrGroupUserNotFound
 				}
 				logger.Debug("Could not retrieve username to promote user in group.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
@@ -526,7 +532,7 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 			}
 			return nil
 		}); err != nil {
-			if err != ErrEmptyMemberPromote {
+			if !errors.Is(err, ErrEmptyMemberPromote) {
 				logger.Error("Error promoting users in group.", zap.Error(err), zap.String("group_id", groupID.String()))
 			}
 			return err
@@ -536,7 +542,7 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 	}
 
 	if err = promoteGroupUser(ctx, logger, s.db, s.router, uuid.Nil, groupID, userID); err != nil {
-		if err == ErrEmptyMemberPromote {
+		if errors.Is(err, ErrEmptyMemberPromote) {
 			return nil, status.Error(codes.FailedPrecondition, "Cannot promote user in the group.")
 		}
 		return nil, status.Error(codes.Internal, "An error occurred while trying to promote the user in the group.")
@@ -568,7 +574,7 @@ func (s *ConsoleServer) AddGroupUsers(ctx context.Context, in *console.AddGroupU
 			var username sql.NullString
 			query := "SELECT username FROM users WHERE id = $1::UUID"
 			if err = s.db.QueryRowContext(ctx, query, uid).Scan(&username); err != nil {
-				if err == sql.ErrNoRows {
+				if errors.Is(err, sql.ErrNoRows) {
 					return nil, status.Error(codes.InvalidArgument, "User not found: "+uid.String()+". Refresh the page to see any updates.")
 				}
 				logger.Debug("Could not retrieve username to join user to group.", zap.Error(err), zap.String("user_id", uid.String()))

@@ -17,6 +17,7 @@ package server
 import (
 	"context"
 	"database/sql"
+	"errors"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama/v3/console"
@@ -149,7 +150,7 @@ AND (EXISTS (SELECT id FROM users WHERE id = $1 AND
 	})
 
 	if err != nil {
-		if e, ok := err.(*statusError); ok {
+		if e, ok := errors.AsType[*statusError](err); ok {
 			return nil, e.Status()
 		}
 		logger.Error("Error in database transaction.", zap.Error(err))

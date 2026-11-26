@@ -3370,7 +3370,7 @@ func (n *RuntimeJavascriptNakamaModule) streamUserJoin(r *goja.Runtime) func(goj
 
 		success, newlyTracked, err := n.streamManager.UserJoin(streamValue, uid, sid, hidden, persistence, status)
 		if err != nil {
-			if err == ErrSessionNotFound {
+			if errors.Is(err, ErrSessionNotFound) {
 				panic(r.NewGoError(errors.New("session id does not exist")))
 			}
 			panic(r.NewGoError(fmt.Errorf("stream user join failed: %v", err.Error())))
@@ -3441,7 +3441,7 @@ func (n *RuntimeJavascriptNakamaModule) streamUserUpdate(r *goja.Runtime) func(g
 
 		success, err := n.streamManager.UserUpdate(streamValue, uid, sid, hidden, persistence, status)
 		if err != nil {
-			if err == ErrSessionNotFound {
+			if errors.Is(err, ErrSessionNotFound) {
 				panic(r.NewGoError(errors.New("session id does not exist")))
 			}
 			panic(r.NewGoError(fmt.Errorf("stream user update failed: %v", err.Error())))
@@ -10329,9 +10329,8 @@ func getJsFloat(r *goja.Runtime, v goja.Value) float64 {
 		i, ok := e.(int64)
 		if ok {
 			return float64(i)
-		} else {
-			panic(r.NewTypeError("expects number"))
 		}
+		panic(r.NewTypeError("expects number"))
 	}
 	return f
 }

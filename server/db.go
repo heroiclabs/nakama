@@ -93,11 +93,10 @@ func dbConnect(ctx context.Context, logger *zap.Logger, config Config, connConfi
 		db := stdlib.OpenDB(connConfig)
 		var nakamaDBExists bool
 		if err := db.QueryRow("SELECT EXISTS (SELECT 1 from pg_database WHERE datname = $1)", dbName).Scan(&nakamaDBExists); err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == dbErrorDatabaseDoesNotExist {
+			if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == dbErrorDatabaseDoesNotExist {
 				nakamaDBExists = false
 			} else {
-				db.Close()
+				_ = db.Close()
 				logger.Fatal("Failed to check if db exists", zap.String("db", dbName), zap.Error(err))
 			}
 		}
@@ -105,17 +104,17 @@ func dbConnect(ctx context.Context, logger *zap.Logger, config Config, connConfi
 		if !nakamaDBExists {
 			// Database does not exist, create it
 			logger.Info("Creating new database", zap.String("name", dbName))
-			db.Close()
+			_ = db.Close()
 			// Connect to anonymous db
 			createConnConfig := connConfig
 			createConnConfig.Database = ""
 			db = stdlib.OpenDB(createConnConfig)
 			if _, err := db.Exec(fmt.Sprintf("CREATE DATABASE %q", dbName)); err != nil {
-				db.Close()
+				_ = db.Close()
 				logger.Fatal("Failed to create database", zap.Error(err))
 			}
 		}
-		db.Close()
+		_ = db.Close()
 	}
 
 	logger.Debug("Database connection config", zap.String("host", connConfig.Host), zap.Uint16("port", connConfig.Port), zap.String("database", connConfig.Database), zap.String("user", connConfig.User))
@@ -197,7 +196,7 @@ func dbConnect(ctx context.Context, logger *zap.Logger, config Config, connConfi
 					acquired++
 					conn, err := db.Conn(ctx)
 					if err != nil {
-						if err == context.Canceled {
+						if errors.Is(err, context.Canceled) {
 							// Server shutting down.
 							return
 						}
@@ -270,8 +269,7 @@ type Scannable interface {
 // ExecuteRetryable Retry functions that perform non-transactional database operations.
 func ExecuteRetryable(fn func() error) error {
 	if err := fn(); err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.SerializationFailure {
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == pgerrcode.SerializationFailure {
 			// A recognised error type that can be retried.
 			return ExecuteRetryable(fn)
 		}
@@ -291,8 +289,7 @@ func ExecuteRetryablePgx(ctx context.Context, db *sql.DB, fn func(conn *pgx.Conn
 		conn := dc.(*stdlib.Conn).Conn()
 		for range 5 {
 			err = fn(conn)
-			var pgErr *pgconn.PgError
-			if errors.As(errorCause(err), &pgErr) && pgErr.Code[:2] == "40" {
+			if pgErr, ok := errors.AsType[*pgconn.PgError](errorCause(err)); ok && pgErr.Code[:2] == "40" {
 				// 40XXXX codes are retriable errors
 				continue
 			}
@@ -308,9 +305,8 @@ func ExecuteRetryablePgx(ctx context.Context, db *sql.DB, fn func(conn *pgx.Conn
 func ExecuteInTx(ctx context.Context, db *sql.DB, fn func(*sql.Tx) error) error {
 	if isCockroach {
 		return executeInTxCockroach(ctx, db, fn)
-	} else {
-		return executeInTxPostgres(ctx, db, fn)
 	}
+	return executeInTxPostgres(ctx, db, fn)
 }
 
 // Retries fn() if transaction commit returned retryable error code
@@ -333,18 +329,16 @@ func executeInTxPostgres(ctx context.Context, db *sql.DB, fn func(*sql.Tx) error
 		if err = fn(tx); err == nil {
 			err = tx.Commit()
 		}
-		var pgErr *pgconn.PgError
-		if errors.As(errorCause(err), &pgErr) && pgErr.Code[:2] == "40" {
+		if pgErr, ok := errors.AsType[*pgconn.PgError](errorCause(err)); ok && pgErr.Code[:2] == "40" {
 			// 40XXXX codes are retriable errors
-			if err = tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			if err = tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
 				tx = nil
 				return err
 			}
 			continue
-		} else {
-			// Exit on successfull Commit or non retriable error
-			return err
 		}
+		// Exit on successful Commit or non-retriable error
+		return err
 	}
 	// Stop trying after 5 attempts and return last op error
 	return err
@@ -409,9 +403,8 @@ func executeInTxCockroach(ctx context.Context, db *sql.DB, fn func(*sql.Tx) erro
 func ExecuteInTxPgx(ctx context.Context, db *sql.DB, fn func(pgx.Tx) error) error {
 	if isCockroach {
 		return executeInTxCockroachPgx(ctx, db, fn)
-	} else {
-		return executeInTxPostgresPgx(ctx, db, fn)
 	}
+	return executeInTxPostgresPgx(ctx, db, fn)
 }
 
 // Retries fn() if transaction commit returned retryable error code
@@ -442,25 +435,23 @@ func executeInTxPostgresPgx(ctx context.Context, db *sql.DB, fn func(pgx.Tx) err
 			if err = fn(tx); err == nil {
 				err = tx.Commit(ctx)
 			}
-			var pgErr *pgconn.PgError
-			if errors.As(errorCause(err), &pgErr) && pgErr.Code[:2] == "40" {
+			if pgErr, ok := errors.AsType[*pgconn.PgError](errorCause(err)); ok && pgErr.Code[:2] == "40" {
 				// 40XXXX codes are retriable errors
-				if err = tx.Rollback(ctx); err != nil && err != sql.ErrTxDone {
+				if err = tx.Rollback(ctx); err != nil && !errors.Is(err, sql.ErrTxDone) {
 					tx = nil
 					return err
 				}
 				continue
-			} else {
-				// Exit on successfull Commit or non retriable error
-				return err
 			}
+			// Exit on successful Commit or non-retriable error
+			return err
 		}
 		// Stop trying after 5 attempts and return last op error
 		return err
 	})
 }
 
-// CockroachDB has it's own way to resolve serialization conflicts.
+// CockroachDB has its own way to resolve serialization conflicts.
 // It has special optimization for `SAVEPOINT cockroach_restart`, called "retry savepoint",
 // which increases transaction priority every time it has to ROLLBACK due to serialization conflicts.
 // See: https://www.cockroachlabs.com/docs/stable/advanced-client-side-transaction-retries.html

@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"reflect"
 	"sort"
@@ -94,20 +95,20 @@ func (s *ConsoleServer) CallApiEndpoint(ctx context.Context, in *console.CallApi
 			Body:         "",
 			ErrorMessage: cerr.(error).Error(),
 		}, nil
-	} else {
-		var j []byte
-		if cval != nil {
-			m := new(protojson.MarshalOptions)
-			j, err = m.Marshal(cval.(proto.Message))
-			if err != nil {
-				logger.Error("Error serializing method response body.", zap.String("method", in.Method), zap.Error(err))
-				return nil, status.Error(codes.Internal, "Error serializing method response body.")
-			}
-		}
-		return &console.CallApiEndpointResponse{
-			Body: string(j),
-		}, nil
 	}
+
+	var j []byte
+	if cval != nil {
+		m := new(protojson.MarshalOptions)
+		j, err = m.Marshal(cval.(proto.Message))
+		if err != nil {
+			logger.Error("Error serializing method response body.", zap.String("method", in.Method), zap.Error(err))
+			return nil, status.Error(codes.Internal, "Error serializing method response body.")
+		}
+	}
+	return &console.CallApiEndpointResponse{
+		Body: string(j),
+	}, nil
 }
 
 func (s *ConsoleServer) extractApiCallContext(ctx context.Context, logger *zap.Logger, in *console.CallApiEndpointRequest, userIdOptional bool) (context.Context, error) {
@@ -118,9 +119,8 @@ func (s *ConsoleServer) extractApiCallContext(ctx context.Context, logger *zap.L
 		if !userIdOptional {
 			logger.Error("Error calling a built-in RPC function without a user_id.", zap.String("method", in.Method))
 			return nil, status.Error(codes.InvalidArgument, "Built-in RPC functions require a user_id.")
-		} else {
-			callCtx = context.WithValue(ctx, ctxFullMethodKey{}, "/nakama.api.Nakama/"+in.Method)
 		}
+		callCtx = context.WithValue(ctx, ctxFullMethodKey{}, "/nakama.api.Nakama/"+in.Method)
 	} else {
 		row := s.db.QueryRowContext(ctx, "SELECT username FROM users WHERE id = $1", in.UserId)
 		var dbUsername string
@@ -131,7 +131,7 @@ func (s *ConsoleServer) extractApiCallContext(ctx context.Context, logger *zap.L
 		}
 		err = row.Scan(&dbUsername)
 		if err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				logger.Error("User id not found.", zap.String("method", in.Method))
 				return nil, status.Error(codes.InvalidArgument, "User id not found.")
 			}

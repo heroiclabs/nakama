@@ -584,7 +584,7 @@ func compressHandler(h http.Handler) http.Handler {
 			gz := gzipPool.Get().(*gzip.Writer)
 			gz.Reset(w)
 			defer func() {
-				gz.Close()
+				_ = gz.Close()
 				gz.Reset(io.Discard)
 				gzipPool.Put(gz)
 			}()
@@ -593,7 +593,7 @@ func compressHandler(h http.Handler) http.Handler {
 			fl := flatePool.Get().(*flate.Writer)
 			fl.Reset(w)
 			defer func() {
-				fl.Close()
+				_ = fl.Close()
 				fl.Reset(io.Discard)
 				flatePool.Put(fl)
 			}()
@@ -728,10 +728,9 @@ func extractClientAddress(logger *zap.Logger, config Config, candidateAddresses 
 			if proxyCount >= config.GetSocket().ProxyCount {
 				// If we've already seen the expected number of valid proxy addresses, assume the next one is the client.
 				break
-			} else {
-				// This is the first valid address we've found, so it's likely the proxy/LB. Check for one more.
-				continue
 			}
+			// This is the first valid address we've found, so it's likely the proxy/LB. Check for one more.
+			continue
 		}
 
 		// Check if candidate address may be a host:port combination.
@@ -774,10 +773,9 @@ func extractClientAddress(logger *zap.Logger, config Config, candidateAddresses 
 		if proxyCount >= config.GetSocket().ProxyCount {
 			// If we've already seen the expected number of valid proxy addresses, assume the next one is the client.
 			break
-		} else {
-			// This is the first valid address we've found, so it's likely the proxy/LB. Check for one more.
-			continue
 		}
+		// This is the first valid address we've found, so it's likely the proxy/LB. Check for one more.
+		continue
 	}
 
 	if clientIP == "" {

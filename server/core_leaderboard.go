@@ -254,6 +254,10 @@ func LeaderboardRecordsList(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			}
 		}
 		_ = rows.Close()
+		if err := rows.Err(); err != nil {
+			logger.Error("Error parsing listed leaderboard records", zap.Error(err))
+			return nil, err
+		}
 
 		if incomingCursor != nil && !incomingCursor.IsNext {
 			// If this was a previous page listing, flip the results to their normal order and swap the cursors.
@@ -312,7 +316,7 @@ WHERE leaderboard_id = $1 AND expiry_time = $2 AND owner_id = ANY($3)`
 		for rows.Next() {
 			err = rows.Scan(&dbOwnerID, &dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime)
 			if err != nil {
-				rows.Close()
+				_ = rows.Close()
 				logger.Error("Error parsing read leaderboard records", zap.Error(err))
 				return nil, err
 			}
@@ -339,6 +343,10 @@ WHERE leaderboard_id = $1 AND expiry_time = $2 AND owner_id = ANY($3)`
 			ownerRecords = append(ownerRecords, record)
 		}
 		_ = rows.Close()
+		if err := rows.Err(); err != nil {
+			logger.Error("Error parsing read leaderboard records", zap.Error(err))
+			return nil, err
+		}
 	}
 
 	// Sort owner records according to leaderboard ordering
@@ -529,7 +537,7 @@ func LeaderboardRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB,
 
 	if err != nil {
 		var pgErr *pgconn.PgError
-		if err != sql.ErrNoRows && !(errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "leaderboard_record_pkey")) {
+		if !errors.Is(err, sql.ErrNoRows) && !(errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "leaderboard_record_pkey")) {
 			logger.Error("Error writing leaderboard record", zap.Error(err))
 			return nil, err
 		}
@@ -644,6 +652,10 @@ func LeaderboardRecordsDeleteAll(ctx context.Context, logger *zap.Logger, leader
 		leaderboardRankCache.Delete(leaderboardId, expiryUnix, userID)
 	}
 	_ = rows.Close()
+	if err := rows.Err(); err != nil {
+		logger.Error("Error deleting all leaderboard records for user, failed to scan", zap.String("user_id", userID.String()), zap.Error(err))
+		return err
+	}
 
 	return nil
 }
@@ -734,7 +746,7 @@ func getLeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *
 		AND expiry_time = $3`
 		logger.Debug("Leaderboard haystack lookup", zap.String("query", findQuery))
 		err := db.QueryRowContext(ctx, findQuery, ownerID, leaderboardId, expiryTime).Scan(&dbLeaderboardID, &dbOwnerID, &dbUsername, &dbScore, &dbSubscore, &dbNumScore, &dbMaxNumScore, &dbMetadata, &dbCreateTime, &dbUpdateTime, &dbExpiryTime)
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return &api.LeaderboardRecordList{
 				Records: []*api.LeaderboardRecord{},
 			}, nil
@@ -900,10 +912,10 @@ func getLeaderboardRecordsHaystack(ctx context.Context, logger *zap.Logger, db *
 		}
 
 		return &api.LeaderboardRecordList{Records: records, PrevCursor: prevCursorStr, NextCursor: nextCursorStr, RankCount: rankCount}, nil
-	} else {
-		// If a cursor is passed, then this becomes a regular record listing operation.
-		return LeaderboardRecordsList(ctx, logger, db, leaderboardCache, rankCache, leaderboardId, wrapperspb.Int32(int32(limit)), cursor, nil, expiryTime.Unix())
 	}
+
+	// If a cursor is passed, then this becomes a regular record listing operation.
+	return LeaderboardRecordsList(ctx, logger, db, leaderboardCache, rankCache, leaderboardId, wrapperspb.Int32(int32(limit)), cursor, nil, expiryTime.Unix())
 }
 
 func parseLeaderboardRecords(logger *zap.Logger, rows *sql.Rows) ([]*api.LeaderboardRecord, error) {

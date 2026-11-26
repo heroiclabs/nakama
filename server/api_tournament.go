@@ -65,14 +65,13 @@ func (s *ApiServer) DeleteTournamentRecord(ctx context.Context, in *api.DeleteTo
 	}
 
 	if err := TournamentRecordDelete(ctx, logger, s.db, s.leaderboardCache, s.leaderboardRankCache, userID, in.TournamentId, userID.String()); err != nil {
-		switch err {
-		case ErrLeaderboardNotFound:
+		switch {
+		case errors.Is(err, ErrLeaderboardNotFound):
 			return nil, status.Error(codes.NotFound, "Tournament not found.")
-		case ErrLeaderboardAuthoritative:
+		case errors.Is(err, ErrLeaderboardAuthoritative):
 			return nil, status.Error(codes.PermissionDenied, "Tournament only allows authoritative score deletions.")
-		default:
-			return nil, status.Error(codes.Internal, "Error deleting score from tournament.")
 		}
+		return nil, status.Error(codes.Internal, "Error deleting score from tournament.")
 	}
 
 	// After hook.
@@ -363,20 +362,19 @@ func (s *ApiServer) WriteTournamentRecord(ctx context.Context, in *api.WriteTour
 
 	record, err := TournamentRecordWrite(ctx, logger, s.db, s.leaderboardCache, s.leaderboardRankCache, userID, in.GetTournamentId(), userID, username, in.GetRecord().GetScore(), in.GetRecord().GetSubscore(), in.GetRecord().GetMetadata(), in.GetRecord().GetOperator())
 	if err != nil {
-		switch err {
-		case runtime.ErrTournamentMaxSizeReached:
+		switch {
+		case errors.Is(err, runtime.ErrTournamentMaxSizeReached):
 			return nil, status.Error(codes.FailedPrecondition, "Tournament has reached max size.")
-		case runtime.ErrTournamentAuthoritative:
+		case errors.Is(err, runtime.ErrTournamentAuthoritative):
 			return nil, status.Error(codes.PermissionDenied, "Tournament only allows authoritative score submissions.")
-		case runtime.ErrTournamentWriteMaxNumScoreReached:
+		case errors.Is(err, runtime.ErrTournamentWriteMaxNumScoreReached):
 			return nil, status.Error(codes.FailedPrecondition, "Reached allowed max number of score attempts.")
-		case runtime.ErrTournamentWriteJoinRequired:
+		case errors.Is(err, runtime.ErrTournamentWriteJoinRequired):
 			return nil, status.Error(codes.FailedPrecondition, "Must join tournament before attempting to write value.")
-		case runtime.ErrTournamentOutsideDuration:
+		case errors.Is(err, runtime.ErrTournamentOutsideDuration):
 			return nil, status.Error(codes.FailedPrecondition, "Tournament is not active and cannot accept new scores.")
-		default:
-			return nil, status.Error(codes.Internal, "Error writing score to tournament.")
 		}
+		return nil, status.Error(codes.Internal, "Error writing score to tournament.")
 	}
 
 	// After hook.

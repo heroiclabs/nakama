@@ -4,10 +4,34 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 [Unreleased]
+### Changed
+- More consistent time and memory performance in default matchmaker selection.
+- Stop HTTP RPC error responses from including the JavaScript runtime stack trace.
+- JavaScript/TypeScript runtime authoritative matches now check for `null` returns from terminate and signal earlier.
+- Obfuscate further sensitive strings from console config view.
+- Obfuscate further sensitive strings from console audit log view.
+- Limit Fleet Manager namespaces to a URL-safe character set.
+- Matchmaker now gives higher priority to longest-waiting groups by average wait time.
+
 ### Fixed
 - Support multiple subscriptions in the IAP provider subscription validation reply.
 - Avoid logging unnecessary errors when runtime MultiUpdate calls encounter storage version rejections.
-- Stop HTTP RPC error responses from including the JavaScript runtime stack trace.
+- Failing to persist a channel message update now returns only an error, rather than both error and success messages.
+- Failing to persist a channel message removal now returns only an error, rather than both error and success messages.
+- Following users now consistently errors for both user identifier and username inputs.
+- Fix rare cases where partial database reads were treated as complete.
+- Listing console users with invalid ACLs no longer holds a database connection.
+- Ensure server-initiated socket connection closes are never reported as socket errors for metric purposes.
+- Socket connection closes now correctly record metrics for the size of the message that closed them.
+- Failing to correctly populate the leaderboard cache now fails startup in all cases as intended.
+- Storage index loads now stop on partial reads as intended.
+- Fix wording of incorrect MFA configuration error message.
+- Fix default argument parsing for Lua runtime tournament list operations.
+- Lua runtime leaderboard listings now correctly return any previous reset value.
+- Fix disabling tournament ranks from Lua runtime calls.
+- Preserve sender username in JavaScript/TypeScript authoritative match dispatcher broadcasts.
+- Fix potential error when party list operation inputs and cursor do not match.
+- Fix matchmaker session conflict flag usage across combinations being considered for matching.
 
 ## [3.42.0] - 2026-11-03
 ### Added

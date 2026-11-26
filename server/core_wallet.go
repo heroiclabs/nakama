@@ -21,6 +21,7 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -100,7 +101,7 @@ func UpdateWallets(ctx context.Context, logger *zap.Logger, db *sql.DB, updates 
 		}
 		return nil
 	}); err != nil {
-		if _, ok := err.(*runtime.WalletNegativeError); !ok {
+		if _, ok := errors.AsType[*runtime.WalletNegativeError](err); !ok {
 			logger.Error("Error updating wallets.", zap.Error(err))
 		}
 		// Ensure there are no partially updated wallets returned as results, they would not be reflected in database anyway.
@@ -153,6 +154,10 @@ func updateWallets(ctx context.Context, logger *zap.Logger, tx pgx.Tx, updates [
 		wallets[id] = walletMap
 	}
 	rows.Close()
+	if err := rows.Err(); err != nil {
+		logger.Debug("Error reading user wallets.", zap.Error(err))
+		return nil, err
+	}
 
 	results := make([]*runtime.WalletUpdateResult, 0, len(updates))
 

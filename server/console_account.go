@@ -403,6 +403,10 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 			})
 		}
 		_ = rows.Close()
+		if err := rows.Err(); err != nil {
+			logger.Error("Error scanning user tombstones.", zap.Any("in", in), zap.Error(err))
+			return nil, status.Error(codes.Internal, "An error occurred while trying to list users.")
+		}
 
 		return &console.AccountList{
 			Users:      users,
@@ -505,6 +509,10 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 			users = append(users, user)
 		}
 		_ = rows.Close()
+		if err := rows.Err(); err != nil {
+			logger.Error("Error scanning users.", zap.Any("in", in), zap.Error(err))
+			return nil, status.Error(codes.Internal, "An error occurred while trying to list users.")
+		}
 
 		// Secondary query for fuzzy matching, if the filter is eligible.
 		// Executed separately due to cost of query - enables separate limits and potentially extended context deadline.
@@ -539,6 +547,10 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 				users = append(users, user)
 			}
 			_ = rows.Close()
+			if err := rows.Err(); err != nil {
+				logger.Error("Error scanning users.", zap.Any("in", in), zap.Error(err))
+				return nil, status.Error(codes.Internal, "An error occurred while trying to list users.")
+			}
 
 			// De-duplicate users in case of overlaps between the two queries.
 			seenUserIDs := make(map[string]struct{}, len(users))
@@ -588,9 +600,11 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 	for rows.Next() {
 		// Checks limit before processing for the edge case where (last page == limit) => null cursor.
 		if len(users) >= limit {
-			nextCursor = &consoleAccountCursor{
-				ID:       uuid.FromStringOrNil(previousUser.Id),
-				Username: previousUser.Username,
+			if previousUser != nil {
+				nextCursor = &consoleAccountCursor{
+					ID:       uuid.FromStringOrNil(previousUser.Id),
+					Username: previousUser.Username,
+				}
 			}
 			break
 		}
@@ -612,6 +626,10 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
 		previousUser = user
 	}
 	_ = rows.Close()
+	if err := rows.Err(); err != nil {
+		logger.Error("Error scanning users.", zap.Any("in", in), zap.Error(err))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to list users.")
+	}
 
 	s.statusRegistry.FillOnlineUsers(users)
 
@@ -718,10 +736,9 @@ func (s *ConsoleServer) UpdateAccount(ctx context.Context, in *console.UpdateAcc
 				return nil, status.Error(codes.InvalidArgument, "Custom ID invalid, no spaces or control characters allowed.")
 			} else if len(c) < 6 || len(c) > 128 {
 				return nil, status.Error(codes.InvalidArgument, "Custom ID invalid, must be 6-128 bytes.")
-			} else {
-				params = append(params, c)
-				statements = append(statements, "custom_id = $"+strconv.Itoa(len(params)))
 			}
+			params = append(params, c)
+			statements = append(statements, "custom_id = $"+strconv.Itoa(len(params)))
 		}
 	}
 
@@ -736,10 +753,9 @@ func (s *ConsoleServer) UpdateAccount(ctx context.Context, in *console.UpdateAcc
 				return nil, status.Error(codes.InvalidArgument, "Invalid email address format.")
 			} else if len(e) < 10 || len(e) > 255 {
 				return nil, status.Error(codes.InvalidArgument, "Invalid email address, must be 10-255 bytes.")
-			} else {
-				params = append(params, e)
-				statements = append(statements, "email = $"+strconv.Itoa(len(params)))
 			}
+			params = append(params, e)
+			statements = append(statements, "email = $"+strconv.Itoa(len(params)))
 		}
 	}
 

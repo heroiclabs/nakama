@@ -17,6 +17,7 @@ package server
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -187,7 +188,7 @@ func NewLocalMetrics(logger, startupLogger *zap.Logger, db *sql.DB, config Confi
 		// Start Prometheus metrics server.
 		startupLogger.Info("Starting Prometheus server for metrics requests", zap.Int("port", config.GetMetrics().PrometheusPort))
 		go func() {
-			if err := m.prometheusHTTPServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			if err := m.prometheusHTTPServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				startupLogger.Fatal("Prometheus listener failed", zap.Error(err))
 			}
 		}()

@@ -124,7 +124,7 @@ func NewLocalLeaderboardRankCache(ctx context.Context, startupLogger *zap.Logger
 	cache := &LocalLeaderboardRankCache{
 		blacklistIds: make(map[string]struct{}, len(config.BlacklistRankCache)),
 		blacklistAll: len(config.BlacklistRankCache) == 1 && config.BlacklistRankCache[0] == "*",
-		cache:        make(map[LeaderboardWithExpiry]*RankCache, 0),
+		cache:        make(map[LeaderboardWithExpiry]*RankCache),
 	}
 
 	// If caching is disabled completely do not preload any records.
@@ -263,14 +263,14 @@ func (l *LocalLeaderboardRankCache) GetDataByRank(leaderboardId string, expiryUn
 		}
 
 		return data.OwnerId, data.Score, data.Subscore, nil
-	} else {
-		data, ok := recordData.Value.(RankAsc)
-		if !ok {
-			return uuid.Nil, 0, 0, fmt.Errorf("failed to type assert rank cache data")
-		}
-
-		return data.OwnerId, data.Score, data.Subscore, nil
 	}
+
+	data, ok := recordData.Value.(RankAsc)
+	if !ok {
+		return uuid.Nil, 0, 0, fmt.Errorf("failed to type assert rank cache data")
+	}
+
+	return data.OwnerId, data.Score, data.Subscore, nil
 }
 
 func (l *LocalLeaderboardRankCache) Fill(leaderboardId string, expiryUnix int64, records []*api.LeaderboardRecord, enableRanks bool) int64 {
@@ -524,7 +524,7 @@ func leaderboardCacheInitWorker(
 
 			if err != nil {
 				startupLogger.Error("Failed to cache leaderboard ranks", zap.String("leaderboard_id", leaderboard.Id), zap.Error(err))
-				if err == context.Canceled {
+				if errors.Is(err, context.Canceled) {
 					// All further queries will fail, no need to continue looping through leaderboards.
 					return
 				}
@@ -557,6 +557,9 @@ func leaderboardCacheInitWorker(
 				rankCache.Unlock()
 			}
 			_ = rows.Close()
+			if err := rows.Err(); err != nil {
+				startupLogger.Error("Failed to scan leaderboard rank data", zap.String("leaderboard_id", leaderboard.Id), zap.Error(err))
+			}
 
 			// Explicitly run GC every N batches to minimize accumulating
 			// temporary cruft from db reading, parsing etc.
@@ -597,11 +600,11 @@ func newRank(sortOrder int, score, subscore int64, ownerID uuid.UUID) skiplist.I
 			Score:    score,
 			Subscore: subscore,
 		}
-	} else {
-		return RankAsc{
-			OwnerId:  ownerID,
-			Score:    score,
-			Subscore: subscore,
-		}
+	}
+
+	return RankAsc{
+		OwnerId:  ownerID,
+		Score:    score,
+		Subscore: subscore,
 	}
 }

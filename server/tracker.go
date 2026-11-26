@@ -256,11 +256,11 @@ func (t *LocalTracker) Stop() {
 }
 
 func (t *LocalTracker) Track(ctx context.Context, sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta) (bool, bool) {
-	if session := t.getSession(sessionID); session == nil {
+	session := t.getSession(sessionID)
+	if session == nil {
 		return false, false
-	} else {
-		defer session.CloseUnlock()
 	}
+	defer session.CloseUnlock()
 
 	syncAtomic.StoreUint32(&meta.Reason, uint32(runtime.PresenceReasonJoin))
 	pc := presenceCompact{ID: PresenceID{Node: t.name, SessionID: sessionID}, Stream: stream, UserID: userID}
@@ -315,11 +315,11 @@ func (t *LocalTracker) Track(ctx context.Context, sessionID uuid.UUID, stream Pr
 }
 
 func (t *LocalTracker) TrackMulti(ctx context.Context, sessionID uuid.UUID, ops []*TrackerOp, userID uuid.UUID) bool {
-	if session := t.getSession(sessionID); session == nil {
+	session := t.getSession(sessionID)
+	if session == nil {
 		return false
-	} else {
-		defer session.CloseUnlock()
 	}
+	defer session.CloseUnlock()
 
 	joins := make([]*Presence, 0, len(ops))
 	t.Lock()
@@ -548,11 +548,11 @@ func (t *LocalTracker) UntrackAll(sessionID uuid.UUID, reason runtime.PresenceRe
 }
 
 func (t *LocalTracker) Update(ctx context.Context, sessionID uuid.UUID, stream PresenceStream, userID uuid.UUID, meta PresenceMeta) bool {
-	if session := t.getSession(sessionID); session == nil {
+	session := t.getSession(sessionID)
+	if session == nil {
 		return false
-	} else {
-		defer session.CloseUnlock()
 	}
+	defer session.CloseUnlock()
 
 	syncAtomic.StoreUint32(&meta.Reason, uint32(runtime.PresenceReasonUpdate))
 	pc := presenceCompact{ID: PresenceID{Node: t.name, SessionID: sessionID}, Stream: stream, UserID: userID}

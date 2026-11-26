@@ -218,13 +218,14 @@ func (s *sessionWS) Consume() {
 
 IncomingLoop:
 	for {
-		messageType, data, err := s.conn.ReadMessage()
+		var messageType int
+		var err error
+		messageType, data, err = s.conn.ReadMessage()
 		if err != nil {
 			// Ignore "normal" WebSocket errors.
 			if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseNoStatusReceived) {
 				// Ignore underlying connection being shut down while read is waiting for data.
-				var opErr *net.OpError
-				if !errors.As(err, &opErr) || opErr.Error() != net.ErrClosed.Error() {
+				if opErr, ok := errors.AsType[*net.OpError](err); !ok || !errors.Is(opErr, net.ErrClosed) {
 					s.logger.Debug("Error reading message from client", zap.Error(err))
 					reason = err.Error()
 				}

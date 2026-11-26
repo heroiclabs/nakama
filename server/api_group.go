@@ -136,18 +136,17 @@ func (s *ApiServer) UpdateGroup(ctx context.Context, in *api.UpdateGroupRequest)
 	}
 
 	if err = UpdateGroup(ctx, logger, s.db, groupID, userID, uuid.Nil, in.GetName(), in.GetLangTag(), in.GetDescription(), in.GetAvatarUrl(), nil, in.GetOpen(), -1); err != nil {
-		switch err {
-		case runtime.ErrGroupPermissionDenied:
+		switch {
+		case errors.Is(err, runtime.ErrGroupPermissionDenied):
 			return nil, status.Error(codes.NotFound, "Group not found or you're not allowed to update.")
-		case runtime.ErrGroupNoUpdateOps:
+		case errors.Is(err, runtime.ErrGroupNoUpdateOps):
 			return nil, status.Error(codes.InvalidArgument, "Specify at least one field to update.")
-		case runtime.ErrGroupNotUpdated:
+		case errors.Is(err, runtime.ErrGroupNotUpdated):
 			return nil, status.Error(codes.InvalidArgument, "No new fields in group update.")
-		case runtime.ErrGroupNameInUse:
+		case errors.Is(err, runtime.ErrGroupNameInUse):
 			return nil, status.Error(codes.InvalidArgument, "Group name is in use.")
-		default:
-			return nil, status.Error(codes.Internal, "Error while trying to update group.")
 		}
+		return nil, status.Error(codes.Internal, "Error while trying to update group.")
 	}
 
 	// After hook.
@@ -889,7 +888,7 @@ func (s *ApiServer) ListGroups(ctx context.Context, in *api.ListGroupsRequest) (
 
 	groups, err := ListGroups(ctx, logger, s.db, in.GetName(), in.GetLangTag(), open, edgeCount, limit, in.GetCursor())
 	if err != nil {
-		if sErr, ok := err.(*statusError); ok {
+		if sErr, ok := errors.AsType[*statusError](err); ok {
 			return nil, sErr.Status()
 		}
 		return nil, status.Error(codes.Internal, "Error while trying to list groups.")

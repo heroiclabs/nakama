@@ -409,8 +409,8 @@ AND state = 0
 		for rows.Next() {
 			var sourceId, destinationId uuid.UUID
 			if err = rows.Scan(&sourceId, &destinationId); err != nil {
+				_ = rows.Close()
 				logger.Error("Error scanning friends.", zap.Error(err))
-				rows.Close()
 				return nil, err
 			}
 
@@ -434,7 +434,11 @@ AND state = 0
 			})
 			userIds = append(userIds, destinationId.String())
 		}
-		rows.Close()
+		_ = rows.Close()
+		if err := rows.Err(); err != nil {
+			logger.Error("Error scanning friends.", zap.Error(err))
+			return nil, err
+		}
 	}
 
 	if len(userIds) == 0 {

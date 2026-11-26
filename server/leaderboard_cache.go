@@ -295,6 +295,10 @@ FROM leaderboard`
 			}
 		}
 		_ = rows.Close()
+		if err := rows.Err(); err != nil {
+			l.logger.Error("Error parsing leaderboard cache from database", zap.Error(err))
+			return err
+		}
 
 		if count < limit {
 			break
@@ -401,8 +405,7 @@ func (l *LocalLeaderboardCache) Create(ctx context.Context, id string, authorita
 	var createTime pgtype.Timestamptz
 	err = l.db.QueryRowContext(ctx, query, params...).Scan(&createTime)
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == dbErrorUniqueViolation {
 			// Concurrent attempt at creating the leaderboard, to keep idempotency query the existing leaderboard data.
 			if err = l.db.QueryRowContext(ctx, "SELECT authoritative, sort_order, operator, COALESCE(reset_schedule, ''), metadata, create_time FROM leaderboard WHERE id = $1", id).Scan(&authoritative, &sortOrder, &operator, &resetSchedule, &metadata, &createTime); err != nil {
 				l.logger.Error("Error retrieving leaderboard", zap.Error(err))
@@ -622,8 +625,7 @@ func (l *LocalLeaderboardCache) CreateTournament(ctx context.Context, id string,
 	var dbEndTime pgtype.Timestamptz
 	err = l.db.QueryRowContext(ctx, query, params...).Scan(&dbMetadata, &dbMaxSize, &dbMaxNumScore, &createTime, &dbStartTime, &dbEndTime)
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == dbErrorUniqueViolation {
 			// Concurrent attempt at creating the tournament, to keep idempotency query the existing tournament data.
 			if err = l.db.QueryRowContext(ctx, "SELECT authoritative, sort_order, operator, COALESCE(reset_schedule, ''), metadata, category, description, duration, join_required, title, max_size, max_num_score, create_time, start_time, end_time FROM leaderboard WHERE id = $1", id).Scan(&authoritative, &sortOrder, &operator, &resetSchedule, &dbMetadata, &category, &description, &duration, &joinRequired, &title, &dbMaxSize, &dbMaxNumScore, &createTime, &dbStartTime, &dbEndTime); err != nil {
 				l.logger.Error("Error retrieving tournament", zap.Error(err))

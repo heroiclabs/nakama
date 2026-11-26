@@ -20,6 +20,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/gob"
+	"errors"
 	"slices"
 	"time"
 
@@ -250,7 +251,7 @@ WHERE
 	)
 
 	if err := s.db.QueryRowContext(ctx, query, in.Id).Scan(&id, &userId, &subject, &content, &code, &senderId, &createTime); err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, status.Error(codes.NotFound, "Notification not found.")
 		}
 		logger.Error("Could not retrieve notification.", zap.Error(err))

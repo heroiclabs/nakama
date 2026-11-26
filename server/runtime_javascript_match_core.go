@@ -606,7 +606,7 @@ func (rm *RuntimeJavaScriptMatchCore) broadcastMessageDeferred(r *goja.Runtime) 
 				Envelope:    msg,
 				Reliable:    reliable,
 			}); err != nil {
-				panic(r.NewGoError(fmt.Errorf("error deferring message broadcast: %v", err)))
+				panic(r.NewGoError(fmt.Errorf("error deferring message broadcast: %w", err)))
 			}
 		}
 
