@@ -45,6 +45,14 @@ func TestParseArgsGoogleAuthClientIDs(t *testing.T) {
 	}
 }
 
+func TestParseArgsGoogleAuthCredentialsJSONWithoutRedirectURIs(t *testing.T) {
+	config := ParseArgs(zap.NewNop(), []string{"nakama", "--google_auth.credentials_json", `{"web":{"client_id":"web-client"}}`})
+	cnf := config.GetGoogleAuth().OAuthConfig
+	if cnf == nil || cnf.ClientID != "web-client" || cnf.RedirectURL != "" {
+		t.Fatalf("unexpected Google OAuth config: %+v", cnf)
+	}
+}
+
 func TestGoogleAuthConfigCloneCopiesClientIDs(t *testing.T) {
 	config := &GoogleAuthConfig{ClientIDs: []string{"web-client", "mobile-client"}}
 	clone := config.Clone()
