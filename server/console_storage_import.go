@@ -223,10 +223,10 @@ func importStorageCSV(ctx context.Context, logger *zap.Logger, db *sql.DB, metri
 				break
 			} else if errors.Is(err, csv.ErrFieldCount) {
 				logger.Warn(fmt.Sprintf("Could not parse CSV file as row #%d does not have expected fields.", len(ops)+1), zap.Error(err))
-			} else {
-				logger.Warn("Could not parse CSV file.", zap.Error(err))
 				return errors.New("failed to parse CSV file")
 			}
+			logger.Warn("Could not parse CSV file.", zap.Error(err))
+			return errors.New("failed to parse CSV file")
 		}
 
 		if len(columnIndexes) == 0 {

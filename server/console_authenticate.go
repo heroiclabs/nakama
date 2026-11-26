@@ -26,8 +26,8 @@ import (
 	"time"
 
 	"github.com/dgryski/dgoogauth"
-	uuid "github.com/gofrs/uuid/v5"
-	jwt "github.com/golang-jwt/jwt/v5"
+	"github.com/gofrs/uuid/v5"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/heroiclabs/nakama/v3/console/acl"
 	"github.com/jackc/pgx/v5/pgtype"

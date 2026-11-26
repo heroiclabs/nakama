@@ -19,6 +19,9 @@ import (
 	"context"
 	"encoding/gob"
 	"fmt"
+	"strings"
+	"testing"
+
 	"github.com/blugelabs/bluge"
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/runtime"
@@ -26,8 +29,6 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/wrapperspb"
-	"strings"
-	"testing"
 )
 
 func TestEncode(t *testing.T) {

@@ -76,7 +76,7 @@ func Check(ctx context.Context, logger *zap.Logger, db *pgx.Conn) {
 	if diff < 0 {
 		logger.Warn("DB schema newer, update Nakama", zap.Int64("migrations", int64(math.Abs(float64(diff)))))
 	}
-	db.Close(ctx)
+	_ = db.Close(ctx)
 }
 
 func RunCmd(ctx context.Context, tmpLogger *zap.Logger, db *pgx.Conn, cmd string, limit int, loggerFormat string) {
@@ -98,7 +98,7 @@ func RunCmd(ctx context.Context, tmpLogger *zap.Logger, db *pgx.Conn, cmd string
 	logger := server.NewJSONLogger(os.Stdout, zapcore.InfoLevel, ms.loggerFormat)
 
 	ms.runMigration(ctx, logger, db)
-	db.Close(ctx)
+	_ = db.Close(ctx)
 }
 
 func (ms *migrationService) up(ctx context.Context, logger *zap.Logger, db *pgx.Conn) {

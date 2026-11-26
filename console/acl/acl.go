@@ -106,7 +106,7 @@ func (p Permission) HasAccess(permission Permission) bool {
 	return true
 }
 
-// For debug, returns a human-readable string representation of the permissions bitmap.
+// For debug, returns a human-readable string representation of the permission's bitmap.
 func (p Permission) bitmapString() string {
 	sb := &strings.Builder{}
 
@@ -121,20 +121,20 @@ func (p Permission) bitmapString() string {
 }
 
 func NewPermission(resource ConsoleResource, level PermissionLevel) Permission {
-	bytes := make([]byte, byteCount)
+	permissionBytes := make([]byte, byteCount)
 
 	targetBitIdx := int(resource*3) + int(level)
 	bitIdx := 0
-	for i, b := range bytes {
+	for i, b := range permissionBytes {
 		for j := range 8 {
 			if bitIdx == targetBitIdx {
-				bytes[i] = b | (1 << (7 - j))
+				permissionBytes[i] = b | (1 << (7 - j))
 			}
 			bitIdx++
 		}
 	}
 
-	return Permission{bitmap: bytes}
+	return Permission{bitmap: permissionBytes}
 }
 
 func NewPermissionFromString(resource string, level PermissionLevel) Permission {
@@ -424,7 +424,7 @@ func New(acl map[string]*console.Permissions) Permission {
 	return acc
 }
 
-// Create Permission from raw bitmap bytes.
+// NewFromBytes creates a Permission from raw bitmap bytes.
 // Do not use for JSON deserialization. Use NewFromJson instead.
 func NewFromBytes(b []byte) Permission {
 	// Tokens issued before resources were appended carry a shorter bitmap: zero-extend it so new
