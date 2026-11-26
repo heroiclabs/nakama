@@ -48,8 +48,15 @@ import (
 )
 
 var (
-	logger             = NewConsoleLogger(os.Stdout, true)
-	cfg                = NewConfig(logger)
+	logger = NewConsoleLogger(os.Stdout, true)
+	cfg    = func() *config {
+		c := NewConfig(logger)
+		// Disposable keys shared with docker-compose-tests.yml.
+		c.GetSession().EncryptionKey = strings.Repeat("a", 32)
+		c.GetSession().RefreshEncryptionKey = strings.Repeat("b", 32)
+		c.GetConsole().SigningKey = strings.Repeat("c", 32)
+		return c
+	}()
 	protojsonMarshaler = &protojson.MarshalOptions{
 		UseProtoNames:   true,
 		UseEnumNumbers:  true,

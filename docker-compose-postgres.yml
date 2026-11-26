@@ -26,7 +26,7 @@ services:
       - "-ecx"
       - >
           /nakama/nakama migrate up --database.address postgres:localdb@postgres:5432/nakama &&
-          exec /nakama/nakama --name nakama1 --database.address postgres:localdb@postgres:5432/nakama --logger.level DEBUG --session.token_expiry_sec 7200
+          exec /nakama/nakama --config /nakama/data/local.yml --name nakama1 --database.address postgres:localdb@postgres:5432/nakama --logger.level DEBUG --session.token_expiry_sec 7200
     restart: always
     links:
       - "postgres:db"
