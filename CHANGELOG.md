@@ -12,6 +12,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Obfuscate further sensitive strings from console audit log view.
 - Limit Fleet Manager namespaces to a URL-safe character set.
 - Matchmaker now gives higher priority to longest-waiting groups by average wait time.
+- Accept Google `google_auth.credentials_json` without `redirect_uris`, as downloaded for Play Games server-side access.
 
 ### Fixed
 - Support multiple subscriptions in the IAP provider subscription validation reply.
