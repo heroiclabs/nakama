@@ -18,6 +18,11 @@ type liveEventFilters struct {
 	futureRunCount int32
 }
 
+type contextCacheKey struct {
+	ctx    context.Context
+	userID string
+}
+
 type satoriContextCacheEntry[T runtime.SatoriLabeled, O comparable] struct {
 	containsAll bool
 	names       map[string]struct{}
@@ -29,7 +34,7 @@ type satoriContextCacheEntry[T runtime.SatoriLabeled, O comparable] struct {
 type satoriContextCache[T runtime.SatoriLabeled, O comparable] struct {
 	sync.RWMutex
 	enabled bool
-	entries map[context.Context]*satoriContextCacheEntry[T, O]
+	entries map[contextCacheKey]*satoriContextCacheEntry[T, O]
 }
 
 func newSatoriContextCache[T runtime.SatoriLabeled, O comparable](ctx context.Context, enabled bool) *satoriContextCache[T, O] {
@@ -41,7 +46,7 @@ func newSatoriContextCache[T runtime.SatoriLabeled, O comparable](ctx context.Co
 
 	sc := &satoriContextCache[T, O]{
 		enabled: true,
-		entries: make(map[context.Context]*satoriContextCacheEntry[T, O]),
+		entries: make(map[contextCacheKey]*satoriContextCacheEntry[T, O]),
 	}
 
 	go func() {
@@ -53,9 +58,9 @@ func newSatoriContextCache[T runtime.SatoriLabeled, O comparable](ctx context.Co
 				return
 			case <-ticker.C:
 				sc.Lock()
-				for cacheCtx := range sc.entries {
-					if cacheCtx.Err() != nil {
-						delete(sc.entries, cacheCtx)
+				for key := range sc.entries {
+					if key.ctx.Err() != nil {
+						delete(sc.entries, key)
 					}
 				}
 				sc.Unlock()
@@ -71,7 +76,7 @@ func (s *satoriContextCache[T, O]) Get(ctx context.Context, userID string, names
 		return nil, names, labels
 	}
 	s.RLock()
-	entry, found := s.entries[ctx]
+	entry, found := s.entries[contextCacheKey{ctx: ctx, userID: userID}]
 	defer s.RUnlock()
 
 	if found && len(optFilters) > 0 {
@@ -197,7 +202,8 @@ func (s *satoriContextCache[T, O]) Add(ctx context.Context, userID string, names
 		return
 	}
 	s.Lock()
-	entry, ok := s.entries[ctx]
+	key := contextCacheKey{ctx: ctx, userID: userID}
+	entry, ok := s.entries[key]
 	if !ok {
 		entry = &satoriContextCacheEntry[T, O]{
 			containsAll: false,
@@ -205,7 +211,7 @@ func (s *satoriContextCache[T, O]) Add(ctx context.Context, userID string, names
 			labels:      map[string]struct{}{},
 			entryData:   make(map[string]T, len(values)),
 		}
-		s.entries[ctx] = entry
+		s.entries[key] = entry
 	}
 	for _, name := range names {
 		entry.names[name] = struct{}{}
@@ -227,7 +233,7 @@ func (s *satoriContextCache[T, O]) SetAll(ctx context.Context, userID string, va
 	}
 
 	s.Lock()
-	s.entries[ctx] = &satoriContextCacheEntry[T, O]{
+	s.entries[contextCacheKey{ctx: ctx, userID: userID}] = &satoriContextCacheEntry[T, O]{
 		containsAll: true,
 		entryData:   values,
 	}
