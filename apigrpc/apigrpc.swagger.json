@@ -3270,8 +3270,13 @@
         ],
         "security": [
           {
-            "BearerJwt": [],
             "HttpKeyAuth": []
+          },
+          {
+            "BasicAuth": []
+          },
+          {
+            "BearerJwt": []
           }
         ]
       },
@@ -3322,8 +3327,13 @@
         ],
         "security": [
           {
-            "BearerJwt": [],
             "HttpKeyAuth": []
+          },
+          {
+            "BasicAuth": []
+          },
+          {
+            "BearerJwt": []
           }
         ]
       }
@@ -5969,7 +5979,7 @@
     "HttpKeyAuth": {
       "type": "apiKey",
       "name": "http_key",
-      "in": "header"
+      "in": "query"
     }
   },
   "security": [
