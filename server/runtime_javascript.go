@@ -29,13 +29,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/heroiclabs/nakama-common/runtime"
-
 	"github.com/dop251/goja"
 	"github.com/dop251/goja/ast"
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
@@ -385,7 +384,7 @@ func (rp *RuntimeProviderJS) BeforeRt(ctx context.Context, id string, logger *za
 	rp.Put(r)
 
 	if fnErr != nil {
-		if jsErr, ok := fnErr.(*jsError); ok {
+		if jsErr, ok := errors.AsType[*jsError](fnErr); ok {
 			if !jsErr.custom {
 				logger.Error("Runtime Before function caused an error.", zap.String("id", id), zap.Error(fnErr))
 			}
@@ -471,7 +470,7 @@ func (rp *RuntimeProviderJS) AfterRt(ctx context.Context, id string, logger *zap
 	rp.Put(r)
 
 	if fnErr != nil {
-		if jsErr, ok := fnErr.(*jsError); ok {
+		if jsErr, ok := errors.AsType[*jsError](fnErr); ok {
 			if !jsErr.custom {
 				logger.Error("Runtime After function caused an error.", zap.String("id", id), zap.Error(fnErr))
 			}
@@ -538,7 +537,7 @@ func (rp *RuntimeProviderJS) BeforeReq(ctx context.Context, id string, logger *z
 	rp.Put(r)
 
 	if fnErr != nil {
-		if jsErr, ok := fnErr.(*jsError); ok {
+		if jsErr, ok := errors.AsType[*jsError](fnErr); ok {
 			if !jsErr.custom {
 				logger.Error("Runtime Before function caused an error.", zap.String("id", id), zap.Error(err))
 			}
@@ -643,7 +642,7 @@ func (rp *RuntimeProviderJS) AfterReq(ctx context.Context, id string, logger *za
 	rp.Put(r)
 
 	if fnErr != nil {
-		if jsErr, ok := fnErr.(*jsError); ok {
+		if jsErr, ok := errors.AsType[*jsError](fnErr); ok {
 			if !jsErr.custom {
 				logger.Error("JavaScript runtime After function caused an error.", zap.String("id", id), zap.Error(fnErr))
 			}
@@ -671,9 +670,8 @@ func (r *RuntimeJS) InvokeFunction(execMode RuntimeExecutionMode, id string, fn 
 
 	if retVal == nil {
 		return nil, nil, codes.OK
-	} else {
-		return retVal.Export(), nil, codes.OK
 	}
+	return retVal.Export(), nil, codes.OK
 }
 
 func (r *RuntimeJS) invokeFunction(execMode RuntimeExecutionMode, id string, fn goja.Callable, args ...goja.Value) (goja.Value, error, codes.Code) {
@@ -2725,7 +2723,7 @@ func evalRuntimeModules(rp *RuntimeProviderJS, modCache *RuntimeJSModuleCache, m
 	ctx := NewRuntimeJsInitContext(r, rp.config.GetName(), rp.version, rp.config.GetRuntime().Environment)
 	_, err = initModFn(goja.Null(), ctx, jsLoggerInst, nk, init)
 	if err != nil {
-		if exErr, ok := err.(*goja.Exception); ok {
+		if exErr, ok := errors.AsType[*goja.Exception](err); ok {
 			return nil, errors.New(exErr.String())
 		}
 		return nil, err

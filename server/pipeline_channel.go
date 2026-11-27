@@ -57,13 +57,13 @@ func (p *Pipeline) channelJoin(ctx context.Context, logger *zap.Logger, session 
 				Message: err.Error(),
 			}}}, true)
 			return false, nil
-		} else {
-			_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
-				Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
-				Message: err.Error(),
-			}}}, true)
-			return false, nil
 		}
+
+		_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
+			Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
+			Message: err.Error(),
+		}}}, true)
+		return false, nil
 	}
 
 	meta := PresenceMeta{
@@ -217,8 +217,7 @@ func (p *Pipeline) channelMessageSend(ctx context.Context, logger *zap.Logger, s
 	}
 
 	ack, err := ChannelMessageSend(ctx, p.logger, p.db, p.router, streamConversionResult.Stream, incoming.ChannelId, incoming.Content, session.UserID().String(), session.Username(), meta.Persistence)
-	switch err {
-	case errChannelMessagePersist:
+	if errors.Is(err, errChannelMessagePersist) {
 		_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
 			Message: "Could not persist message to channel history",
@@ -270,18 +269,19 @@ func (p *Pipeline) channelMessageUpdate(ctx context.Context, logger *zap.Logger,
 	}
 
 	ack, err := ChannelMessageUpdate(ctx, p.logger, p.db, p.router, streamConversionResult.Stream, incoming.ChannelId, incoming.MessageId, incoming.Content, session.UserID().String(), session.Username(), meta.Persistence)
-	switch err {
-	case errChannelMessageNotFound:
+	switch {
+	case errors.Is(err, errChannelMessageNotFound):
 		_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Could not find message to update in channel history",
 		}}}, true)
 		return false, nil
-	case errChannelMessagePersist:
+	case errors.Is(err, errChannelMessagePersist):
 		_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
 			Message: "Could not persist message update to channel history",
 		}}}, true)
+		return false, nil
 	}
 
 	out := &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_ChannelMessageAck{ChannelMessageAck: ack}}
@@ -320,18 +320,19 @@ func (p *Pipeline) channelMessageRemove(ctx context.Context, logger *zap.Logger,
 	}
 
 	ack, err := ChannelMessageRemove(ctx, p.logger, p.db, p.router, streamConversionResult.Stream, incoming.ChannelId, incoming.MessageId, session.UserID().String(), session.Username(), meta.Persistence)
-	switch err {
-	case errChannelMessageNotFound:
+	switch {
+	case errors.Is(err, errChannelMessageNotFound):
 		_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_BAD_INPUT),
 			Message: "Could not find message to remove in channel history",
 		}}}, true)
 		return false, nil
-	case errChannelMessagePersist:
+	case errors.Is(err, errChannelMessagePersist):
 		_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 			Code:    int32(rtapi.Error_RUNTIME_EXCEPTION),
 			Message: "Could not persist message remove to channel history",
 		}}}, true)
+		return false, nil
 	}
 
 	out := &rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_ChannelMessageAck{ChannelMessageAck: ack}}

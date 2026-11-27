@@ -524,11 +524,11 @@ func (im *RuntimeJavascriptInitModule) getRegisteredRpcFnIdentifier(r *goja.Runt
 func (im *RuntimeJavascriptInitModule) getRegisteredFnIdentifier(r *goja.Runtime, bs *ast.BlockStatement, initFnVarName, rpcFnName, registerFnName string) (string, error) {
 	for _, exp := range bs.List {
 		if try, ok := exp.(*ast.TryStatement); ok {
-			if s, err := im.getRegisteredRpcFnIdentifier(r, try.Body, initFnVarName, rpcFnName); err != nil {
+			s, err := im.getRegisteredRpcFnIdentifier(r, try.Body, initFnVarName, rpcFnName)
+			if err != nil {
 				continue
-			} else {
-				return s, nil
 			}
+			return s, nil
 		}
 
 		if expStat, ok := exp.(*ast.ExpressionStatement); ok {
@@ -1391,11 +1391,11 @@ func (im *RuntimeJavascriptInitModule) getInitModuleFn() (*ast.BlockStatement, s
 func (im *RuntimeJavascriptInitModule) getHookFnIdentifier(bs *ast.BlockStatement, initVarName, registerFnName string) (string, error) {
 	for _, exp := range bs.List {
 		if try, ok := exp.(*ast.TryStatement); ok {
-			if s, err := im.getHookFnIdentifier(try.Body, initVarName, registerFnName); err != nil {
+			s, err := im.getHookFnIdentifier(try.Body, initVarName, registerFnName)
+			if err != nil {
 				continue
-			} else {
-				return s, nil
 			}
+			return s, nil
 		}
 		if expStat, ok := exp.(*ast.ExpressionStatement); ok {
 			if callExp, ok := expStat.Expression.(*ast.CallExpression); ok {
@@ -1506,11 +1506,11 @@ func (im *RuntimeJavascriptInitModule) extractRtHookFn(r *goja.Runtime, register
 func (im *RuntimeJavascriptInitModule) getRtHookFnIdentifier(r *goja.Runtime, bs *ast.BlockStatement, initVarName, registerFnName, rtFnName string) (string, error) {
 	for _, exp := range bs.List {
 		if try, ok := exp.(*ast.TryStatement); ok {
-			if s, err := im.getRtHookFnIdentifier(r, try.Body, initVarName, registerFnName, rtFnName); err != nil {
+			s, err := im.getRtHookFnIdentifier(r, try.Body, initVarName, registerFnName, rtFnName)
+			if err != nil {
 				continue
-			} else {
-				return s, nil
 			}
+			return s, nil
 		}
 		if expStat, ok := exp.(*ast.ExpressionStatement); ok {
 			if callExp, ok := expStat.Expression.(*ast.CallExpression); ok {
@@ -1927,11 +1927,11 @@ func (im *RuntimeJavascriptInitModule) extractMatchFnKey(r *goja.Runtime, modNam
 func (im *RuntimeJavascriptInitModule) getMatchHookFnIdentifier(r *goja.Runtime, bs *ast.BlockStatement, initFnVarName, modName string, matchfnId MatchFnId) (string, error) {
 	for _, exp := range bs.List {
 		if try, ok := exp.(*ast.TryStatement); ok {
-			if s, err := im.getMatchHookFnIdentifier(r, try.Body, initFnVarName, modName, matchfnId); err != nil {
+			s, err := im.getMatchHookFnIdentifier(r, try.Body, initFnVarName, modName, matchfnId)
+			if err != nil {
 				continue
-			} else {
-				return s, nil
 			}
+			return s, nil
 		}
 		if expStat, ok := exp.(*ast.ExpressionStatement); ok {
 			if callExp, ok := expStat.Expression.(*ast.CallExpression); ok {

@@ -220,6 +220,10 @@ WHERE stream_mode = $1 AND stream_subject = $2::UUID AND stream_descriptor = $3:
 		}
 	}
 	_ = rows.Close()
+	if err := rows.Err(); err != nil {
+		logger.Error("Error parsing listed channel messages", zap.Error(err))
+		return nil, err
+	}
 
 	if incomingCursor != nil && !incomingCursor.IsNext {
 		// If this was a previous page listing, flip the results to their normal order and swap the cursors.
@@ -381,7 +385,7 @@ func ChannelMessageUpdate(ctx context.Context, logger *zap.Logger, db *sql.DB, r
 		query := "UPDATE message SET update_time = $5, username = $4, content = $3 WHERE id = $1 AND sender_id = $2 RETURNING create_time"
 		err := db.QueryRowContext(ctx, query, messageId, message.SenderId, message.Content, message.Username, message.UpdateTime.AsTime()).Scan(&dbCreateTime)
 		if err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				return nil, errChannelMessageNotFound
 			}
 			logger.Error("Error persisting channel message update", zap.Error(err))
@@ -436,7 +440,7 @@ func ChannelMessageRemove(ctx context.Context, logger *zap.Logger, db *sql.DB, r
 		query := "DELETE FROM message WHERE id = $1 AND sender_id = $2 RETURNING create_time, update_time"
 		err := db.QueryRowContext(ctx, query, messageId, message.SenderId).Scan(&dbCreateTime, &dbUpdateTime)
 		if err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				return nil, errChannelMessageNotFound
 			}
 			logger.Error("Error persisting channel message remove", zap.Error(err))

@@ -19,6 +19,7 @@ import (
 	"crypto/md5"
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -2284,7 +2285,7 @@ func testWrite(t *testing.T, newVal, prevVal string, permWrite int, authoritativ
 
 			// Test writing object and assert expected result
 			_, code, err := writeObject(t, db, collection, key, userId, permWrite, newVal, version, authoritative)
-			if code != w.expectedCode || err != w.expectedError {
+			if code != w.expectedCode || !errors.Is(err, w.expectedError) {
 				t.Errorf("Failed: code=%d (expected=%d) err=%v", code, w.expectedCode, err)
 			}
 		})

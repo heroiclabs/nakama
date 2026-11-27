@@ -16,6 +16,7 @@ package server
 
 import (
 	"context"
+	"errors"
 
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
@@ -119,7 +120,7 @@ func (p *Pipeline) matchmakerRemove(ctx context.Context, logger *zap.Logger, ses
 
 	// Run matchmaker remove.
 	if err := p.matchmaker.RemoveSession(session.ID().String(), incoming.Ticket); err != nil {
-		if err == runtime.ErrMatchmakerTicketNotFound {
+		if errors.Is(err, runtime.ErrMatchmakerTicketNotFound) {
 			_ = session.Send(&rtapi.Envelope{Cid: envelope.Cid, Message: &rtapi.Envelope_Error{Error: &rtapi.Error{
 				Code:    int32(rtapi.Error_BAD_INPUT),
 				Message: "Matchmaker ticket not found",

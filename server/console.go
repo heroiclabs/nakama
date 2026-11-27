@@ -425,6 +425,10 @@ SELECT collection FROM t WHERE collection IS NOT NULL`
 				collections = append(collections, dbCollection)
 			}
 			_ = rows.Close()
+			if err := rows.Err(); err != nil {
+				s.logger.Error("Error scanning storage collections.", zap.Error(err))
+				return time.NewTimer(time.Minute)
+			}
 
 			sort.Strings(collections)
 			collectionSetCache.Store(collections)
@@ -513,14 +517,14 @@ func registerDashboardHandlers(logger *zap.Logger, router *mux.Router) error {
 			console.UI.ServeHTTP(w, r)
 
 			return
-		} else {
-			if isAsset {
-				w.WriteHeader(http.StatusNotFound)
-				return
-			}
-
-			indexFn(w, r)
 		}
+
+		if isAsset {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		indexFn(w, r)
 	})
 
 	return nil

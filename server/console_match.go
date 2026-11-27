@@ -41,15 +41,15 @@ func (s *ConsoleServer) ListMatches(ctx context.Context, in *console.ListMatches
 				return nil, status.Error(codes.InvalidArgument, "Match ID is not valid.")
 			}
 			return &console.MatchList{Matches: []*console.MatchList_Match{{ApiMatch: match, Node: node}}}, nil
-		} else {
-			if errors.Is(err, runtime.ErrMatchIdInvalid) {
-				if (in.Authoritative != nil && !in.Authoritative.Value) || in.Authoritative == nil {
-					return nil, status.Error(codes.InvalidArgument, "Match ID is not valid.")
-				}
-			} else {
-				logger.Error("Error listing matches", zap.Error(err))
-				return nil, status.Error(codes.Internal, "Error listing matches.")
+		}
+
+		if errors.Is(err, runtime.ErrMatchIdInvalid) {
+			if (in.Authoritative != nil && !in.Authoritative.Value) || in.Authoritative == nil {
+				return nil, status.Error(codes.InvalidArgument, "Match ID is not valid.")
 			}
+		} else {
+			logger.Error("Error listing matches", zap.Error(err))
+			return nil, status.Error(codes.Internal, "Error listing matches.")
 		}
 	}
 

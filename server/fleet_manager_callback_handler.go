@@ -15,10 +15,11 @@
 package server
 
 import (
-	"github.com/gofrs/uuid/v5"
-	"github.com/heroiclabs/nakama-common/runtime"
 	"net"
 	"sync"
+
+	"github.com/gofrs/uuid/v5"
+	"github.com/heroiclabs/nakama-common/runtime"
 )
 
 type LocalFmCallbackHandler struct {

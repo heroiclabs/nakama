@@ -32,7 +32,6 @@ import (
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
-
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
@@ -110,8 +109,7 @@ RETURNING id, creator_id, name, description, avatar_url, state, edge_count, lang
 	if err := ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
 		rows, err := tx.QueryContext(ctx, query, params...)
 		if err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
+			if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == dbErrorUniqueViolation {
 				logger.Info("Could not create group as it already exists.", zap.String("name", name))
 				return runtime.ErrGroupNameInUse
 			}
@@ -231,8 +229,7 @@ func UpdateGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, groupID uu
 	query := "UPDATE groups SET update_time = now(), " + strings.Join(statements, ", ") + " WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')"
 	res, err := db.ExecContext(ctx, query, params...)
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == dbErrorUniqueViolation {
 			logger.Info("Could not update group as it already exists.", zap.String("group_id", groupID.String()))
 			return runtime.ErrGroupNameInUse
 		}
@@ -320,8 +317,7 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')`
 		state = 3
 		_, err = groupAddUser(ctx, db, nil, uuid.Must(uuid.FromString(group.Id)), userID, state)
 		if err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
+			if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == dbErrorUniqueViolation {
 				logger.Info("Could not add user to group as relationship already exists.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
 				return nil // completed successfully
 			}
@@ -368,6 +364,7 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')`
 					}
 				}
 				_ = rows.Close()
+				// Purposefully ignore rows.Err() here, this is an optimistic scan.
 			}
 
 			if len(notifications) > 0 {
@@ -406,8 +403,7 @@ WHERE (id = $1) AND (disable_time = '1970-01-01 00:00:00 UTC')`
 
 	if err = ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
 		if _, err = groupAddUser(ctx, db, tx, uuid.Must(uuid.FromString(group.Id)), userID, state); err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
+			if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == dbErrorUniqueViolation {
 				logger.Info("Could not add user to group as relationship already exists.", zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
 				return pgErr
 			}
@@ -440,8 +436,7 @@ VALUES ($1, $2, $3, $4, $5, $6::UUID, $7::UUID, $8, $9, $10, $10)`
 
 		return nil
 	}); err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == dbErrorUniqueViolation {
 			// No-op, user was already in group.
 			return nil
 		}
@@ -506,6 +501,10 @@ func LeaveGroup(ctx context.Context, logger *zap.Logger, db *sql.DB, tracker Tra
 			}
 		}
 		_ = rows.Close()
+		if err := rows.Err(); err != nil {
+			logger.Error("Could not scan state from group_edge.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
+			return err
+		}
 
 		if otherSuperadminCount == 0 {
 			if otherMemberCount == 0 {
@@ -1047,10 +1046,9 @@ RETURNING state`
 					}
 					// Ignore - move to the next user ID.
 					continue
-				} else {
-					logger.Debug("Could not delete relationship from group_edge.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
-					return err
 				}
+				logger.Debug("Could not delete relationship from group_edge.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", uid.String()))
+				return err
 			}
 
 			// Only update group edge count and send messages when we kicked valid members, not invites.
@@ -1520,6 +1518,10 @@ WHERE u.id = ge.destination_id AND ge.source_id = $1`
 		groupUsers = append(groupUsers, groupUser)
 	}
 	_ = rows.Close()
+	if err := rows.Err(); err != nil {
+		logger.Error("Could not parse rows when listing users in a group.", zap.Error(err), zap.String("group_id", groupID.String()))
+		return nil, err
+	}
 
 	statusRegistry.FillOnlineGroupUsers(groupUsers)
 
@@ -1934,10 +1936,10 @@ func groupConvertRows(rows *sql.Rows, limit int) ([]*api.Group, string, error) {
 		var err error
 		if group, updateTime, err = convertToGroup(rows); err != nil {
 			return nil, "", err
-		} else {
-			groups = append(groups, group)
-			updateTimes = append(updateTimes, updateTime)
 		}
+
+		groups = append(groups, group)
+		updateTimes = append(updateTimes, updateTime)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, "", err
@@ -2136,6 +2138,10 @@ WHERE group_edge.destination_id = $1`
 		}
 	}
 	_ = rows.Close()
+	if err := rows.Err(); err != nil {
+		logger.Error("Could not parse rows when listing groups for a user.", zap.Error(err), zap.String("user_id", userID.String()))
+		return err
+	}
 
 	countOtherSuperadminsQuery := "SELECT COUNT(source_id) FROM group_edge WHERE source_id = $1 AND destination_id != $2 AND state = 0"
 	for _, g := range checkForOtherSuperadmins {
@@ -2195,6 +2201,10 @@ LIMIT $2`
 		groups = append(groups, group)
 	}
 	_ = rows.Close()
+	if err := rows.Err(); err != nil {
+		logger.Error("Error retrieving random groups.", zap.Error(err))
+		return nil, err
+	}
 
 	if len(groups) < count {
 		// Need more groups.
@@ -2225,6 +2235,10 @@ LIMIT $2`
 			}
 		}
 		_ = rows.Close()
+		if err := rows.Err(); err != nil {
+			logger.Error("Error retrieving random groups.", zap.Error(err))
+			return nil, err
+		}
 	}
 
 	return groups, nil

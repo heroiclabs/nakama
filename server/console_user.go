@@ -120,6 +120,7 @@ func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest)
 			if resp, err := s.httpClient.Do(req); err != nil {
 				logger.Debug("Failed to add newsletter subscription.", zap.Error(err))
 			} else {
+				defer resp.Body.Close()
 				logger.Debug("Added newsletter subscription.", zap.Int("status", resp.StatusCode))
 			}
 		}
@@ -129,10 +130,9 @@ func (s *ConsoleServer) AddUser(ctx context.Context, in *console.AddUserRequest)
 	if err != nil {
 		if _, ok := status.FromError(err); ok {
 			return nil, err
-		} else {
-			logger.Error("failed to insert console user", zap.Error(err), zap.String("username", in.Username), zap.String("email", in.Email))
-			return nil, status.Error(codes.Internal, "Internal Server Error")
 		}
+		logger.Error("failed to insert console user", zap.Error(err), zap.String("username", in.Username), zap.String("email", in.Email))
+		return nil, status.Error(codes.Internal, "Internal Server Error")
 	}
 
 	token, err := generateJWTToken(
@@ -190,10 +190,8 @@ func (s *ConsoleServer) dbInsertConsoleUser(ctx context.Context, logger *zap.Log
 						RETURNING id, create_time, update_time, create_time != update_time AS updated, mfa_secret IS NOT NULL AS mfa_enabled`
 	err = s.db.QueryRowContext(ctx, query, id.String(), in.Username, in.Email, userAclJson, in.MfaRequired).Scan(&id, &createTime, &updateTime, &updated, &mfaEnabled)
 	if err != nil {
-		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
-			if pgErr.Code == dbErrorUniqueViolation {
-				return nil, status.Error(codes.FailedPrecondition, "Username or Email already exists")
-			}
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == dbErrorUniqueViolation {
+			return nil, status.Error(codes.FailedPrecondition, "Username or Email already exists")
 		}
 		return nil, err
 	}
@@ -457,12 +455,16 @@ func (s *ConsoleServer) dbListConsoleUsers(ctx context.Context, usernames []stri
 		user.UpdateTime = timestamppb.New(updateTime)
 		userAcl, err := acl.NewFromJson(string(aclBytes))
 		if err != nil {
+			_ = rows.Close()
 			return nil, err
 		}
 		user.Acl = userAcl.ACL()
 		result = append(result, user)
 	}
 	_ = rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 
 	return result, nil
 }

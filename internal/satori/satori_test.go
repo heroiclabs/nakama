@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"os"
 	goruntime "runtime"
-	metrics "runtime/metrics"
+	"runtime/metrics"
 	"testing"
 	"time"
 

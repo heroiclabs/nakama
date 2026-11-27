@@ -46,7 +46,7 @@ func SessionRefresh(ctx context.Context, logger *zap.Logger, db *sql.DB, config 
 	var dbDisableTime pgtype.Timestamptz
 	err := db.QueryRowContext(ctx, query, userID).Scan(&dbUsername, &dbDisableTime)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			// Account not found and creation is never allowed for this type.
 			logger.With(zap.String("user_id", userID.String())).Warn("Refresh token user does not exist", zap.Error(err))
 			return uuid.Nil, "", nil, "", 0, status.Error(codes.NotFound, "User account not found.")

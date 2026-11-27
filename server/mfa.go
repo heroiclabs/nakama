@@ -17,9 +17,10 @@ package server
 import (
 	"crypto/rand"
 	"encoding/base32"
-	"github.com/dgryski/dgoogauth"
 	"math/big"
 	"net/url"
+
+	"github.com/dgryski/dgoogauth"
 )
 
 const (

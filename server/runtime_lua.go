@@ -29,11 +29,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/heroiclabs/nakama-common/runtime"
-
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
+	"github.com/heroiclabs/nakama-common/runtime"
 	lua "github.com/heroiclabs/nakama/v3/internal/gopher-lua"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/atomic"
@@ -2620,7 +2619,7 @@ func (r *RuntimeLua) invokeFunction(l *lua.LState, fn *lua.LFunction, ctx *lua.L
 			}
 		}
 
-		if apiError, ok := err.(*lua.ApiError); ok && apiError.Object.Type() == lua.LTTable {
+		if apiError, ok := errors.AsType[*lua.ApiError](err); ok && apiError.Object.Type() == lua.LTTable {
 			t := apiError.Object.(*lua.LTable)
 			switch t.Len() {
 			case 0:
@@ -2666,7 +2665,7 @@ func (r *RuntimeLua) Stop() {
 }
 
 func clearFnError(fnErr error, rp *RuntimeProviderLua, lf *lua.LFunction) error {
-	if apiErr, ok := fnErr.(*lua.ApiError); ok && !rp.config.GetRuntime().LuaApiStacktrace {
+	if apiErr, ok := errors.AsType[*lua.ApiError](fnErr); ok && !rp.config.GetRuntime().LuaApiStacktrace {
 		msg := apiErr.Object.String()
 		if strings.HasPrefix(msg, lf.Proto.SourceName) {
 			msg = msg[len(lf.Proto.SourceName):]

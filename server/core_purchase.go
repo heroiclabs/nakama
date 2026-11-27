@@ -272,9 +272,8 @@ func ValidatePurchaseGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			if vErr, ok := errors.AsType[*iap.ValidationError](err); ok {
 				logger.Debug("Error validating Google receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
 				return nil, vErr
-			} else {
-				logger.Error("Error validating Google receipt", zap.Error(err))
 			}
+			logger.Error("Error validating Google receipt", zap.Error(err))
 		}
 		return nil, err
 	}
@@ -356,9 +355,8 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 			if vErr, ok := errors.AsType[*iap.ValidationError](err); ok {
 				logger.Debug("Error validating Huawei receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
 				return nil, vErr
-			} else {
-				logger.Error("Error validating Huawei receipt", zap.Error(err))
 			}
+			logger.Error("Error validating Huawei receipt", zap.Error(err))
 		}
 		return nil, err
 	}
@@ -400,7 +398,7 @@ func ValidatePurchaseHuawei(ctx context.Context, logger *zap.Logger, db *sql.DB,
 
 	purchases, err := upsertPurchases(ctx, db, sPurchase)
 	if err != nil {
-		if err != context.Canceled {
+		if !errors.Is(err, context.Canceled) {
 			logger.Error("Error storing Huawei receipt", zap.Error(err))
 		}
 		return nil, err
@@ -469,7 +467,7 @@ func ValidatePurchaseFacebookInstant(ctx context.Context, logger *zap.Logger, db
 
 	purchases, err := upsertPurchases(ctx, db, sPurchase)
 	if err != nil {
-		if err != context.Canceled {
+		if !errors.Is(err, context.Canceled) {
 			logger.Error("Error storing Facebook Instant receipt", zap.Error(err))
 		}
 		return nil, err
@@ -509,13 +507,12 @@ func ValidatePurchaseSamsung(ctx context.Context, logger *zap.Logger, db *sql.DB
 
 	orderResp, raw, err := iap.ValidateReceiptSamsung(ctx, httpc, packageName, purchaseId)
 	if err != nil {
-		if err != context.Canceled {
+		if !errors.Is(err, context.Canceled) {
 			if vErr, ok := errors.AsType[*iap.ValidationError](err); ok {
 				logger.Debug("Error validating Samsung receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
 				return nil, vErr
-			} else {
-				logger.Error("Error validating Samsung receipt", zap.Error(err))
 			}
+			logger.Error("Error validating Samsung receipt", zap.Error(err))
 		}
 		return nil, err
 	}
@@ -553,7 +550,7 @@ func ValidatePurchaseSamsung(ctx context.Context, logger *zap.Logger, db *sql.DB
 
 	purchases, err := upsertPurchases(ctx, db, sPurchase)
 	if err != nil {
-		if err != context.Canceled {
+		if !errors.Is(err, context.Canceled) {
 			logger.Error("Error storing Samsung receipt", zap.Error(err))
 		}
 		return nil, err

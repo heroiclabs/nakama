@@ -25,16 +25,15 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/heroiclabs/nakama-common/runtime"
-	"github.com/jackc/pgx/v5"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
+	"github.com/heroiclabs/nakama-common/runtime"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -150,7 +149,7 @@ func NotificationSendAll(ctx context.Context, logger *zap.Logger, db *sql.DB, tr
 			for rows.Next() {
 				if err = rows.Scan(&userIDStr); err != nil {
 					_ = rows.Close()
-					notificationLogger.Error("Failed to scan user data to send notification", zap.String("id", userIDStr), zap.Error(err))
+					notificationLogger.Error("Failed to scan user data to send notification", zap.Error(err))
 					return
 				}
 				userID, err := uuid.FromString(userIDStr)
@@ -170,6 +169,10 @@ func NotificationSendAll(ctx context.Context, logger *zap.Logger, db *sql.DB, tr
 				}}
 			}
 			_ = rows.Close()
+			if err := rows.Err(); err != nil {
+				notificationLogger.Error("Failed to scan user data to send notification", zap.Error(err))
+				return
+			}
 
 			if len(sends) == 0 {
 				// Pagination finished.
@@ -271,6 +274,10 @@ ORDER BY create_time ASC, id ASC` + limitQuery
 		notifications = append(notifications, no)
 	}
 	_ = rows.Close()
+	if err := rows.Err(); err != nil {
+		logger.Error("Could not scan notification from database.", zap.Error(err))
+		return nil, err
+	}
 
 	notificationList := &api.NotificationList{}
 	cursorBuf := new(bytes.Buffer)

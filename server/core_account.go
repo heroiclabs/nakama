@@ -27,7 +27,6 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama/v3/console"
-
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -271,6 +270,10 @@ FROM users u`
 		})
 	}
 	_ = rows.Close()
+	if err := rows.Err(); err != nil {
+		logger.Error("Error retrieving user accounts.", zap.Error(err))
+		return nil, err
+	}
 
 	if statusRegistry != nil {
 		statusRegistry.FillOnlineAccounts(accounts)
@@ -384,8 +387,7 @@ func updateAccounts(ctx context.Context, logger *zap.Logger, tx pgx.Tx, updates 
 			" WHERE id = $1 AND (" + strings.Join(distinctStatements, " OR ") + ")"
 
 		if _, err := tx.Exec(ctx, query, params...); err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_username_key") {
+			if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_username_key") {
 				return status.Error(codes.AlreadyExists, "Username is already in use.")
 			}
 

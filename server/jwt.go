@@ -16,7 +16,8 @@ package server
 
 import (
 	"errors"
-	jwt "github.com/golang-jwt/jwt/v5"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 func generateJWTToken(signingKey string, claims jwt.Claims) (string, error) {

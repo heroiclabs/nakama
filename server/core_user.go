@@ -17,6 +17,7 @@ package server
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/gofrs/uuid/v5"
@@ -116,6 +117,10 @@ LIMIT $2`
 		users = append(users, user)
 	}
 	_ = rows.Close()
+	if err := rows.Err(); err != nil {
+		logger.Error("Error retrieving random user accounts.", zap.Error(err))
+		return nil, err
+	}
 
 	if len(users) < count {
 		// Need more users.
@@ -146,6 +151,10 @@ LIMIT $2`
 			}
 		}
 		_ = rows.Close()
+		if err := rows.Err(); err != nil {
+			logger.Error("Error retrieving random user accounts.", zap.Error(err))
+			return nil, err
+		}
 	}
 
 	statusRegistry.FillOnlineUsers(users)
@@ -267,7 +276,7 @@ func fetchUserID(ctx context.Context, db *sql.DB, usernames []string) ([]string,
 	query := "SELECT id FROM users WHERE username = ANY($1::text[])"
 	rows, err := db.QueryContext(ctx, query, usernames)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return ids, nil
 		}
 		return nil, err

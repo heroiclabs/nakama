@@ -23,7 +23,6 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama/v3/social"
-
 	"github.com/jackc/pgx/v5/pgconn"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -68,8 +67,7 @@ AND (NOT EXISTS
 	if profile.Email != "" && importEmail {
 		_, err = db.ExecContext(ctx, "UPDATE users SET email = $1 WHERE id = $2 AND NULLIF(email, '') IS NULL", profile.Email, userID)
 		if err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_email_key") {
+			if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_email_key") {
 				logger.Warn("Skipping apple account email import as it is already set in another user.", zap.Error(err), zap.String("appleID", profile.ID), zap.String("user_id", userID.String()))
 			} else {
 				logger.Error("Failed to import apple account email.", zap.Error(err), zap.String("appleID", profile.ID), zap.String("user_id", userID.String()))
@@ -152,8 +150,7 @@ DO UPDATE SET user_id = EXCLUDED.user_id
 WHERE user_device.user_id = EXCLUDED.user_id`,
 			userID, providerID, providerUserID)
 		if err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
+			if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == dbErrorUniqueViolation {
 				// this account is linked to the provider under a different identity.
 				return StatusError(codes.AlreadyExists, "Account is already linked to this provider.", err)
 			}
@@ -173,7 +170,7 @@ WHERE user_device.user_id = EXCLUDED.user_id`,
 	})
 
 	if err != nil {
-		if e, ok := err.(*statusError); ok {
+		if e, ok := errors.AsType[*statusError](err); ok {
 			return e.Status()
 		}
 		logger.Error("Error in database transaction.", zap.Error(err))
@@ -206,8 +203,7 @@ func LinkDevice(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid
 		if dbDeviceIDLinkedUser == 0 {
 			_, err = tx.ExecContext(ctx, "INSERT INTO user_device (id, user_id) VALUES ($1, $2)", deviceID, userID)
 			if err != nil {
-				var pgErr *pgconn.PgError
-				if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
+				if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == dbErrorUniqueViolation {
 					return StatusError(codes.AlreadyExists, "Device ID already in use.", err)
 				}
 				logger.Debug("Cannot link device ID.", zap.Error(err), zap.Any("input", deviceID))
@@ -224,7 +220,7 @@ func LinkDevice(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid
 	})
 
 	if err != nil {
-		if e, ok := err.(*statusError); ok {
+		if e, ok := errors.AsType[*statusError](err); ok {
 			return e.Status()
 		}
 		logger.Error("Error in database transaction.", zap.Error(err))
@@ -311,8 +307,7 @@ AND (NOT EXISTS
 	if facebookProfile.Email != "" && importEmail {
 		_, err = db.ExecContext(ctx, "UPDATE users SET email = $1 WHERE id = $2 AND NULLIF(email, '') IS NULL", facebookProfile.Email, userID)
 		if err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_email_key") {
+			if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_email_key") {
 				logger.Warn("Skipping facebook account email import as it is already set in another user.", zap.Error(err), zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.String("user_id", userID.String()))
 			} else {
 				logger.Error("Failed to import facebook account email.", zap.Error(err), zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.String("user_id", userID.String()))
@@ -454,8 +449,7 @@ AND (NOT EXISTS
 	if googleProfile.GetEmail() != "" && importEmail {
 		_, err = db.ExecContext(ctx, "UPDATE users SET email = $1 WHERE id = $2 AND NULLIF(email, '') IS NULL", googleProfile.GetEmail(), userID)
 		if err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_email_key") {
+			if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_email_key") {
 				logger.Warn("Skipping google account email import as it is already set in another user.", zap.Error(err), zap.String("googleID", googleProfile.GetGoogleId()), zap.String("created_user_id", userID.String()))
 			} else {
 				logger.Error("Failed to import google account email.", zap.Error(err), zap.String("googleID", googleProfile.GetGoogleId()), zap.String("created_user_id", userID.String()))

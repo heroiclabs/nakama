@@ -1,8 +1,23 @@
+// Copyright 2026 The Nakama Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package server
 
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/url"
 	"sort"
 	"time"
@@ -20,12 +35,36 @@ func (s *ConsoleServer) ListChannelMessages(ctx context.Context, in *console.Lis
 	logger, _ := LoggerWithTraceId(ctx, s.logger)
 	const limit = 50
 
-	stream, err := buildStream(in)
-	if err != nil {
-		return nil, err
+	// Build the stream identifier structure based on inputs.
+	stream := PresenceStream{}
+	var err error
+	switch in.Type {
+	case console.ListChannelMessagesRequest_ROOM:
+		stream.Mode = StreamModeChannel
+		if l := len(in.Label); l < 1 || l > 64 {
+			return nil, status.Error(codes.InvalidArgument, "Invalid label size.")
+		}
+		stream.Label = in.Label
+	case console.ListChannelMessagesRequest_GROUP:
+		stream.Mode = StreamModeGroup
+		if stream.Subject, err = uuid.FromString(in.GroupId); err != nil {
+			return nil, status.Error(codes.InvalidArgument, "Invalid group ID format.")
+		}
+	case console.ListChannelMessagesRequest_DIRECT:
+		stream.Mode = StreamModeDM
+		users := []string{in.UserIdOne, in.UserIdTwo}
+		sort.Strings(users)
+		if stream.Subject, err = uuid.FromString(users[0]); err != nil {
+			return nil, status.Error(codes.InvalidArgument, "Invalid user ID format.")
+		}
+		if stream.Subcontext, err = uuid.FromString(users[1]); err != nil {
+			return nil, status.Error(codes.InvalidArgument, "Invalid user ID format.")
+		}
+	default:
+		return nil, status.Error(codes.Internal, "Invalid chat type.")
 	}
 
-	channelId, err := StreamToChannelId(*stream)
+	channelId, err := StreamToChannelId(stream)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
@@ -35,8 +74,8 @@ func (s *ConsoleServer) ListChannelMessages(ctx context.Context, in *console.Lis
 		return nil, status.Error(codes.InvalidArgument, "Cursor is invalid or expired.")
 	}
 
-	messageList, err := ChannelMessagesList(ctx, logger, s.db, uuid.Nil, *stream, channelId, limit, false, cursor)
-	if err == runtime.ErrChannelCursorInvalid {
+	messageList, err := ChannelMessagesList(ctx, logger, s.db, uuid.Nil, stream, channelId, limit, false, cursor)
+	if errors.Is(err, runtime.ErrChannelCursorInvalid) {
 		return nil, status.Error(codes.InvalidArgument, "Cursor is invalid or expired.")
 	} else if err != nil {
 		return nil, status.Error(codes.Internal, "Error listing messages from channel.")
@@ -88,35 +127,4 @@ func (s *ConsoleServer) DeleteChannelMessages(ctx context.Context, in *console.D
 	}
 
 	return &console.DeleteChannelMessagesResponse{Total: affected}, nil
-}
-
-func buildStream(in *console.ListChannelMessagesRequest) (*PresenceStream, error) {
-	stream := PresenceStream{}
-	var err error
-	switch in.Type {
-	case console.ListChannelMessagesRequest_ROOM:
-		stream.Mode = StreamModeChannel
-		if l := len(in.Label); l < 1 || l > 64 {
-			return nil, status.Error(codes.InvalidArgument, "Invalid label size.")
-		}
-		stream.Label = in.Label
-	case console.ListChannelMessagesRequest_GROUP:
-		stream.Mode = StreamModeGroup
-		if stream.Subject, err = uuid.FromString(in.GroupId); err != nil {
-			return nil, status.Error(codes.InvalidArgument, "Invalid group ID format.")
-		}
-	case console.ListChannelMessagesRequest_DIRECT:
-		stream.Mode = StreamModeDM
-		users := []string{in.UserIdOne, in.UserIdTwo}
-		sort.Strings(users)
-		if stream.Subject, err = uuid.FromString(users[0]); err != nil {
-			return nil, status.Error(codes.InvalidArgument, "Invalid user ID format.")
-		}
-		if stream.Subcontext, err = uuid.FromString(users[1]); err != nil {
-			return nil, status.Error(codes.InvalidArgument, "Invalid user ID format.")
-		}
-	default:
-		return nil, status.Error(codes.Internal, "Invalid chat type.")
-	}
-	return &stream, nil
 }

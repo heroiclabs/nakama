@@ -22,11 +22,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/heroiclabs/nakama-common/runtime"
-
 	"github.com/dop251/goja"
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/rtapi"
+	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
@@ -606,7 +605,7 @@ func (rm *RuntimeJavaScriptMatchCore) broadcastMessageDeferred(r *goja.Runtime) 
 				Envelope:    msg,
 				Reliable:    reliable,
 			}); err != nil {
-				panic(r.NewGoError(fmt.Errorf("error deferring message broadcast: %v", err)))
+				panic(r.NewGoError(fmt.Errorf("error deferring message broadcast: %w", err)))
 			}
 		}
 

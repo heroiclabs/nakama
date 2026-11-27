@@ -17,6 +17,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"slices"
@@ -157,7 +158,7 @@ func (s *ApiServer) RpcFuncHttp(w http.ResponseWriter, r *http.Request) {
 		b, err := io.ReadAll(r.Body)
 		if err != nil {
 			// Request body too large.
-			if err.Error() == "http: request body too large" {
+			if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 				w.Header().Set("content-type", "application/json")
 				w.WriteHeader(http.StatusBadRequest)
 				sentBytes, err = w.Write(requestBodyTooLargeBytes)

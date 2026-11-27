@@ -2934,12 +2934,12 @@ func (n *RuntimeLuaNakamaModule) usersGetId(l *lua.LState) int {
 
 		facebookIDStrings := make([]string, 0, len(facebookIDsTable))
 		for _, id := range facebookIDsTable {
-			if ids, ok := id.(string); !ok || ids == "" {
+			ids, ok := id.(string)
+			if !ok || ids == "" {
 				l.ArgError(1, "each facebook id must be a string")
 				return 0
-			} else {
-				facebookIDStrings = append(facebookIDStrings, ids)
 			}
+			facebookIDStrings = append(facebookIDStrings, ids)
 		}
 		fids = facebookIDStrings
 	}
@@ -7270,13 +7270,13 @@ func (n *RuntimeLuaNakamaModule) multiUpdate(l *lua.LState) int {
 						l.ArgError(1, "expects user_id to be string")
 						return
 					}
-					if userID, err := uuid.FromString(v.String()); err != nil {
+					userID, err := uuid.FromString(v.String())
+					if err != nil {
 						conversionError = true
 						l.ArgError(1, "expects user_id to be a valid ID")
 						return
-					} else {
-						update.userID = userID
 					}
+					update.userID = userID
 				case "metadata":
 					if v.Type() != lua.LTTable {
 						conversionError = true
@@ -8240,12 +8240,12 @@ func (n *RuntimeLuaNakamaModule) leaderboardsGetId(l *lua.LState) int {
 	// Input individual ID validation.
 	leaderboardIDStrings := make([]string, 0, len(leaderboardIDs))
 	for _, id := range leaderboardIDs {
-		if ids, ok := id.(string); !ok || ids == "" {
+		ids, ok := id.(string)
+		if !ok || ids == "" {
 			l.ArgError(1, "each tournament id must be a string")
 			return 0
-		} else {
-			leaderboardIDStrings = append(leaderboardIDStrings, ids)
 		}
+		leaderboardIDStrings = append(leaderboardIDStrings, ids)
 	}
 
 	leaderboards := LeaderboardsGet(n.leaderboardCache, leaderboardIDStrings)
@@ -8999,12 +8999,12 @@ func (n *RuntimeLuaNakamaModule) tournamentsGetId(l *lua.LState) int {
 	// Input individual ID validation.
 	tournamentIDStrings := make([]string, 0, len(tournamentIDsArray))
 	for _, id := range tournamentIDsArray {
-		if ids, ok := id.(string); !ok || ids == "" {
+		ids, ok := id.(string)
+		if !ok || ids == "" {
 			l.ArgError(1, "each tournament id must be a string")
 			return 0
-		} else {
-			tournamentIDStrings = append(tournamentIDStrings, ids)
 		}
+		tournamentIDStrings = append(tournamentIDStrings, ids)
 	}
 
 	// Get the tournaments.

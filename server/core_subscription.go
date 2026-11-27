@@ -34,7 +34,6 @@ import (
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/iap"
-
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -525,9 +524,8 @@ func ValidateSubscriptionGoogle(ctx context.Context, logger *zap.Logger, db *sql
 			if vErr, ok := errors.AsType[*iap.ValidationError](err); ok {
 				logger.Error("Error validating Google receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
 				return nil, vErr
-			} else {
-				logger.Error("Error validating Google receipt", zap.Error(err))
 			}
+			logger.Error("Error validating Google receipt", zap.Error(err))
 		}
 		return nil, err
 	}
@@ -1082,8 +1080,7 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 						logger.Warn("App Store notification original transaction ID belongs to another store", zap.String("original_transaction_id", sub.originalTransactionId))
 						return ErrSkipNotification
 					}
-					var pgErr *pgconn.PgError
-					if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
+					if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
 						// User id was not found, ignore this notification
 						return ErrSkipNotification
 					}
@@ -1200,8 +1197,7 @@ func appleNotificationHandler(logger *zap.Logger, db *sql.DB, purchaseNotificati
 						logger.Warn("App Store notification original transaction ID belongs to another store", zap.String("original_transaction_id", sub.originalTransactionId))
 						return ErrSkipNotification
 					}
-					var pgErr *pgconn.PgError
-					if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
+					if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
 						// User id was not found, ignore this notification
 						return ErrSkipNotification
 					}
@@ -1569,10 +1565,10 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 					loggerWithNotification.Warn("No userId found for this Google IAP notification", zap.Any("provider_payload", gSubscription))
 					w.WriteHeader(http.StatusOK)
 					return
-				} else {
-					u := uuid.Must(uuid.FromString(s.UserId))
-					uid = &u
 				}
+
+				u := uuid.Must(uuid.FromString(s.UserId))
+				uid = &u
 			}
 
 			env := api.StoreEnvironment_PRODUCTION
@@ -1611,8 +1607,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 						loggerWithNotification.Warn("Google Play Billing notification original transaction ID belongs to another store", zap.String("original_transaction_id", storageSub.originalTransactionId))
 						return ErrSkipNotification
 					}
-					var pgErr *pgconn.PgError
-					if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
+					if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
 						// User id was not found, ignore this notification
 						return ErrSkipNotification
 					}
@@ -1699,10 +1694,10 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 						loggerWithNotification.Warn("No userId found for this Google IAP refund notification", zap.Any("google_subscription", gSubscription))
 						w.WriteHeader(http.StatusOK)
 						return
-					} else {
-						u := uuid.Must(uuid.FromString(s.UserId))
-						uid = &u
 					}
+
+					u := uuid.Must(uuid.FromString(s.UserId))
+					uid = &u
 				}
 
 				env := api.StoreEnvironment_PRODUCTION
@@ -1728,8 +1723,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 							loggerWithNotification.Warn("Google Play Billing notification original transaction ID belongs to another store", zap.String("original_transaction_id", storageSub.originalTransactionId))
 							return ErrSkipNotification
 						}
-						var pgErr *pgconn.PgError
-						if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
+						if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
 							// User id was not found, ignore this notification
 							return ErrSkipNotification
 						}
@@ -1809,10 +1803,10 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 						loggerWithNotification.Warn("No userId found for this Google IAP refund notification", zap.Any("purchase", gPurchase))
 						w.WriteHeader(http.StatusOK)
 						return
-					} else {
-						u := uuid.Must(uuid.FromString(s.UserId))
-						uid = &u
 					}
+
+					u := uuid.Must(uuid.FromString(s.UserId))
+					uid = &u
 				}
 
 				env := api.StoreEnvironment_PRODUCTION
@@ -1832,8 +1826,7 @@ func googleNotificationHandler(logger *zap.Logger, db *sql.DB, config *IAPGoogle
 
 				dbPurchases, err := upsertPurchases(r.Context(), db, sPurchase)
 				if err != nil {
-					var pgErr *pgconn.PgError
-					if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
+					if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
 						// User id was not found, ignore this notification
 						w.WriteHeader(http.StatusOK)
 						return
@@ -1983,8 +1976,7 @@ func iapProviderNotificationHandler(logger *zap.Logger, db *sql.DB, registry *Ru
 						logger.Warn("IAP provider subscription notification original transaction ID belongs to another store", zap.String("original_transaction_id", subscription.OriginalTransactionId))
 						continue
 					}
-					var pgErr *pgconn.PgError
-					if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
+					if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
 						logger.Warn("User not found for this IAP provider subscription notification", zap.String("original_transaction_id", subscription.OriginalTransactionId))
 						continue
 					}
@@ -2069,8 +2061,7 @@ func iapProviderNotificationHandler(logger *zap.Logger, db *sql.DB, registry *Ru
 
 			dbPurchases, err := upsertPurchases(r.Context(), db, purchaseToStore)
 			if err != nil {
-				var pgErr *pgconn.PgError
-				if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
+				if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == pgerrcode.ForeignKeyViolation && strings.Contains(pgErr.Message, "user_id") {
 					logger.Warn("User not found for this IAP provider refund notification", zap.String("transaction_id", purchase.TransactionId))
 					continue
 				}

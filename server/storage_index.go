@@ -488,7 +488,6 @@ LIMIT $2`
 		if err != nil {
 			return err
 		}
-		defer rows.Close()
 
 		var rowsRead bool
 		batch := bluge.NewBatch()
@@ -503,7 +502,7 @@ LIMIT $2`
 			var dbCreateTime time.Time
 			var dbUpdateTime time.Time
 			if err = rows.Scan(&dbUserID, &dbKey, &dbVersion, &dbValue, &dbRead, &dbWrite, &dbCreateTime, &dbUpdateTime); err != nil {
-				rows.Close()
+				_ = rows.Close()
 				return err
 			}
 
@@ -530,7 +529,7 @@ LIMIT $2`
 
 			doc, err := si.mapIndexStorageFields(dbUserID.String(), idx.Collection, dbKey, dbVersion, dbValue, dbRead, dbWrite, dbCreateTime, dbUpdateTime, idx.Fields, idx.SortableFields, idx.IndexOnly)
 			if err != nil {
-				rows.Close()
+				_ = rows.Close()
 				si.logger.Error("Failed to map storage object values to index", zap.Error(err))
 				return err
 			}
@@ -545,7 +544,10 @@ LIMIT $2`
 				break
 			}
 		}
-		rows.Close()
+		_ = rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
 
 		if err = idx.Index.Batch(batch); err != nil {
 			return err

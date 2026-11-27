@@ -291,11 +291,13 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 	for rows.Next() {
 		// Check limit before processing for the use case where (last page == limit) => null cursor.
 		if limit > 0 && len(objects) >= limit {
-			nextCursor = &consoleStorageCursor{
-				Key:        previousObj.Key,
-				UserID:     uuid.FromStringOrNil(previousObj.UserId),
-				Collection: previousObj.Collection,
-				Read:       previousObj.PermissionRead,
+			if previousObj != nil {
+				nextCursor = &consoleStorageCursor{
+					Key:        previousObj.Key,
+					UserID:     uuid.FromStringOrNil(previousObj.UserId),
+					Collection: previousObj.Collection,
+					Read:       previousObj.PermissionRead,
+				}
 			}
 			break
 		}
@@ -317,6 +319,10 @@ func (s *ConsoleServer) ListStorage(ctx context.Context, in *console.ListStorage
 		previousObj = o
 	}
 	_ = rows.Close()
+	if err := rows.Err(); err != nil {
+		logger.Error("Error scanning storage objects.", zap.Any("in", in), zap.Error(err))
+		return nil, status.Error(codes.Internal, "An error occurred while trying to list storage objects.")
+	}
 
 	response := &console.StorageList{
 		Objects:    objects,
@@ -446,7 +452,7 @@ func countDatabase(ctx context.Context, logger *zap.Logger, db *sql.DB, tableNam
 	// First try a fast count on table metadata.
 	if err := db.QueryRowContext(ctx, "SELECT reltuples::BIGINT FROM pg_class WHERE relname = $1", tableName).Scan(&count); err != nil {
 		logger.Warn("Error counting storage objects.", zap.Error(err))
-		if err == context.Canceled {
+		if errors.Is(err, context.Canceled) {
 			// If the context was cancelled do not attempt any further counts.
 			return 0
 		}
@@ -460,7 +466,7 @@ func countDatabase(ctx context.Context, logger *zap.Logger, db *sql.DB, tableNam
 	// If the first fast count failed, returned NULL, or returned 0 try a fast count on partitioned table metadata.
 	if err := db.QueryRowContext(ctx, "SELECT sum(reltuples)::BIGINT FROM pg_class WHERE relname ILIKE $1", tableName+"%_pkey").Scan(&count); err != nil {
 		logger.Warn("Error counting storage objects.", zap.Error(err))
-		if err == context.Canceled {
+		if errors.Is(err, context.Canceled) {
 			// If the context was cancelled do not attempt any further counts.
 			return 0
 		}

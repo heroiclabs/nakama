@@ -20,10 +20,9 @@ import (
 	"errors"
 	"slices"
 
-	"go.uber.org/zap"
-
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/jackc/pgx/v5/pgtype"
+	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

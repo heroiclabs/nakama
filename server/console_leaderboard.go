@@ -19,6 +19,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/gob"
+	"errors"
 	"time"
 
 	"github.com/gofrs/uuid/v5"
@@ -171,9 +172,9 @@ func (s *ConsoleServer) ListLeaderboardRecords(ctx context.Context, in *api.List
 	}
 
 	records, err := LeaderboardRecordsList(ctx, logger, s.db, s.leaderboardCache, s.leaderboardRankCache, in.LeaderboardId, limit, in.Cursor, in.OwnerIds, overrideExpiry)
-	if err == ErrLeaderboardNotFound {
+	if errors.Is(err, ErrLeaderboardNotFound) {
 		return nil, status.Error(codes.NotFound, "Leaderboard not found.")
-	} else if err == ErrLeaderboardInvalidCursor {
+	} else if errors.Is(err, ErrLeaderboardInvalidCursor) {
 		return nil, status.Error(codes.InvalidArgument, "Cursor is invalid or expired.")
 	} else if err != nil {
 		return nil, status.Error(codes.Internal, "Error listing records from leaderboard.")
@@ -210,7 +211,7 @@ func (s *ConsoleServer) DeleteLeaderboardRecord(ctx context.Context, in *console
 	if l.IsTournament() {
 		// Pass uuid.Nil as userID to bypass leaderboard Authoritative check.
 		err := TournamentRecordDelete(ctx, logger, s.db, s.leaderboardCache, s.leaderboardRankCache, uuid.Nil, in.Id, in.OwnerId)
-		if err == runtime.ErrTournamentNotFound {
+		if errors.Is(err, runtime.ErrTournamentNotFound) {
 			return nil, status.Error(codes.NotFound, "Tournament not found.")
 		} else if err != nil {
 			return nil, status.Error(codes.Internal, "Error deleting score from tournament.")
@@ -218,7 +219,7 @@ func (s *ConsoleServer) DeleteLeaderboardRecord(ctx context.Context, in *console
 	} else {
 		// Pass uuid.Nil as userID to bypass leaderboard Authoritative check.
 		err := LeaderboardRecordDelete(ctx, logger, s.db, s.leaderboardCache, s.leaderboardRankCache, uuid.Nil, in.Id, in.OwnerId)
-		if err == ErrLeaderboardNotFound {
+		if errors.Is(err, ErrLeaderboardNotFound) {
 			return nil, status.Error(codes.NotFound, "Leaderboard not found.")
 		} else if err != nil {
 			return nil, status.Error(codes.Internal, "Error deleting score from leaderboard.")

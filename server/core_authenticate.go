@@ -55,7 +55,7 @@ func AuthenticateApple(ctx context.Context, logger *zap.Logger, db *sql.DB, clie
 	var dbDisableTime pgtype.Timestamptz
 	err = db.QueryRowContext(ctx, query, profile.ID).Scan(&dbUserID, &dbUsername, &dbDisableTime)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			found = false
 		} else {
 			logger.Error("Error looking up user by Apple ID.", zap.Error(err), zap.String("appleID", profile.ID), zap.String("username", username), zap.Bool("create", create))
@@ -84,8 +84,7 @@ func AuthenticateApple(ctx context.Context, logger *zap.Logger, db *sql.DB, clie
 	query = "INSERT INTO users (id, username, apple_id, create_time, update_time) VALUES ($1, $2, $3, now(), now())"
 	result, err := db.ExecContext(ctx, query, userID, username, profile.ID)
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == dbErrorUniqueViolation {
 			if strings.Contains(pgErr.Message, "users_username_key") {
 				// Username is already in use by a different account.
 				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
@@ -108,8 +107,7 @@ func AuthenticateApple(ctx context.Context, logger *zap.Logger, db *sql.DB, clie
 	if profile.Email != "" && importEmail {
 		_, err = db.ExecContext(ctx, "UPDATE users SET email = $1 WHERE id = $2 AND NULLIF(email, '') IS NULL", profile.Email, userID)
 		if err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_email_key") {
+			if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_email_key") {
 				logger.Warn("Skipping apple account email import as it is already set in another user.", zap.Error(err), zap.String("appleID", profile.ID), zap.String("username", username), zap.Bool("create", create), zap.String("created_user_id", userID))
 			} else {
 				logger.Error("Failed to import apple account email.", zap.Error(err), zap.String("appleID", profile.ID), zap.String("username", username), zap.Bool("create", create), zap.String("created_user_id", userID))
@@ -233,8 +231,7 @@ WHERE ud.provider = $1 AND ud.id = $2 AND ud.user_id = u.id`
 
 		return nil
 	}); err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == dbErrorUniqueViolation {
 			if strings.Contains(pgErr.Message, "users_username_key") {
 				// Username is already in use by a different account.
 				return "", "", false, nil, status.Error(codes.AlreadyExists, "Username is already in use.")
@@ -295,8 +292,7 @@ func AuthenticateCustom(ctx context.Context, logger *zap.Logger, db *sql.DB, cus
 	query = "INSERT INTO users (id, username, custom_id, create_time, update_time) VALUES ($1, $2, $3, now(), now())"
 	result, err := db.ExecContext(ctx, query, userID, username, customID)
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == dbErrorUniqueViolation {
 			if strings.Contains(pgErr.Message, "users_username_key") {
 				// Username is already in use by a different account.
 				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
@@ -381,8 +377,7 @@ WHERE NOT EXISTS
 
 		result, err := tx.ExecContext(ctx, query, userID, username, deviceID)
 		if err != nil {
-			var pgErr *pgconn.PgError
-			ok := errors.As(err, &pgErr)
+			pgErr, ok := errors.AsType[*pgconn.PgError](err)
 			if errors.Is(err, sql.ErrNoRows) || (ok && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "user_device_pkey")) {
 				// A concurrent write has inserted this device ID.
 				logger.Info("Did not insert new user as device ID already exists.", zap.Error(err), zap.String("deviceID", deviceID), zap.String("username", username), zap.Bool("create", create))
@@ -475,8 +470,7 @@ func AuthenticateEmail(ctx context.Context, logger *zap.Logger, db *sql.DB, emai
 	query = "INSERT INTO users (id, username, email, password, create_time, update_time) VALUES ($1, $2, $3, $4, now(), now())"
 	result, err := db.ExecContext(ctx, query, userID, username, email, hashedPassword)
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == dbErrorUniqueViolation {
 			if strings.Contains(pgErr.Message, "users_username_key") {
 				// Username is already in use by a different account.
 				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
@@ -587,8 +581,7 @@ func AuthenticateFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, c
 	query = "INSERT INTO users (id, username, display_name, avatar_url, facebook_id, create_time, update_time) VALUES ($1, $2, $3, $4, $5, now(), now())"
 	result, err := db.ExecContext(ctx, query, userID, username, facebookProfile.Name, facebookProfile.Picture.Data.Url, facebookProfile.ID)
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == dbErrorUniqueViolation {
 			if strings.Contains(pgErr.Message, "users_username_key") {
 				// Username is already in use by a different account.
 				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
@@ -611,8 +604,7 @@ func AuthenticateFacebook(ctx context.Context, logger *zap.Logger, db *sql.DB, c
 	if facebookProfile.Email != "" && importEmail {
 		_, err = db.ExecContext(ctx, "UPDATE users SET email = $1 WHERE id = $2 AND NULLIF(email, '') IS NULL", facebookProfile.Email, userID)
 		if err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_email_key") {
+			if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_email_key") {
 				logger.Warn("Skipping facebook account email import as it is already set in another user.", zap.Error(err), zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create), zap.String("created_user_id", userID))
 			} else {
 				logger.Error("Failed to import facebook account email.", zap.Error(err), zap.String("facebookID", facebookProfile.ID), zap.String("username", username), zap.Bool("create", create), zap.String("created_user_id", userID))
@@ -668,8 +660,7 @@ func AuthenticateFacebookInstantGame(ctx context.Context, logger *zap.Logger, db
 	query = "INSERT INTO users (id, username, facebook_instant_game_id, create_time, update_time) VALUES ($1, $2, $3, now(), now())"
 	result, err := db.ExecContext(ctx, query, userID, username, facebookInstantGameID)
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == dbErrorUniqueViolation {
 			if strings.Contains(pgErr.Message, "users_username_key") {
 				// Username is already in use by a different account.
 				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
@@ -735,8 +726,7 @@ func AuthenticateGameCenter(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	query = "INSERT INTO users (id, username, gamecenter_id, create_time, update_time) VALUES ($1, $2, $3, now(), now())"
 	result, err := db.ExecContext(ctx, query, userID, username, playerID)
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == dbErrorUniqueViolation {
 			if strings.Contains(pgErr.Message, "users_username_key") {
 				// Username is already in use by a different account.
 				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
@@ -862,8 +852,7 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 	query = "INSERT INTO users (id, username, google_id, display_name, avatar_url, create_time, update_time) VALUES ($1, $2, $3, $4, $5, now(), now())"
 	result, err := db.ExecContext(ctx, query, userID, username, googleProfile.GetGoogleId(), displayName, avatarURL)
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == dbErrorUniqueViolation {
 			if strings.Contains(pgErr.Message, "users_username_key") {
 				// Username is already in use by a different account.
 				return "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
@@ -886,8 +875,7 @@ func AuthenticateGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, cli
 	if googleProfile.GetEmail() != "" && importEmail {
 		_, err = db.ExecContext(ctx, "UPDATE users SET email = $1 WHERE id = $2 AND NULLIF(email, '') IS NULL", googleProfile.GetEmail(), userID)
 		if err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_email_key") {
+			if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "users_email_key") {
 				logger.Warn("Skipping google account email import as it is already set in another user.", zap.Error(err), zap.String("googleID", googleProfile.GetGoogleId()), zap.String("username", username), zap.Bool("create", create), zap.String("created_user_id", userID))
 			} else {
 				logger.Error("Failed to import google account email.", zap.Error(err), zap.String("googleID", googleProfile.GetGoogleId()), zap.String("username", username), zap.Bool("create", create), zap.String("created_user_id", userID))
@@ -944,8 +932,7 @@ func AuthenticateSteam(ctx context.Context, logger *zap.Logger, db *sql.DB, clie
 	query = "INSERT INTO users (id, username, steam_id, create_time, update_time) VALUES ($1, $2, $3, now(), now())"
 	result, err := db.ExecContext(ctx, query, userID, username, steamID)
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation {
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == dbErrorUniqueViolation {
 			if strings.Contains(pgErr.Message, "users_username_key") {
 				// Username is already in use by a different account.
 				return "", "", "", false, status.Error(codes.AlreadyExists, "Username is already in use.")
@@ -1027,6 +1014,7 @@ func importSteamFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, tra
 			possibleFriendIDs = append(possibleFriendIDs, friendID)
 		}
 		_ = rows.Close()
+		// Purposefully ignore rows.Err() here, it is an optimistic scan.
 
 		friendUserIDs = importFriendsByUUID(ctx, logger, tx, userID, possibleFriendIDs, "Steam")
 		return nil
@@ -1112,6 +1100,7 @@ func importProviderFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 			possibleFriendIDs = append(possibleFriendIDs, friendID)
 		}
 		_ = rows.Close()
+		// Purposefully ignore rows.Err() here, it is an optimistic scan.
 
 		friendUserIDs = importFriendsByUUID(ctx, logger, tx, userID, possibleFriendIDs, provider)
 		return nil
@@ -1186,6 +1175,7 @@ func importFacebookFriends(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 			possibleFriendIDs = append(possibleFriendIDs, friendID)
 		}
 		_ = rows.Close()
+		// Purposefully ignore rows.Err() here, it is an optimistic scan.
 
 		friendUserIDs = importFriendsByUUID(ctx, logger, tx, userID, possibleFriendIDs, "Facebook")
 		return nil
@@ -1240,6 +1230,9 @@ func resetUserFriends(ctx context.Context, tx *sql.Tx, userID uuid.UUID) error {
 		params = append(params, id)
 	}
 	_ = rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
 
 	if len(params) > 0 {
 		query = "UPDATE users SET edge_count = edge_count - 1 WHERE id = ANY($1)"

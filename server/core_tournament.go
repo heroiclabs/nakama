@@ -28,7 +28,6 @@ import (
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
-
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
@@ -279,6 +278,10 @@ WHERE id = ANY($1::text[])`
 			records = append(records, tournament)
 		}
 		_ = rows.Close()
+		if err := rows.Err(); err != nil {
+			logger.Error("Error parsing retrieved tournament records", zap.Error(err))
+			return nil, err
+		}
 	}
 
 	return records, nil
@@ -329,6 +332,10 @@ func TournamentList(ctx context.Context, logger *zap.Logger, db *sql.DB, leaderb
 			sizes[dbID] = dbSize
 		}
 		_ = rows.Close()
+		if err := rows.Err(); err != nil {
+			logger.Error("Error parsing listed tournament records", zap.Error(err))
+			return nil, err
+		}
 	}
 
 	records := make([]*api.Tournament, 0, len(list))
@@ -546,8 +553,7 @@ func TournamentRecordWrite(ctx context.Context, logger *zap.Logger, db *sql.DB, 
 			dbOldScores := int64Tuple{}
 			err := tx.QueryRowContext(ctx, query, params...).Scan(&dbOldScores)
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
-				var pgErr *pgconn.PgError
-				if errors.As(err, &pgErr) && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "leaderboard_record_pkey") {
+				if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == dbErrorUniqueViolation && strings.Contains(pgErr.Message, "leaderboard_record_pkey") {
 					return errTournamentWriteNoop
 				}
 				return err
