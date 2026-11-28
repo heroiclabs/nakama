@@ -64,6 +64,7 @@ func TestResetUserPasswordAuthorizesTargetACLBeforeUpdate(t *testing.T) {
 		name        string
 		targetRole  acl.Permission
 		targetACL   string
+		heroicCloud bool
 		selectFails int
 		wantSelects int
 		wantCode    codes.Code
@@ -75,6 +76,8 @@ func TestResetUserPasswordAuthorizesTargetACLBeforeUpdate(t *testing.T) {
 		{name: "admin permissions are rejected", targetRole: acl.Admin(), wantCode: codes.PermissionDenied, wantUpdates: 0},
 		{name: "malformed target ACL fails closed", targetACL: "{", wantCode: codes.Internal, wantUpdates: 0},
 		{name: "missing target preserves not found", targetACL: "missing", wantCode: codes.NotFound, wantUpdates: 0},
+		{name: "heroic cloud user cannot be reset", targetRole: callerRole, heroicCloud: true, wantCode: codes.FailedPrecondition, wantUpdates: 0},
+		{name: "heroic cloud admin cannot be reset", targetRole: acl.Admin(), heroicCloud: true, wantCode: codes.FailedPrecondition, wantUpdates: 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			targetACLJSON := tc.targetACL
@@ -86,7 +89,7 @@ func TestResetUserPasswordAuthorizesTargetACLBeforeUpdate(t *testing.T) {
 				}
 			}
 
-			state := &resetPasswordACLTestState{targetACLJSON: targetACLJSON, selectFailures: tc.selectFails}
+			state := &resetPasswordACLTestState{targetACLJSON: targetACLJSON, heroicCloud: tc.heroicCloud, selectFailures: tc.selectFails}
 			db := sql.OpenDB(&resetPasswordACLTestConnector{state: state})
 			t.Cleanup(func() { _ = db.Close() })
 			logger := zap.NewNop()
@@ -118,6 +121,7 @@ func TestResetUserPasswordAuthorizesTargetACLBeforeUpdate(t *testing.T) {
 
 type resetPasswordACLTestState struct {
 	targetACLJSON  string
+	heroicCloud    bool
 	selectFailures int
 	selectCount    int
 	updateCount    int
@@ -158,7 +162,7 @@ func (*resetPasswordACLTestConn) CheckNamedValue(*driver.NamedValue) error { ret
 func (c *resetPasswordACLTestConn) QueryContext(_ context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
 	normalized := strings.Join(strings.Fields(query), " ")
 	switch {
-	case normalized == "SELECT acl FROM console_user WHERE username = $1 FOR UPDATE":
+	case normalized == "SELECT acl, COALESCE(metadata->>'type', '') = 'heroic_cloud' FROM console_user WHERE username = $1 FOR UPDATE":
 		c.state.selectCount++
 		if len(args) != 1 || args[0].Value != "target" {
 			return nil, fmt.Errorf("unexpected target ACL arguments: %v", args)
@@ -170,7 +174,7 @@ func (c *resetPasswordACLTestConn) QueryContext(_ context.Context, query string,
 		if c.state.targetACLJSON == "missing" {
 			return nil, sql.ErrNoRows
 		}
-		return &resetPasswordACLTestRows{columns: []string{"acl"}, values: []driver.Value{[]byte(c.state.targetACLJSON)}}, nil
+		return &resetPasswordACLTestRows{columns: []string{"acl", "heroic_cloud"}, values: []driver.Value{[]byte(c.state.targetACLJSON), c.state.heroicCloud}}, nil
 	case strings.Contains(normalized, "UPDATE console_user SET password = $1, update_time = NOW() WHERE username = $2 RETURNING id, username, email, update_time"):
 		if len(args) != 2 || args[1].Value != "target" {
 			return nil, fmt.Errorf("unexpected password update arguments: %v", args)
